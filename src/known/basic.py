@@ -1,28 +1,82 @@
 #-----------------------------------------------------------------------------------------------------
 import datetime
+import os.path
 from math import floor
+#import numpy as np
 #-----------------------------------------------------------------------------------------------------
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+# Aliased functions
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 now = datetime.datetime.now
-fake = lambda members: type('object', (object,), members)()
+fdate = datetime.datetime.strftime
+pdate = datetime.datetime.strptime
+fake = lambda members: type('object', (object,), members)() # a fake object with members (dict)
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+# Path related functions
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+def pjs(*paths):
+    """ Path Joins : joins multiple dirs/files in args using os.path.join """
+    res = ''
+    for p in paths: res = os.path.join(res, p)
+    return res
+def pj(path, sep='/'): 
+    """ Path Join : similar to pjs but takes a string instead of individual args """
+    return pjs(*path.split(sep))
 #-----------------------------------------------------------------------------------------------------
 
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+# Misc
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 class REMAP:
-    def __init__(self,Input_Range, Mapped_Range) -> None:
-        self.input_range(Input_Range)
-        self.mapped_range(Mapped_Range)
+    """ mapping between ranges, works with ndarrays.
+        forward: maps an input within Input_Range to output within Output_Range
+        backward: maps an input within Output_Range to output within Input_Range
+        """
+    def __init__(self, Input_Range, Output_Range) -> None:
+        self.set_input_range(Input_Range)
+        self.set_output_range(Output_Range)
 
-    def input_range(self, Input_Range):
-        self.Li, self.Hi = Input_Range
-        self.Di = self.Hi - self.Li
-    def mapped_range(self, Mapped_Range):
-        self.Lm, self.Hm = Mapped_Range
-        self.Dm = self.Hm - self.Lm
-    def map2in(self, m):
-        return ((m-self.Lm)*self.Di/self.Dm) + self.Li
-    def in2map(self, i):
-        return ((i-self.Li)*self.Dm/self.Di) + self.Lm
+    def set_input_range(self, Range):
+        self.input_low, self.input_high = Range
+        self.input_delta = self.input_high - self.input_low
 
+    def set_output_range(self, Range):
+        self.output_low, self.output_high = Range
+        self.output_delta = self.output_high - self.output_low
 
+    def backward(self, X):
+        return ((X - self.output_low)*self.input_delta/self.output_delta) + self.input_low
+
+    def forward(self, X):
+        return ((X - self.input_low)*self.output_delta/self.input_delta) + self.output_low
+    """
+    def test(self, num):
+        x = np.linspace(self.input_low, self.input_high, num=num)
+        y = np.linspace(self.output_low, self.output_high, num=num)
+
+        yt = self.forward(x) #<--- should be y
+        xt = self.backward(y) #<----- should be x
+        xE = np.sum(np.abs(yt - y))
+        yE = np.sum(np.abs(xt - x))
+
+        return xE, yE
+    """
+
+class JSON:
+    import json # load only when called
+    def save(path, data_dict):
+        """ saves a dict to disk in json format """
+        with open(path, 'w') as f:
+            f.write(__class__.json.dumps(data_dict, sort_keys=False, indent=4))
+        return path
+    def load(path):
+        """ returns a dict from a json file """
+        data_dict = None
+        with open(path, 'r') as f:
+            data_dict = __class__.json.loads(f.read())
+        return data_dict
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 # Printing functions

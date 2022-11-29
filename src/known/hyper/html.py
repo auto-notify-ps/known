@@ -164,27 +164,8 @@ class HARSER(HTMLParser):
     def handle_comment(self, data):
         print("Ignoring Comment:[{}]".format(data))
     def handle_entityref(self, name):
-        """
-        This method is called to process a named character reference of the form &name; 
-        (e.g. &gt;), where name is a general entity reference (e.g. 'gt'). 
-        This method is never called if convert_charrefs is True.
-        
-        c = chr(name2codepoint[name])
-        print("Named ent:", c)
-        """
         raise StopIteration('entity reference should be handled using convert_charrefs! :: [{}]'.format(name))
     def handle_charref(self, name):
-        """
-        This method is called to process decimal and hexadecimal numeric character references of the form &#NNN; and &#xNNN;. 
-        For example, the decimal equivalent for &gt; is &#62;, whereas the hexadecimal is &#x3E;; in this case the method will receive '62' or 'x3E'. 
-        This method is never called if convert_charrefs is True.
-        
-        if name.startswith('x'):
-            c = chr(int(name[1:], 16))
-        else:
-            c = chr(int(name))
-        print("Num ent  :", c)
-        """
         raise StopIteration('char reference should be handled using convert_charrefs! :: [{}]'.format(name))
 
 

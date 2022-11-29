@@ -2,43 +2,15 @@
 
 #import numpy as np
 #import matplotlib.pyplot as plt
-import os, datetime
+#import os, datetime
 import torch as tt
 import torch.nn as nn
 from io import BytesIO
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-""" [D] [torch.nn] 
-    Some basic Neural Net models and helpers functions using torch.nn """
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def save_models(dir_name, file_names, models):
-    os.makedirs(dir_name, exist_ok=True)
-    for θ, f in zip(models, file_names):
-        tt.save(θ, os.path.join(dir_name, f))
 
-def load_models(dir_name, file_names):
-    return tuple( [tt.load(os.path.join(dir_name, f)) for f in file_names ])
+def build_dense_sequential(in_dim, layer_dims, out_dim, actF, actL ):
+    """ a fully connected dense layer, commonly attached at the end of other networks """
 
-def save_model(path, model):
-    tt.save(model, path)
-
-def load_model(path):
-    return tt.load(path)
-
-def clone_model(model, detach=False):
-    """ use detach=True to sets the 'requires_grad' to 'False' on all of the parameters of the cloned model. """
-    buffer = BytesIO()
-    tt.save(model, buffer)
-    buffer.seek(0)
-    model_copy = tt.load(buffer)
-    if detach:
-        for p in model_copy.parameters():
-            p.requires_grad=False
-    model_copy.eval()
-    del buffer
-    return model_copy
-
-def build_sequential(in_dim, layer_dims, out_dim, actF, actL ):
     layers = [nn.Linear(in_dim, layer_dims[0]), actF()]
     for i in range(len(layer_dims)-1):
         layers.append(nn.Linear(layer_dims[i], layer_dims[i+1]))
@@ -47,19 +19,38 @@ def build_sequential(in_dim, layer_dims, out_dim, actF, actL ):
     _ = None if actL is None else layers.append(actL())
     return nn.Sequential( *layers )
 
+def save_w8s(path, model):tt.save(model.state_dict(), path)
 
-class MLP(nn.Module):
-    """ Multi layer Perceptron """
-    def __init__(self, in_dim, layer_dims, out_dim, actF, actL):
-        super(MLP, self).__init__()
-        self.net = build_sequential(in_dim, layer_dims, out_dim, actF, actL )
-    def forward(self, x):
-        return self.net(x)
+def load_w8s(path, model): model.load_state_dict(tt.load(path))
 
-class MLP2(nn.Module):
-    """ Multi layer Perceptron with twin input """
-    def __init__(self, in_dim_1, in_dim_2, layer_dims, out_dim, actF, actL):
-        super(MLP2, self).__init__()
-        self.net = build_sequential(in_dim_1+in_dim_2, layer_dims, out_dim, actF, actL )
-    def forward(self, xs, xa):
-        return self.net(tt.concat((xs,xa), dim=-1))
+def make_clone(model, detach=False, set_eval=False):
+    """ Clone a model using memory buffer
+        NOTE: use detach=True to sets the 'requires_grad' to 'False' on all of the parameters of the cloned model. """
+    buffer = BytesIO()
+    tt.save(model, buffer)
+    buffer.seek(0)
+    model_copy = tt.load(buffer)
+    if detach:
+        for p in model_copy.parameters(): p.requires_grad=False
+    if set_eval: model_copy.eval()
+    buffer.close()
+    del buffer
+    return model_copy
+
+def make_clones(model, n_copies, detach=False, set_eval=False):
+    """ Clone a model multiple times using memory buffer
+        NOTE: use detach=True to sets the 'requires_grad' to 'False' on all of the parameters of the cloned model. """
+    buffer = BytesIO()
+    
+    tt.save(model, buffer)
+    model_copies = []
+    for _ in range(n_copies):
+        buffer.seek(0)
+        model_copy = tt.load(buffer)
+        if detach:
+            for p in model_copy.parameters(): p.requires_grad=False
+        if set_eval: model_copy.eval()
+        model_copies.append(model_copy)
+    buffer.close()
+    del buffer
+    return tuple(model_copies)
