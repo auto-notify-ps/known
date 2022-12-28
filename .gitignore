@@ -2,7 +2,7 @@
 __pycache__/
 __archive__/
 __private__/
-known_venv/
+__venv__/
 *.py[cod]
 *$py.class
 
