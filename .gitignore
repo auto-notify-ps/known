@@ -1,8 +1,10 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
+# custom dirs
 __archive__/
 __private__/
 __venv__/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
 *.py[cod]
 *$py.class
 
