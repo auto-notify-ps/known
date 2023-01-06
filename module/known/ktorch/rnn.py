@@ -40,7 +40,7 @@ NOTE: [RNNCell vs RNN vs RNNStack vs StackedRNNCell vs StackedRNN]:
         ~ Implments forward pass 'horizontally' i.e. computes all timesteps at a layer before going to next layer
         ~ Internally, implements a `nn.ModuleList` of RNN
 
-    StackedRNNCell : Implements Layers of RNN Cells
+    (depreciated) StackedRNNCell : Implements Layers of RNN Cells
         ~ The `forward` methods implements forward-pass through one timestep only.
         ~ Excpected input of shape (batch_size, input_size)
 
@@ -62,7 +62,7 @@ NOTE: Arguments to __init__
         `hidden_sizes` expects a `list/tuple of ints` for `hidden_size` at each layer
         this also determines the number of layers in the stack
 
-    RNNCell and StackedRNNCell have same args, except `hidden_size` v/s `hidden_sizes`
+    (depeciated) RNNCell and StackedRNNCell have same args, except `hidden_size` v/s `hidden_sizes`
         `hidden_sizes` expects a `list/tuple of ints` for `hidden_size` at each layer
         this also determines the number of layers in the stack
 
@@ -74,6 +74,7 @@ NOTE: Bias in Linear layers:
     In the orignal RNN, bias is not required for hidden state, 
     `bias` args enables bias for hidden state only
 
+NOTE: Dropout is applied to output of each hidden layer except the last layer in a stack
 """
 
 # @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ =
@@ -138,9 +139,10 @@ class ELMAN(ELMANCell):
 
 class ELMANStack(nn.Module):
 
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, device=None, dtype=None, do_init=True, batch_first=True):
+    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
         super().__init__()
         self.input_size, self.hidden_sizes = input_size, tuple(hidden_sizes)
+        self.dropout = dropout
 
         L = (self.input_size,) + self.hidden_sizes
         self.model = nn.ModuleList([ ELMAN(
@@ -154,6 +156,7 @@ class ELMANStack(nn.Module):
                 do_init=do_init,
                 batch_first=batch_first
             ) for i in range(1, len(L)) ] )
+        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] )  
         self.no_hidden = [ None for _ in range(len(self.model)) ]
         
     def forward(self, x, h=None):
@@ -161,23 +164,29 @@ class ELMANStack(nn.Module):
         if h is None: h=self.no_hidden
         for i,layer in enumerate(self.model):
             x, lh = layer(x, h[i])
+            x = self.dropouts[i](x) #<--- dropout only output
             H.append(lh)
         return x, tt.stack(H)
 
-class StackedELMANCell(nn.Module):
+class StackedELMAN(nn.Module):
 
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, device=None, dtype=None, do_init=True):
+    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
         super().__init__()
         self.input_size=input_size
         self.hidden_sizes=tuple(hidden_sizes)
         self.has_bias = bias
+        self.dropout = dropout
 
         self.layer_sizes = (self.input_size,) + self.hidden_sizes
         self.ihL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
         self.hhL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
         self.nlL = [ nlF(**nlFA)  for i in range(1, len(self.layer_sizes))  ]
+        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] ) 
         if do_init: self.reset_parameters()
-    
+        self.batch_first = batch_first
+        self.batch_dim = (0 if batch_first else 1)
+        self.seq_dim = (1 if batch_first else 0)
+
     def reset_parameters(self):
         for i,hs in enumerate(self.hidden_sizes):
             stdv = 1.0 / math.sqrt(hs) if hs > 0 else 0
@@ -186,22 +195,6 @@ class StackedELMANCell(nn.Module):
 
     def init_hidden(self, batch_size, dtype=None, device=None):
         return [ tt.zeros(size=(batch_size, hs), dtype=dtype, device=device) for hs in self.hidden_sizes  ]
-
-    def forward(self, x, h=None):
-        if h is None: h=self.init_hidden(x.shape[0], x.dtype, x.device) #<--- here h is a list
-        H=[]
-        for i in range(len(self.hidden_sizes)):
-            x = self.nlL[i](self.ihL[i](x) + self.hhL[i](h[i]))
-            H.append(x)
-        return H
-
-class StackedELMAN(StackedELMANCell):
-
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__(input_size, hidden_sizes, nlF, nlFA, bias, device, dtype, do_init)
-        self.batch_first = batch_first
-        self.batch_dim = (0 if batch_first else 1)
-        self.seq_dim = (1 if batch_first else 0)
 
     def forward(self, Xt, h=None):
         if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
@@ -213,12 +206,12 @@ class StackedELMAN(StackedELMANCell):
             for i in range(len(self.hidden_sizes)):
                 x = self.nlL[i](self.ihL[i](x) + self.hhL[i](seq[-1][i]))
                 H.append(x)
+                x = self.dropouts[i](x) #<--- dropout only output
             seq_last.append(x)
             seq.append(H)
             
         out = tt.stack(seq_last, dim=self.seq_dim)
         return out, tt.stack(seq[-1])
-
 
 
 # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
@@ -294,10 +287,10 @@ class GRU(GRUCell):
 
 class GRUStack(nn.Module):
 
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, device=None, dtype=None, do_init=True, batch_first=True):
+    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
         super().__init__()
         self.input_size, self.hidden_sizes = input_size, tuple(hidden_sizes)
-
+        self.dropout = dropout
         L = (self.input_size,) + self.hidden_sizes
         self.model = nn.ModuleList([ GRU(
                 input_size=L[i-1],
@@ -310,6 +303,7 @@ class GRUStack(nn.Module):
                 do_init=do_init,
                 batch_first=batch_first
             ) for i in range(1, len(L)) ] )
+        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] )  
         self.no_hidden = [ None for _ in range(len(self.model)) ]
         
     def forward(self, x, h=None):
@@ -317,16 +311,18 @@ class GRUStack(nn.Module):
         if h is None: h=self.no_hidden
         for i,layer in enumerate(self.model):
             x, lh = layer(x, h[i])
+            x = self.dropouts[i](x) #<--- dropout only output
             H.append(lh)
         return x, tt.stack(H)
 
-class StackedGRUCell(nn.Module):
+class StackedGRU(nn.Module):
 
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, device=None, dtype=None, do_init=True):
+    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
         super().__init__()
         self.input_size=input_size
         self.hidden_sizes=tuple(hidden_sizes)
         self.has_bias = bias
+        self.dropout = dropout
         self.layer_sizes = (self.input_size,) + self.hidden_sizes
 
         self.irL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
@@ -336,8 +332,11 @@ class StackedGRUCell(nn.Module):
         self.iNL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
         self.hNL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
         self.nlL = [ nlF(**nlFA)  for i in range(1, len(self.layer_sizes))  ]
-        
+        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] ) 
         if do_init: self.reset_parameters()
+        self.batch_first = batch_first
+        self.batch_dim = (0 if batch_first else 1)
+        self.seq_dim = (1 if batch_first else 0)
     
     def reset_parameters(self):
         for i,hs in enumerate(self.hidden_sizes):
@@ -347,25 +346,6 @@ class StackedGRUCell(nn.Module):
 
     def init_hidden(self, batch_size, dtype=None, device=None):
         return [ tt.zeros(size=(batch_size, hs), dtype=dtype, device=device) for hs in self.hidden_sizes  ]
-
-    def forward(self, x, h=None):
-        if h is None: h=self.init_hidden(x.shape[0], x.dtype, x.device) #<--- here h is a list
-        H=[]
-        for i in range(len(self.hidden_sizes)):
-            r = tt.sigmoid(self.irL[i](x) + self.hrL[i](h[i]))
-            z = tt.sigmoid(self.izL[i](x) + self.hzL[i](h[i]))
-            n = self.nlL[i](self.iNL[i](x) + r*self.hNL[i](h[i]))
-            x = (1-z) * n + (z * h[i])
-            H.append(x)
-        return H
-
-class StackedGRU(StackedGRUCell):
-
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__(input_size, hidden_sizes, nlF, nlFA, bias, device, dtype, do_init)
-        self.batch_first = batch_first
-        self.batch_dim = (0 if batch_first else 1)
-        self.seq_dim = (1 if batch_first else 0)
 
     def forward(self, Xt, h=None): 
         if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
@@ -380,12 +360,12 @@ class StackedGRU(StackedGRUCell):
                 n = self.nlL[i](self.iNL[i](x) + r*self.hNL[i](h[i]))
                 x = (1-z) * n + (z * h[i])
                 H.append(x)
+                x = self.dropouts[i](x) #<--- dropout only output
             seq_last.append(x)
             seq.append(H)
             
         out = tt.stack(seq_last, dim=self.seq_dim)
         return out, tt.stack(seq[-1])
-
 
 
 # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
@@ -478,10 +458,10 @@ class LSTM(LSTMCell):
 
 class LSTMStack(nn.Module):
 
-    def __init__(self, input_size, hidden_sizes, nlF, nlF2 ,nlFA={}, nlFA2={}, bias=True, device=None, dtype=None, do_init=True, batch_first=True):
+    def __init__(self, input_size, hidden_sizes, nlF, nlF2 ,nlFA={}, nlFA2={}, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
         super().__init__()
         self.input_size, self.hidden_sizes = input_size, tuple(hidden_sizes)
-
+        self.dropout = dropout
         L = (self.input_size,) + self.hidden_sizes
         self.model = nn.ModuleList([ LSTM(
                 input_size=L[i-1],
@@ -496,6 +476,7 @@ class LSTMStack(nn.Module):
                 do_init=do_init,
                 batch_first=batch_first
             ) for i in range(1, len(L)) ] )
+        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] ) 
         self.no_hidden = [ None for _ in range(len(self.model)) ]
         self.no_cell = [ None for _ in range(len(self.model)) ]
         
@@ -505,17 +486,19 @@ class LSTMStack(nn.Module):
         if c is None: c=self.no_cell
         for i,layer in enumerate(self.model):
             x, lh, lc = layer(x, h[i], c[i])
+            x = self.dropouts[i](x) #<--- dropout only output
             H.append(lh)
             C.append(lc)
         return x, tt.stack(H), tt.stack(C)
 
-class StackedLSTMCell(nn.Module):
+class StackedLSTM(nn.Module):
 
-    def __init__(self, input_size, hidden_sizes, nlF, nlF2, nlFA={}, nlFA2={}, bias=True, device=None, dtype=None, do_init=True):
+    def __init__(self, input_size, hidden_sizes, nlF, nlF2, nlFA={}, nlFA2={}, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
         super().__init__()
         self.input_size=input_size
         self.hidden_sizes=tuple(hidden_sizes)
         self.has_bias = bias
+        self.dropout = dropout
         self.layer_sizes = (self.input_size,) + self.hidden_sizes
 
         self.iIL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
@@ -528,9 +511,12 @@ class StackedLSTMCell(nn.Module):
         self.hOL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
         self.nlL = [ nlF(**nlFA)  for i in range(1, len(self.layer_sizes))  ]
         self.nl2L = [ nlF2(**nlFA2)  for i in range(1, len(self.layer_sizes))  ]
-
+        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] ) 
         if do_init: self.reset_parameters()
-    
+        self.batch_first = batch_first
+        self.batch_dim = (0 if batch_first else 1)
+        self.seq_dim = (1 if batch_first else 0)
+
     def reset_parameters(self):
         for i,hs in enumerate(self.hidden_sizes):
             stdv = 1.0 / math.sqrt(hs) if hs > 0 else 0
@@ -543,30 +529,6 @@ class StackedLSTMCell(nn.Module):
 
     def init_cell(self, batch_size, dtype=None, device=None):
         return [ tt.zeros(size=(batch_size, hs), dtype=dtype, device=device) for hs in self.hidden_sizes  ]
-
-    def forward(self, x, h=None, c=None): 
-        if h is None: h=self.init_hidden(x.shape[0], x.dtype, x.device) #<--- here h is a list
-        if c is None: c=self.init_cell(x.shape[0], x.dtype, x.device) #<--- here c is a list
-        H,C=[],[]
-        for i in range(len(self.hidden_sizes)):            
-            I = tt.sigmoid(self.iIL[i](x) + self.hIL[i](h[i]))
-            F = tt.sigmoid(self.iFL[i](x) + self.hFL[i](h[i]))
-            G = self.nlL[i](self.iGL[i](x) + self.hGL[i](h[i]))
-            O = tt.sigmoid(self.iOL[i](x) + self.hOL[i](h[i]))
-            c_ = F*c[i] + I*G
-            x = O * self.nl2L[i](c_)
-
-            H.append(x)
-            C.append(c_)
-        return H, C
-
-class StackedLSTM(StackedLSTMCell):
-
-    def __init__(self, input_size, hidden_sizes, nlF, nlF2, nlFA={}, nlFA2={}, bias=True, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__(input_size, hidden_sizes,  nlF, nlF2, nlFA, nlFA2, bias, device, dtype, do_init)
-        self.batch_first = batch_first
-        self.batch_dim = (0 if batch_first else 1)
-        self.seq_dim = (1 if batch_first else 0)
 
     def forward(self, Xt, h=None, c=None): 
         if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
@@ -587,6 +549,7 @@ class StackedLSTM(StackedLSTMCell):
                 x = O * self.nl2L[i](c_)
                 H.append(x)
                 C.append(c_)
+                x = self.dropouts[i](x) #<--- dropout only output
             seq_last.append(x)
             ceq_last.append(c_)
             seq.append(H)
@@ -678,10 +641,10 @@ class JANET(JANETCell):
             
 class JANETStack(nn.Module):
 
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, beta=0.0, bias=True, device=None, dtype=None, do_init=True, batch_first=True):
+    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, beta=0.0, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
         super().__init__()
         self.input_size, self.hidden_sizes = input_size, tuple(hidden_sizes)
-
+        self.dropout = dropout
         L = (self.input_size,) + self.hidden_sizes
         self.model = nn.ModuleList([ JANET(
                 input_size=L[i-1],
@@ -695,6 +658,7 @@ class JANETStack(nn.Module):
                 do_init=do_init,
                 batch_first=batch_first
             ) for i in range(1, len(L)) ] )
+        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] ) 
         self.no_hidden = [ None for _ in range(len(self.model)) ]
         
     def forward(self, x, h=None):
@@ -702,17 +666,19 @@ class JANETStack(nn.Module):
         if h is None: h=self.no_hidden
         for i,layer in enumerate(self.model):
             x, lh = layer(x, h[i])
+            x = self.dropouts[i](x) #<--- dropout only output
             H.append(lh)
         return x, tt.stack(H)
 
-class StackedJANETCell(nn.Module):
+class StackedJANET(nn.Module):
 
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, beta=0.0, bias=True, device=None, dtype=None, do_init=True):
+    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, beta=0.0, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
         super().__init__()
         self.input_size=input_size
         self.hidden_sizes=tuple(hidden_sizes)
         self.has_bias = bias
         self.beta = beta
+        self.dropout = dropout
         self.layer_sizes = (self.input_size,) + self.hidden_sizes
 
         self.iFL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
@@ -720,9 +686,12 @@ class StackedJANETCell(nn.Module):
         self.iGL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
         self.hGL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
         self.nlL = [ nlF(**nlFA)  for i in range(1, len(self.layer_sizes))  ]
-
+        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] ) 
         if do_init: self.reset_parameters()
-    
+        self.batch_first = batch_first
+        self.batch_dim = (0 if batch_first else 1)
+        self.seq_dim = (1 if batch_first else 0)
+
     def reset_parameters(self):
         for i,hs in enumerate(self.hidden_sizes):
             stdv = 1.0 / math.sqrt(hs) if hs > 0 else 0
@@ -732,23 +701,6 @@ class StackedJANETCell(nn.Module):
     def init_hidden(self, batch_size, dtype=None, device=None):
         return [ tt.zeros(size=(batch_size, hs), dtype=dtype, device=device) for hs in self.hidden_sizes  ]
 
-    def forward(self, x, h=None): 
-        if h is None: h=self.init_hidden(x.shape[0], x.dtype, x.device) #<--- here h is a list
-        H=[]
-        for i in range(len(self.hidden_sizes)):            
-            F = tt.sigmoid(self.iFL[i](x) + self.hFL[i](h[i]) - self.beta)
-            G = self.nlL[i](self.iGL[i](x) + self.hGL[i](h[i]))
-            x = F*h[i] + (1-F)*G
-            H.append(x)
-        return H
-
-class StackedJANET(StackedJANETCell):
-
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, beta=0.0, bias=True, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__(input_size, hidden_sizes, nlF, nlFA, beta, bias, device, dtype, do_init)
-        self.batch_first = batch_first
-        self.batch_dim = (0 if batch_first else 1)
-        self.seq_dim = (1 if batch_first else 0)
 
     def forward(self, Xt, h=None): 
         if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
@@ -763,6 +715,7 @@ class StackedJANET(StackedJANETCell):
                 G = self.nlL[i](self.iGL[i](x) + self.hGL[i](h[i]))
                 x = F*h[i] + (1-F)*G
                 H.append(x)
+                x = self.dropouts[i](x) #<--- dropout only output
             seq_last.append(x)
             seq.append(H)
             

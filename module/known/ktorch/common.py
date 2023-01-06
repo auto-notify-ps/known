@@ -34,9 +34,14 @@ def copy_parameters(module_to, module_from):
 @tt.no_grad()
 def show_parameters(module, values=False):
     r""" prints the parameters using `nn.Module.parameters` iterator, use `values=True` to print full parameter tensor """
+    nparam=0
     for i,p in enumerate(module.parameters()):
-        print(f'#[{i+1}]\tShape[{p.shape}]\tParams:[{p.numel()}]')
+        iparam = p.numel()
+        nparam += iparam
+        print(f'#[{i+1}]\tShape[{p.shape}]\tParams: {iparam}')
         if values: print(f'{p}')
+    print(f'Total Parameters: {nparam}')
+    return nparam
 
 def save_state(path, model): tt.save(model.state_dict(), path) # simply save the state dictionary
 
