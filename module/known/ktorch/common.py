@@ -27,7 +27,7 @@ def shares_memory(a, b) -> bool:
 # ------------------------------------------------------------------
 
 @tt.no_grad()
-def copy_parameters(module_to, module_from):
+def copy_parameters(module_from, module_to):
     r""" copies only parameters, both models are supposed to be identical """
     for pt,pf in zip(module_to.parameters(), module_from.parameters()): pt.copy_(pf)
 
@@ -42,6 +42,13 @@ def show_parameters(module, values=False):
         if values: print(f'{p}')
     print(f'Total Parameters: {nparam}')
     return nparam
+
+@tt.no_grad()
+def diff_parameters(module1, module2, do_abs=True, do_sum=True):
+    d = [ (abs(p1 - p2) if do_abs else (p1 - p2)) for p1,p2 in zip(module1.parameters(), module2.parameters()) ]
+    if do_sum: d = [ tt.sum(p) for p in d  ]
+    return d
+
 
 def save_state(path, model): tt.save(model.state_dict(), path) # simply save the state dictionary
 

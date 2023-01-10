@@ -1,200 +1,90 @@
 
-"""NOTE:
-
-M. Gers et al. (2000) proposed initializing the forget gate biases to positive values and 
-    Jozefowicz et al. (2015) showed that an initial bias of 1 for the LSTM forget gate makes the LSTM 
-    as strong as the best of the explored architectural variants (including the GRU) 
-    (Goodfellow et al., 2016, §10.10.2)
-
-Recurrent neural networks (RNNs) typically create a lossy summary hT of a sequence. It is lossy
-    because it maps an arbitrarily long sequence into a fixed length vector. As mentioned before,
-    recent work has shown that this forgetting property of LSTMs is one of the most important (Greff
-    et al., 2015; Jozefowicz et al., 2015).
-
-The standard procedure is to initialize the weights U∗ and W∗ to be distributed as
-    U ~ +/- [ (6 / (n(l) + n(l+1)) )**0.5 ] 
-    where n(l) is the size of each layer l (He et al., 2015b; Glorot and Bengio, 2010), 
-    and to initialize all biases to zero except for the forget gate bias bf , which is initialized to one
-    (Jozefowicz et al., 2015).
->>> This implementation uses uniform initialization, to add custom initialization use torch.nn.init
->>>     Weight and Bias may be initialized used seperate methonds
->>>     Can implement custom initializers like chrono as required by JANET
-
-
-
-
-NOTE: [RNNCell vs RNN vs RNNStack vs StackedRNNCell vs StackedRNN]:
-
-    RNNCell : Implements RNN Cell
-        ~ The `forward` methods implements forward-pass through one timestep only.
-        ~ Excpected input of shape (batch_size, input_size)
-
-    RNN : Implements RNN Cell over a sequence 
-        ~ The `forward` methods implements forward-pass through multiple timesteps.
-        ~ Excpected input of shape (batch_size, seq_len, input_size) or (seq_len, batch_size, input_size)
-        ~ Internally, inherited from RNNCell (implements `batch_first` and `forward` only)
-
-    RNNStack : Implements Layers of RNN over a sequence
-        ~ The `forward` methods implements forward-pass through multiple timesteps.
-        ~ Excpected input of shape (batch_size, seq_len, input_size) or (seq_len, batch_size, input_size)
-        ~ Implments forward pass 'horizontally' i.e. computes all timesteps at a layer before going to next layer
-        ~ Internally, implements a `nn.ModuleList` of RNN
-
-    (depreciated) StackedRNNCell : Implements Layers of RNN Cells
-        ~ The `forward` methods implements forward-pass through one timestep only.
-        ~ Excpected input of shape (batch_size, input_size)
-
-    StackedRNN : Implements Layers of RNN Cells over a sequence    
-        ~ The `forward` methods implements forward-pass through multiple timesteps.
-        ~ Excpected input of shape (batch_size, seq_len, input_size) or (seq_len, batch_size, input_size)
-        ~ Implments forward pass 'vertically' i.e. computes each timestep at all layers before going to next timestep
-        ~ Internally, inherited from StackedRNNCell (implements `batch_first` and `forward` only)
-
-
-NOTE: Arguments to __init__ 
-
-    RNNCell and RNN have same args, only one extra arg is added to RNN i.e.
-        batch_first:    
-            if True,expects input of shape (batch_size, seq_len, input_size) 
-            if False, expects input of shape (seq_len, batch_size, input_size)
-
-    RNN and RNNStack have same args, except `hidden_size` v/s `hidden_sizes`
-        `hidden_sizes` expects a `list/tuple of ints` for `hidden_size` at each layer
-        this also determines the number of layers in the stack
-
-    (depeciated) RNNCell and StackedRNNCell have same args, except `hidden_size` v/s `hidden_sizes`
-        `hidden_sizes` expects a `list/tuple of ints` for `hidden_size` at each layer
-        this also determines the number of layers in the stack
-
-
-    StackedRNN and RNNStack have same args
-
-
-NOTE: Bias in Linear layers: 
-    In the orignal RNN, bias is not required for hidden state, 
-    `bias` args enables bias for hidden state only
-
-NOTE: Dropout is applied to output of each hidden layer except the last layer in a stack
-"""
-
 # @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ =
 import torch as tt
 import torch.nn as nn
+import torch.nn.functional as ff
 import math
 # @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ =
 
 
-# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-# Elman or Vanilla RNN
-# Ref :ref:`https://pytorch.org/docs/stable/generated/torch.nn.RNN.html`
-# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+class RNN(nn.Module):
 
-class ELMANCell(nn.Module):
-
-    def __init__(self, input_size, hidden_size, nlF, nlFA={}, bias=True, device=None, dtype=None, do_init=True):
-        r"""
-        Args:
-            input_size      `integer`       : in_features or input_size
-            hidden_size     `integer`       : hidden_features or hidden_size
-            nlF             `nn.Module`     : non-linear activation  - usually `nn.Tanh`
-            nlFA            `dict`          : args while initializing nlF - usually {}
-            bias            `bool`          : if True, uses Bias at linear layers for hidden state
-            do_init         `bool`          : if True, calls `reset_parameters()`
-        """
+    def __init__(self,
+                input_size,         # input features
+                hidden_sizes,       # hidden features at each layer
+                dropout=0.0,        # dropout after each layer, only if hidden_sizes > 1
+                batch_first=False,  # if true, excepts input as (batch_size, seq_len, input_size) else (seq_len, batch_size, input_size)
+                dtype=None,
+                device=None,         
+                ) -> None:
         super().__init__()
-        self.input_size=input_size
-        self.hidden_size=hidden_size
-        self.has_bias = bias
-        self.ih = nn.Linear(input_size, hidden_size, True, device=device, dtype=dtype )
-        self.hh = nn.Linear(hidden_size, hidden_size, bias, device=device, dtype=dtype )
-        self.nl = nlF(**nlFA)
-        if do_init: self.reset_parameters()
-    
-    def reset_parameters(self):
-        stdv = 1.0 / math.sqrt(self.hidden_size) if self.hidden_size > 0 else 0
-        for w in self.parameters():
-           nn.init.uniform_(w, -stdv, stdv)
 
-    def init_hidden(self, batch_size, dtype=None, device=None):
-        return tt.zeros(size=(batch_size, self.hidden_size), dtype=dtype, device=device)
-
-    def forward(self, x, h=None):
-        if h is None: h=self.init_hidden(x.shape[0], x.dtype, x.device)
-        return self.nl(self.ih(x) + self.hh(h))
-
-class ELMAN(ELMANCell):
-
-    def __init__(self, input_size, hidden_size, nlF, nlFA={}, bias=True, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__(input_size, hidden_size, nlF, nlFA, bias, device, dtype, do_init)
-        self.batch_first = batch_first
-        self.batch_dim = (0 if batch_first else 1)
-        self.seq_dim = (1 if batch_first else 0)
-
-    def forward(self, X, h=None):
-        if h is None: h=self.init_hidden(X.shape[self.batch_dim], X.dtype, X.device)
-        seq = [h]
-        for x in tt.split(X, 1, dim=self.seq_dim): seq.append(self.nl(self.ih(x.squeeze(dim=self.seq_dim)) + self.hh(seq[-1])))
-        out = tt.stack(seq[1:], dim=self.seq_dim)
-        return out, seq[-1]
-
-class ELMANStack(nn.Module):
-
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__()
-        self.input_size, self.hidden_sizes = input_size, tuple(hidden_sizes)
-        self.dropout = dropout
-
-        L = (self.input_size,) + self.hidden_sizes
-        self.model = nn.ModuleList([ ELMAN(
-                input_size=L[i-1],
-                hidden_size=L[i],
-                nlF=nlF,
-                nlFA=nlFA,
-                bias=bias,
-                device=device,
-                dtype=dtype,
-                do_init=do_init,
-                batch_first=batch_first
-            ) for i in range(1, len(L)) ] )
-        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] )  
-        self.no_hidden = [ None for _ in range(len(self.model)) ]
-        
-    def forward(self, x, h=None):
-        H = []
-        if h is None: h=self.no_hidden
-        for i,layer in enumerate(self.model):
-            x, lh = layer(x, h[i])
-            x = self.dropouts[i](x) #<--- dropout only output
-            H.append(lh)
-        return x, tt.stack(H)
-
-class StackedELMAN(nn.Module):
-
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__()
-        self.input_size=input_size
-        self.hidden_sizes=tuple(hidden_sizes)
-        self.has_bias = bias
-        self.dropout = dropout
-
+        # dimensionality
+        self.input_size = int(input_size)
+        self.hidden_sizes = tuple(hidden_sizes)
+        self.n_hidden = len(self.hidden_sizes)
         self.layer_sizes = (self.input_size,) + self.hidden_sizes
-        self.ihL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.hhL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.nlL = [ nlF(**nlFA)  for i in range(1, len(self.layer_sizes))  ]
-        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] ) 
-        if do_init: self.reset_parameters()
         self.batch_first = batch_first
         self.batch_dim = (0 if batch_first else 1)
         self.seq_dim = (1 if batch_first else 0)
 
+        # set dropouts
+        if hasattr(dropout, '__len__'): # different droupout at each layer
+            if len(dropout) < self.n_hidden-1:
+                self.dropouts = list(dropout)
+                while len(self.dropouts) < self.n_hidden-1: self.dropouts.append(0.0)
+            else:
+                self.dropouts = list(dropout[0:self.n_hidden-1])
+        else:
+            self.dropouts = [ dropout for _ in range(self.n_hidden-1) ]
+        self.dropouts.append(0.0) # for last layer, no dropout
+
+        # build & initialize internal parameters
+        self.parameters_weight, self.parameters_bias = self.build_parameters(dtype, device)
+        self.reset_parameters() # reset_parameters should be the lass call before exiting __init__
+
+    def build_parameters(self, dtype, device):
+        raise NotImplemented
+        self.w, self.b = nn.ParameterList([]), nn.ParameterList([])
+        return (self.w,), (self.b,) # should return (self.parameters_weight, self.parameters_bias)
+
     def reset_parameters(self):
-        for i,hs in enumerate(self.hidden_sizes):
-            stdv = 1.0 / math.sqrt(hs) if hs > 0 else 0
-            for ww in zip(self.ihL[i].parameters(), self.hhL[i].parameters()):
-                for w in ww: nn.init.uniform_(w, -stdv, stdv)
+        for weight, bias in zip(self.parameters_weight, self.parameters_bias):
+            for i,hs in enumerate(self.hidden_sizes):
+                stdv = 1.0 / math.sqrt(hs) if hs > 0 else 0
+                for w in weight[i]: nn.init.uniform_(w, -stdv, stdv)
+                if bias[i] is not None:
+                    for b in bias[i]:   nn.init.uniform_(b, -stdv, stdv)
 
     def init_hidden(self, batch_size, dtype=None, device=None):
         return [ tt.zeros(size=(batch_size, hs), dtype=dtype, device=device) for hs in self.hidden_sizes  ]
+
+    def forward(self, *args):
+        raise NotImplemented
+
+
+class ELMAN(RNN):
+
+    def __init__(self, input_bias, hidden_bias, actF, **rnnargs) -> None:
+        self.input_bias, self.hidden_bias = input_bias, hidden_bias
+        self.actF = actF
+        super().__init__(**rnnargs)
+
+    def build_parameters(self, dtype, device):
+        ihW, ihB, hhW, hhB = [], [], [], []
+        for i in range(1, len(self.layer_sizes)):
+            in_features, out_features = self.layer_sizes[i-1], self.layer_sizes[i]
+            ihW.append( nn.Parameter( tt.empty(size=(out_features, in_features ),  dtype=dtype, device=device) ) )
+            ihB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.input_bias else None )
+            hhW.append( nn.Parameter( tt.empty(size=(out_features, out_features),  dtype=dtype, device=device) ) )
+            hhB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.hidden_bias else None )
+        self.ihW, self.ihB, self.hhW, self.hhB = \
+            nn.ParameterList(ihW), nn.ParameterList(ihB), nn.ParameterList(hhW), nn.ParameterList(hhB)
+        return \
+            (self.ihW, self.hhW), \
+            (self.ihB, self.hhB)
 
     def forward(self, Xt, h=None):
         if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
@@ -202,150 +92,90 @@ class StackedELMAN(nn.Module):
         seq_last = []
         for xt in tt.split(Xt, 1, dim=self.seq_dim): 
             H = []
-            x = xt.squeeze(dim=self.seq_dim)
-            for i in range(len(self.hidden_sizes)):
-                x = self.nlL[i](self.ihL[i](x) + self.hhL[i](seq[-1][i]))
+            x, h = xt.squeeze(dim=self.seq_dim), seq[-1]
+            for i in range(self.n_hidden):
+                x = self.actF( ff.linear(x, self.ihW[i], self.ihB[i]) + ff.linear(h[i], self.hhW[i], self.hhB[i]) )
                 H.append(x)
-                x = self.dropouts[i](x) #<--- dropout only output
+                x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
             seq_last.append(x)
             seq.append(H)
             
         out = tt.stack(seq_last, dim=self.seq_dim)
         return out, tt.stack(seq[-1])
 
+    @tt.no_grad()
+    def copy_torch(self, model):
+        sd = model.state_dict()
+        for i in range(self.n_hidden):
+            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
+            self.ihW[i].copy_(ihW)
+            self.hhW[i].copy_(hhW)
+            if self.input_bias:
+                ihB = sd[f'bias_ih_l{i}']
+                self.ihB[i].copy_(ihB)
+            if self.hidden_bias:
+                hhB = sd[f'bias_hh_l{i}']
+                self.hhB[i].copy_(hhB)
 
-# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-# Gated Recuurent Unit GRU
-# Ref :ref:`https://pytorch.org/docs/stable/generated/torch.nn.GRUCell.html`
-# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+    @tt.no_grad()
+    def diff_torch(self, model):
+        sd = model.state_dict()
+        dd = []
+        for i in range(self.n_hidden):
+            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
+            dd.append(self.ihW[i]-(ihW))
+            dd.append(self.hhW[i]-(hhW))
+            if self.input_bias:
+                ihB = sd[f'bias_ih_l{i}']
+                dd.append(self.ihB[i]-(ihB))
+            if self.hidden_bias:
+                hhB = sd[f'bias_hh_l{i}']
+                dd.append(self.hhB[i]-(hhB))
+        return dd
 
-class GRUCell(nn.Module):
 
-    def __init__(self, input_size, hidden_size, nlF, nlFA={}, bias=True, device=None, dtype=None, do_init=True):
-        r"""
-        Returns a GRU RNNCell Module.
+class GRU(RNN):
 
-        Args:
-            input_size      `integer`       : in_features or input_size
-            hidden_size     `integer`       : hidden_features or hidden_size
-            nlF             `nn.Module`     : non-linear activation  - usually `nn.Tanh`
-            nlFA            `dict`          : args while initializing nlF - usually {}
-            bias            `bool`          : if True, uses Bias at linear layers for hidden state
-            do_init         `bool`          : if True, calls `reset_parameters()`
-        """
-        super().__init__()
-        self.input_size=input_size
-        self.hidden_size=hidden_size
-        self.has_bias = bias
+    def __init__(self, input_bias, hidden_bias, actF, **rnnargs) -> None:
+        self.input_bias, self.hidden_bias = input_bias, hidden_bias
+        self.actF = actF
+        super().__init__(**rnnargs)
 
-        self.ir = nn.Linear(input_size, hidden_size, True, device=device, dtype=dtype )
-        self.hr = nn.Linear(hidden_size, hidden_size, bias, device=device, dtype=dtype )
-        self.iz = nn.Linear(input_size, hidden_size, True, device=device, dtype=dtype )
-        self.hz = nn.Linear(hidden_size, hidden_size, bias, device=device, dtype=dtype )
-        self.iN = nn.Linear(input_size, hidden_size, True, device=device, dtype=dtype )
-        self.hN = nn.Linear(hidden_size, hidden_size, bias, device=device, dtype=dtype )
-        self.nl = nlF(**nlFA)
-        if do_init: self.reset_parameters()
-    
-    def reset_parameters(self):
-        stdv = 1.0 / math.sqrt(self.hidden_size) if self.hidden_size > 0 else 0
-        for w in self.parameters():
-           nn.init.uniform_(w, -stdv, stdv)
+    def build_parameters(self, dtype, device):
+        irW, irB, hrW, hrB, izW, izB, hzW, hzB, inW, inB, hnW, hnB = \
+            [], [], [], [], [], [], [], [], [], [], [], []
+        for i in range(1, len(self.layer_sizes)):
+            in_features, out_features = self.layer_sizes[i-1], self.layer_sizes[i]
+            irW.append( nn.Parameter( tt.empty(size=(out_features, in_features ),  dtype=dtype, device=device) ) )
+            irB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.input_bias else None )
+            hrW.append( nn.Parameter( tt.empty(size=(out_features, out_features),  dtype=dtype, device=device) ) )
+            hrB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.hidden_bias else None )
 
-    def init_hidden(self, batch_size, dtype=None, device=None):
-        return tt.zeros(size=(batch_size, self.hidden_size), dtype=dtype, device=device)
+            izW.append( nn.Parameter( tt.empty(size=(out_features, in_features ),  dtype=dtype, device=device) ) )
+            izB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.input_bias else None )
+            hzW.append( nn.Parameter( tt.empty(size=(out_features, out_features),  dtype=dtype, device=device) ) )
+            hzB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.hidden_bias else None )
 
-    def forward(self, x, h=None):
-        if h is None: h=self.init_hidden(x.shape[0], x.dtype, x.device)
-        r = tt.sigmoid(self.ir(x) + self.hr(h))
-        z = tt.sigmoid(self.iz(x) + self.hz(h))
-        n = self.nl(self.iN(x) + r*self.hN(h))
-        h_ = (1-z) * n + (z * h)
-        return h_
+            inW.append( nn.Parameter( tt.empty(size=(out_features, in_features ),  dtype=dtype, device=device) ) )
+            inB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.input_bias else None )
+            hnW.append( nn.Parameter( tt.empty(size=(out_features, out_features),  dtype=dtype, device=device) ) )
+            hnB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.hidden_bias else None )
 
-class GRU(GRUCell):
-
-    def __init__(self, input_size, hidden_size, nlF, nlFA={}, bias=True, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__(input_size, hidden_size, nlF, nlFA, bias, device, dtype, do_init)
-        self.batch_first = batch_first
-        self.batch_dim = (0 if batch_first else 1)
-        self.seq_dim = (1 if batch_first else 0)
-
-    def forward(self, X, h=None):
-        if h is None: h=self.init_hidden(X.shape[self.batch_dim], X.dtype, X.device)
-        seq = [h]
-        for xx in tt.split(X, 1, dim=self.seq_dim): 
-            x, h = xx.squeeze(dim=self.seq_dim), seq[-1]
-            r = tt.sigmoid(self.ir(x) + self.hr(h))
-            z = tt.sigmoid(self.iz(x) + self.hz(h))
-            n = self.nl(self.iN(x) + r*self.hN(h))
-            h_ = (1-z) * n + (z * h)
-            seq.append(h_)
-
-        out = tt.stack(seq[1:], dim=self.seq_dim)
-        return out, seq[-1]
-
-class GRUStack(nn.Module):
-
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__()
-        self.input_size, self.hidden_sizes = input_size, tuple(hidden_sizes)
-        self.dropout = dropout
-        L = (self.input_size,) + self.hidden_sizes
-        self.model = nn.ModuleList([ GRU(
-                input_size=L[i-1],
-                hidden_size=L[i],
-                nlF=nlF,
-                nlFA=nlFA,
-                bias=bias,
-                device=device,
-                dtype=dtype,
-                do_init=do_init,
-                batch_first=batch_first
-            ) for i in range(1, len(L)) ] )
-        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] )  
-        self.no_hidden = [ None for _ in range(len(self.model)) ]
-        
-    def forward(self, x, h=None):
-        H = []
-        if h is None: h=self.no_hidden
-        for i,layer in enumerate(self.model):
-            x, lh = layer(x, h[i])
-            x = self.dropouts[i](x) #<--- dropout only output
-            H.append(lh)
-        return x, tt.stack(H)
-
-class StackedGRU(nn.Module):
-
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__()
-        self.input_size=input_size
-        self.hidden_sizes=tuple(hidden_sizes)
-        self.has_bias = bias
-        self.dropout = dropout
-        self.layer_sizes = (self.input_size,) + self.hidden_sizes
-
-        self.irL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.hrL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.izL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.hzL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.iNL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.hNL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.nlL = [ nlF(**nlFA)  for i in range(1, len(self.layer_sizes))  ]
-        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] ) 
-        if do_init: self.reset_parameters()
-        self.batch_first = batch_first
-        self.batch_dim = (0 if batch_first else 1)
-        self.seq_dim = (1 if batch_first else 0)
-    
-    def reset_parameters(self):
-        for i,hs in enumerate(self.hidden_sizes):
-            stdv = 1.0 / math.sqrt(hs) if hs > 0 else 0
-            for ww in zip(self.irL[i].parameters(), self.hrL[i].parameters(),self.izL[i].parameters(), self.hzL[i].parameters(),self.iNL[i].parameters(), self.hNL[i].parameters()):
-                for w in ww: nn.init.uniform_(w, -stdv, stdv)
-
-    def init_hidden(self, batch_size, dtype=None, device=None):
-        return [ tt.zeros(size=(batch_size, hs), dtype=dtype, device=device) for hs in self.hidden_sizes  ]
+        self.irW, self.irB, self.hrW, self.hrB = \
+            nn.ParameterList(irW), nn.ParameterList(irB), nn.ParameterList(hrW), nn.ParameterList(hrB)
+        self.izW, self.izB, self.hzW, self.hzB = \
+            nn.ParameterList(izW), nn.ParameterList(izB), nn.ParameterList(hzW), nn.ParameterList(hzB)
+        self.inW, self.inB, self.hnW, self.hnB = \
+            nn.ParameterList(inW), nn.ParameterList(inB), nn.ParameterList(hnW), nn.ParameterList(hnB)
+        return \
+            (self.irW, self.hrW, self.izW, self.hzW, self.inW, self.hnW ), \
+            (self.irB, self.hrB, self.izB, self.hzB, self.inB, self.hnB )
 
     def forward(self, Xt, h=None): 
         if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
@@ -355,180 +185,119 @@ class StackedGRU(nn.Module):
             H = [] 
             x,h = xt.squeeze(dim=self.seq_dim), seq[-1]
             for i in range(len(self.hidden_sizes)):
-                r = tt.sigmoid(self.irL[i](x) + self.hrL[i](h[i]))
-                z = tt.sigmoid(self.izL[i](x) + self.hzL[i](h[i]))
-                n = self.nlL[i](self.iNL[i](x) + r*self.hNL[i](h[i]))
-                x = (1-z) * n + (z * h[i])
+                R = tt.sigmoid(ff.linear(x, self.irW[i], self.irB[i]) + ff.linear(h[i], self.hrW[i], self.hrB[i]))
+                Z = tt.sigmoid(ff.linear(x, self.izW[i], self.izB[i]) + ff.linear(h[i], self.hzW[i], self.hzB[i]))
+                N = self.actF(ff.linear(x, self.inW[i], self.inB[i]) + (R * ff.linear(h[i], self.hnW[i], self.hnB[i])))
+                # or N = self.actF(ff.linear(x, self.inW[i], self.inB[i]) + ff.linear(R * h[i], self.hnW[i], self.hnB[i]))
+                x = (1-Z) * N + (Z * h[i]) 
+                # or x = (1-Z) * h[i] + (Z * N) 
                 H.append(x)
-                x = self.dropouts[i](x) #<--- dropout only output
+                x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
             seq_last.append(x)
             seq.append(H)
             
         out = tt.stack(seq_last, dim=self.seq_dim)
         return out, tt.stack(seq[-1])
 
+    @tt.no_grad()
+    def copy_torch(self, model):
+        sd = model.state_dict()
+        for i in range(self.n_hidden):
+            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
+            self.irW[i].copy_(ihW[0:self.hidden_sizes[i],:])
+            self.hrW[i].copy_(hhW[0:self.hidden_sizes[i],:])
+            self.izW[i].copy_(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
+            self.hzW[i].copy_(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
+            self.inW[i].copy_(ihW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:])
+            self.hnW[i].copy_(hhW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:])
+            if self.input_bias:
+                ihB = sd[f'bias_ih_l{i}']
+                self.irB[i].copy_(ihB[0:self.hidden_sizes[i]])
+                self.izB[i].copy_(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
+                self.inB[i].copy_(ihB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]])
+            if self.hidden_bias:
+                hhB = sd[f'bias_hh_l{i}']
+                self.hrB[i].copy_(hhB[0:self.hidden_sizes[i]])
+                self.hzB[i].copy_(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
+                self.hnB[i].copy_(hhB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]])
 
-# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-# Long Short Term Memory  LSTM
-# Ref :ref:`https://pytorch.org/docs/stable/generated/torch.nn.LSTMCell.html`
-# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+    @tt.no_grad()
+    def diff_torch(self, model):
+        sd = model.state_dict()
+        dd = []
+        for i in range(self.n_hidden):
+            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
+            dd.append(self.irW[i]-(ihW[0:self.hidden_sizes[i],:]))
+            dd.append(self.hrW[i]-(hhW[0:self.hidden_sizes[i],:]))
+            dd.append(self.izW[i]-(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
+            dd.append(self.hzW[i]-(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
+            dd.append(self.inW[i]-(ihW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:]))
+            dd.append(self.hnW[i]-(hhW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:]))
+            if self.input_bias:
+                ihB = sd[f'bias_ih_l{i}']
+                dd.append(self.irB[i]-(ihB[0:self.hidden_sizes[i]]))
+                dd.append(self.izB[i]-(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
+                dd.append(self.inB[i]-(ihB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]]))
+            if self.hidden_bias:
+                hhB = sd[f'bias_hh_l{i}']
+                dd.append(self.hrB[i]-(hhB[0:self.hidden_sizes[i]]))
+                dd.append(self.hzB[i]-(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
+                dd.append(self.hnB[i]-(hhB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]]))
 
-class LSTMCell(nn.Module):
+        return dd
 
-    def __init__(self, input_size, hidden_size, nlF, nlF2 ,nlFA={}, nlFA2={}, bias=True, device=None, dtype=None, do_init=True):
-        r"""
-        Args:
-            input_size      `integer`       : in_features or input_size
-            hidden_size     `integer`       : hidden_features or hidden_size
-            nlF             `nn.Module`     : non-linear activation  - usually `nn.Tanh`
-            nlFA            `dict`          : args while initializing nlF - usually {}
-            nlF2            `nn.Module`     : non-linear activation at output  - usually `nn.Tanh`
-            nlFA2           `dict`          : args while initializing nlF2 - usually {}
-            bias            `bool`          : if True, uses Bias at linear layers for hidden state
-            do_init         `bool`          : if True, calls `reset_parameters()`
-        """
-        super().__init__()
-        self.input_size=input_size
-        self.hidden_size=hidden_size
-        self.has_bias = bias
 
-        self.iI = nn.Linear(input_size, hidden_size, True, device=device, dtype=dtype )
-        self.hI = nn.Linear(hidden_size, hidden_size, bias, device=device, dtype=dtype )
-        self.iF = nn.Linear(input_size, hidden_size, True, device=device, dtype=dtype )
-        self.hF = nn.Linear(hidden_size, hidden_size, bias, device=device, dtype=dtype )
-        self.iG = nn.Linear(input_size, hidden_size, True, device=device, dtype=dtype )
-        self.hG = nn.Linear(hidden_size, hidden_size, bias, device=device, dtype=dtype )
-        self.iO = nn.Linear(input_size, hidden_size, True, device=device, dtype=dtype )
-        self.hO = nn.Linear(hidden_size, hidden_size, bias, device=device, dtype=dtype )
-        self.nl = nlF(**nlFA)
-        self.nl2 = nlF2(**nlFA2)
+class LSTM(RNN):
 
-        if do_init: self.reset_parameters()
-    
-    def reset_parameters(self):
-        stdv = 1.0 / math.sqrt(self.hidden_size) if self.hidden_size > 0 else 0
-        for w in self.parameters():
-           nn.init.uniform_(w, -stdv, stdv)
+    def __init__(self, input_bias, hidden_bias, actF, actC, **rnnargs) -> None:
+        self.input_bias, self.hidden_bias = input_bias, hidden_bias
+        self.actF, self.actC = actF, actC
+        super().__init__(**rnnargs)
 
-    def init_hidden(self, batch_size, dtype=None, device=None):
-        return tt.zeros(size=(batch_size, self.hidden_size), dtype=dtype, device=device)
+    def build_parameters(self, dtype, device):
+        iiW, iiB, hiW, hiB, ifW, ifB, hfW, hfB, igW, igB, hgW, hgB, ioW, ioB, hoW, hoB = \
+            [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
+        for i in range(1, len(self.layer_sizes)):
+            in_features, out_features = self.layer_sizes[i-1], self.layer_sizes[i]
+            iiW.append( nn.Parameter( tt.empty(size=(out_features, in_features ),  dtype=dtype, device=device) ) )
+            iiB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.input_bias else None )
+            hiW.append( nn.Parameter( tt.empty(size=(out_features, out_features),  dtype=dtype, device=device) ) )
+            hiB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.hidden_bias else None )
 
-    def init_cell(self, batch_size, dtype=None, device=None):
-        return tt.zeros(size=(batch_size, self.hidden_size), dtype=dtype, device=device)
+            ifW.append( nn.Parameter( tt.empty(size=(out_features, in_features ),  dtype=dtype, device=device) ) )
+            ifB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.input_bias else None )
+            hfW.append( nn.Parameter( tt.empty(size=(out_features, out_features),  dtype=dtype, device=device) ) )
+            hfB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.hidden_bias else None )
 
-    def forward(self, x, h=None, c=None):
-        if h is None: h=self.init_hidden(x.shape[0], x.dtype, x.device)
-        if c is None: c=self.init_cell(x.shape[0], x.dtype, x.device)
-        I = tt.sigmoid(self.iI(x) + self.hI(h))
-        F = tt.sigmoid(self.iF(x) + self.hF(h))
-        G = self.nl(self.iG(x) + self.hG(h))
-        O = tt.sigmoid(self.iO(x) + self.hO(h))
-        c_ = F*c + I*G
-        h_ = O * self.nl2(c_)
-        return h_, c_
+            igW.append( nn.Parameter( tt.empty(size=(out_features, in_features ),  dtype=dtype, device=device) ) )
+            igB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.input_bias else None )
+            hgW.append( nn.Parameter( tt.empty(size=(out_features, out_features),  dtype=dtype, device=device) ) )
+            hgB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.hidden_bias else None )
 
-class LSTM(LSTMCell):
+            ioW.append( nn.Parameter( tt.empty(size=(out_features, in_features ),  dtype=dtype, device=device) ) )
+            ioB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.input_bias else None )
+            hoW.append( nn.Parameter( tt.empty(size=(out_features, out_features),  dtype=dtype, device=device) ) )
+            hoB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.hidden_bias else None )
 
-    def __init__(self, input_size, hidden_size, nlF, nlF2 ,nlFA={}, nlFA2={}, bias=True, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__(input_size, hidden_size, nlF, nlF2, nlFA, nlFA2, bias, device, dtype, do_init)
-        self.batch_first = batch_first
-        self.batch_dim = (0 if batch_first else 1)
-        self.seq_dim = (1 if batch_first else 0)
-
-    def forward(self, X, h=None, c=None): 
-        if h is None: h=self.init_hidden(X.shape[self.batch_dim], X.dtype, X.device)
-        if c is None: c=self.init_cell(X.shape[self.batch_dim], X.dtype, X.device)
-
-        seq = [h]
-        ceq = [c]
-        for xx in tt.split(X, 1, dim=self.seq_dim): 
-            x, h, c = xx.squeeze(dim=self.seq_dim), seq[-1], ceq[-1]
-            I = tt.sigmoid(self.iI(x) + self.hI(h))
-            F = tt.sigmoid(self.iF(x) + self.hF(h))
-            G = self.nl(self.iG(x) + self.hG(h))
-            O = tt.sigmoid(self.iO(x) + self.hO(h))
-            c_ = F*c + I*G
-            h_ = O * self.nl2(c_)
-            seq.append(h_)
-            ceq.append(c_)
-
-        out = tt.stack(seq[1:], dim=self.seq_dim)
-        #cst = tt.stack(ceq[1:], dim=self.seq_dim)
-        return out, seq[-1], ceq[-1]
-
-class LSTMStack(nn.Module):
-
-    def __init__(self, input_size, hidden_sizes, nlF, nlF2 ,nlFA={}, nlFA2={}, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__()
-        self.input_size, self.hidden_sizes = input_size, tuple(hidden_sizes)
-        self.dropout = dropout
-        L = (self.input_size,) + self.hidden_sizes
-        self.model = nn.ModuleList([ LSTM(
-                input_size=L[i-1],
-                hidden_size=L[i],
-                nlF=nlF,
-                nlF2=nlF2,
-                nlFA=nlFA,
-                nlFA2=nlFA2,
-                bias=bias,
-                device=device,
-                dtype=dtype,
-                do_init=do_init,
-                batch_first=batch_first
-            ) for i in range(1, len(L)) ] )
-        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] ) 
-        self.no_hidden = [ None for _ in range(len(self.model)) ]
-        self.no_cell = [ None for _ in range(len(self.model)) ]
-        
-    def forward(self, x, h=None, c=None):
-        H,C = [], []
-        if h is None: h=self.no_hidden
-        if c is None: c=self.no_cell
-        for i,layer in enumerate(self.model):
-            x, lh, lc = layer(x, h[i], c[i])
-            x = self.dropouts[i](x) #<--- dropout only output
-            H.append(lh)
-            C.append(lc)
-        return x, tt.stack(H), tt.stack(C)
-
-class StackedLSTM(nn.Module):
-
-    def __init__(self, input_size, hidden_sizes, nlF, nlF2, nlFA={}, nlFA2={}, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__()
-        self.input_size=input_size
-        self.hidden_sizes=tuple(hidden_sizes)
-        self.has_bias = bias
-        self.dropout = dropout
-        self.layer_sizes = (self.input_size,) + self.hidden_sizes
-
-        self.iIL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.hIL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.iFL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.hFL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.iGL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.hGL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.iOL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.hOL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.nlL = [ nlF(**nlFA)  for i in range(1, len(self.layer_sizes))  ]
-        self.nl2L = [ nlF2(**nlFA2)  for i in range(1, len(self.layer_sizes))  ]
-        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] ) 
-        if do_init: self.reset_parameters()
-        self.batch_first = batch_first
-        self.batch_dim = (0 if batch_first else 1)
-        self.seq_dim = (1 if batch_first else 0)
-
-    def reset_parameters(self):
-        for i,hs in enumerate(self.hidden_sizes):
-            stdv = 1.0 / math.sqrt(hs) if hs > 0 else 0
-            for ww in zip(self.iIL[i].parameters(), self.hIL[i].parameters(), self.iFL[i].parameters(), self.hFL[i].parameters(),
-                            self.iGL[i].parameters(), self.hGL[i].parameters(), self.iOL[i].parameters(), self.hOL[i].parameters()):
-                for w in ww: nn.init.uniform_(w, -stdv, stdv)
-
-    def init_hidden(self, batch_size, dtype=None, device=None):
-        return [ tt.zeros(size=(batch_size, hs), dtype=dtype, device=device) for hs in self.hidden_sizes  ]
-
-    def init_cell(self, batch_size, dtype=None, device=None):
-        return [ tt.zeros(size=(batch_size, hs), dtype=dtype, device=device) for hs in self.hidden_sizes  ]
+        self.iiW, self.iiB, self.hiW, self.hiB = \
+            nn.ParameterList(iiW), nn.ParameterList(iiB), nn.ParameterList(hiW), nn.ParameterList(hiB)
+        self.ifW, self.ifB, self.hfW, self.hfB = \
+            nn.ParameterList(ifW), nn.ParameterList(ifB), nn.ParameterList(hfW), nn.ParameterList(hfB)
+        self.igW, self.igB, self.hgW, self.hgB = \
+            nn.ParameterList(igW), nn.ParameterList(igB), nn.ParameterList(hgW), nn.ParameterList(hgB)
+        self.ioW, self.ioB, self.hoW, self.hoB = \
+            nn.ParameterList(ioW), nn.ParameterList(ioB), nn.ParameterList(hoW), nn.ParameterList(hoB)
+        return \
+            (self.iiW, self.hiW, self.ifW, self.hfW, self.igW, self.hgW, self.ioW, self.hoW ), \
+            (self.iiB, self.hiB, self.ifB, self.hfB, self.igB, self.hgB, self.ioB, self.hoB )
 
     def forward(self, Xt, h=None, c=None): 
         if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
@@ -541,15 +310,15 @@ class StackedLSTM(nn.Module):
             H,C = [],[]
             x,h,c = xt.squeeze(dim=self.seq_dim), seq[-1], ceq[-1]
             for i in range(len(self.hidden_sizes)):
-                I = tt.sigmoid(self.iIL[i](x) + self.hIL[i](h[i]))
-                F = tt.sigmoid(self.iFL[i](x) + self.hFL[i](h[i]))
-                G = self.nlL[i](self.iGL[i](x) + self.hGL[i](h[i]))
-                O = tt.sigmoid(self.iOL[i](x) + self.hOL[i](h[i]))
+                I = tt.sigmoid(ff.linear(x, self.iiW[i], self.iiB[i]) + ff.linear(h[i], self.hiW[i], self.hiB[i]))
+                F = tt.sigmoid(ff.linear(x, self.ifW[i], self.ifB[i]) + ff.linear(h[i], self.hfW[i], self.hfB[i]))
+                G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + ff.linear(h[i], self.hgW[i], self.hgB[i]))
+                O = tt.sigmoid(ff.linear(x, self.ioW[i], self.ioB[i]) + ff.linear(h[i], self.hoW[i], self.hoB[i]))
                 c_ = F*c[i] + I*G
-                x = O * self.nl2L[i](c_)
+                x = O * self.actC(c_)
                 H.append(x)
                 C.append(c_)
-                x = self.dropouts[i](x) #<--- dropout only output
+                x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
             seq_last.append(x)
             ceq_last.append(c_)
             seq.append(H)
@@ -558,169 +327,246 @@ class StackedLSTM(nn.Module):
         out = tt.stack(seq_last, dim=self.seq_dim)
         return out, tt.stack(seq[-1]), tt.stack(ceq[-1])
 
+    @tt.no_grad()
+    def copy_torch(self, model):
+        sd = model.state_dict()
+        for i in range(self.n_hidden):
+            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
+            self.iiW[i].copy_(ihW[0:self.hidden_sizes[i],:])
+            self.hiW[i].copy_(hhW[0:self.hidden_sizes[i],:])
+            self.ifW[i].copy_(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
+            self.hfW[i].copy_(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
+            self.igW[i].copy_(ihW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:])
+            self.hgW[i].copy_(hhW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:])
+            self.ioW[i].copy_(ihW[3*self.hidden_sizes[i]:4*self.hidden_sizes[i],:])
+            self.hoW[i].copy_(hhW[3*self.hidden_sizes[i]:4*self.hidden_sizes[i],:])
+            if self.input_bias:
+                ihB = sd[f'bias_ih_l{i}']
+                self.iiB[i].copy_(ihB[0:self.hidden_sizes[i]])
+                self.ifB[i].copy_(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
+                self.igB[i].copy_(ihB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]])
+                self.ioB[i].copy_(ihB[3*self.hidden_sizes[i]:4*self.hidden_sizes[i]])
+            if self.hidden_bias:
+                hhB = sd[f'bias_hh_l{i}']
+                self.hiB[i].copy_(hhB[0:self.hidden_sizes[i]])
+                self.hfB[i].copy_(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
+                self.hgB[i].copy_(hhB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]])
+                self.hoB[i].copy_(hhB[3*self.hidden_sizes[i]:4*self.hidden_sizes[i]])
+
+    @tt.no_grad()
+    def diff_torch(self, model):
+        sd = model.state_dict()
+        dd = []
+        for i in range(self.n_hidden):
+            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
+            dd.append(self.iiW[i]-(ihW[0:self.hidden_sizes[i],:]))
+            dd.append(self.hiW[i]-(hhW[0:self.hidden_sizes[i],:]))
+            dd.append(self.ifW[i]-(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
+            dd.append(self.hfW[i]-(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
+            dd.append(self.igW[i]-(ihW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:]))
+            dd.append(self.hgW[i]-(hhW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:]))
+            dd.append(self.ioW[i]-(ihW[3*self.hidden_sizes[i]:4*self.hidden_sizes[i],:]))
+            dd.append(self.hoW[i]-(hhW[3*self.hidden_sizes[i]:4*self.hidden_sizes[i],:]))
+            if self.input_bias:
+                ihB = sd[f'bias_ih_l{i}']
+                dd.append(self.iiB[i]-(ihB[0:self.hidden_sizes[i]]))
+                dd.append(self.ifB[i]-(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
+                dd.append(self.igB[i]-(ihB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]]))
+                dd.append(self.ioB[i]-(ihB[3*self.hidden_sizes[i]:4*self.hidden_sizes[i]]))
+            if self.hidden_bias:
+                hhB = sd[f'bias_hh_l{i}']
+                dd.append(self.hiB[i]-(hhB[0:self.hidden_sizes[i]]))
+                dd.append(self.hfB[i]-(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
+                dd.append(self.hgB[i]-(hhB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]]))
+                dd.append(self.hoB[i]-(hhB[3*self.hidden_sizes[i]:4*self.hidden_sizes[i]]))
+        return dd
 
 
-# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-# Just Another NETwork  JANET : The unreasonable effectiveness of the forget gate
-# Ref :ref:`https://arxiv.org/abs/1804.04849` 
-# ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+class JANET(RNN):
 
-"""NOTE:
-Quote Authors
-    " We speculate that the value for `beta` is dataset dependent, however, we found that setting `beta` = 1 provides
-    the best results for the datasets analysed in this study, which have sequence lengths varying from 200 to 784. "
-
-"""
-
-class JANETCell(nn.Module):
-
-    def __init__(self, input_size, hidden_size, nlF, nlFA={}, beta=0.0, bias=True, device=None, dtype=None, do_init=True):
-        r"""
-        Args:
-            input_size      `integer`       : in_features or input_size
-            hidden_size     `integer`       : hidden_features or hidden_size
-            nlF             `nn.Module`     : non-linear activation  - usually `nn.Tanh`
-            nlFA            `dict`          : args while initializing nlF - usually {}
-            beta            `float`         : hyperparameter
-            bias            `bool`          : if True, uses Bias at linear layers for hidden state
-            do_init         `bool`          : if True, calls `reset_parameters()`
-        """
-        super().__init__()
-        self.input_size=input_size
-        self.hidden_size=hidden_size
-        self.has_bias = bias
+    def __init__(self, input_bias, hidden_bias, actF, beta, **rnnargs) -> None:
+        self.input_bias, self.hidden_bias = input_bias, hidden_bias
+        self.actF = actF
         self.beta = beta
+        super().__init__(**rnnargs)
 
-        self.iF = nn.Linear(input_size, hidden_size, True, device=device, dtype=dtype )
-        self.hF = nn.Linear(hidden_size, hidden_size, bias, device=device, dtype=dtype )
-        self.iG = nn.Linear(input_size, hidden_size, True, device=device, dtype=dtype )
-        self.hG = nn.Linear(hidden_size, hidden_size, bias, device=device, dtype=dtype )
-        self.nl = nlF(**nlFA)
+    def build_parameters(self, dtype, device):
+        ifW, ifB, hfW, hfB, igW, igB, hgW, hgB = \
+            [], [], [], [], [], [], [], []
+        for i in range(1, len(self.layer_sizes)):
+            in_features, out_features = self.layer_sizes[i-1], self.layer_sizes[i]
+            ifW.append( nn.Parameter( tt.empty(size=(out_features, in_features ),  dtype=dtype, device=device) ) )
+            ifB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.input_bias else None )
+            hfW.append( nn.Parameter( tt.empty(size=(out_features, out_features),  dtype=dtype, device=device) ) )
+            hfB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.hidden_bias else None )
 
-        if do_init: self.reset_parameters()
-    
-    def reset_parameters(self) :
-        stdv = 1.0 / math.sqrt(self.hidden_size) if self.hidden_size > 0 else 0
-        for w in self.parameters():
-           nn.init.uniform_(w, -stdv, stdv)
+            igW.append( nn.Parameter( tt.empty(size=(out_features, in_features ),  dtype=dtype, device=device) ) )
+            igB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.input_bias else None )
+            hgW.append( nn.Parameter( tt.empty(size=(out_features, out_features),  dtype=dtype, device=device) ) )
+            hgB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.hidden_bias else None )
 
-    def init_hidden(self, batch_size, dtype=None, device=None):
-        return tt.zeros(size=(batch_size, self.hidden_size), dtype=dtype, device=device)
-
-    def forward(self, x, h=None): 
-        if h is None: h=self.init_hidden(x.shape[0], x.dtype, x.device)
-
-        F = tt.sigmoid(self.iF(x) + self.hF(h) - self.beta)
-        G = self.nl(self.iG(x) + self.hG(h))
-        h_ = F*h + (1-F)*G
-
-        return h_
-
-class JANET(JANETCell):
-    
-    def __init__(self, input_size, hidden_size, nlF, nlFA={}, beta=0.0, bias=True, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__(input_size, hidden_size, nlF, nlFA, beta, bias, device, dtype, do_init)
-        self.batch_first = batch_first
-        self.batch_dim = (0 if batch_first else 1)
-        self.seq_dim = (1 if batch_first else 0)
-
-    def forward(self, X, h=None): 
-        if h is None: h=self.init_hidden(X.shape[self.batch_dim], X.dtype, X.device)
-        seq = [h]
-        for xx in tt.split(X, 1, dim=self.seq_dim): 
-            x, h = xx.squeeze(dim=self.seq_dim), seq[-1]
-
-            F = tt.sigmoid(self.iF(x) + self.hF(h) - self.beta)
-            G = self.nl(self.iG(x) + self.hG(h))
-            h_ = F*h + (1-F)*G
-
-            seq.append(h_)
-
-        out = tt.stack(seq[1:], dim=self.seq_dim)
-        return out, seq[-1]
-            
-class JANETStack(nn.Module):
-
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, beta=0.0, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__()
-        self.input_size, self.hidden_sizes = input_size, tuple(hidden_sizes)
-        self.dropout = dropout
-        L = (self.input_size,) + self.hidden_sizes
-        self.model = nn.ModuleList([ JANET(
-                input_size=L[i-1],
-                hidden_size=L[i],
-                nlF=nlF,
-                nlFA=nlFA,
-                beta=beta,
-                bias=bias,
-                device=device,
-                dtype=dtype,
-                do_init=do_init,
-                batch_first=batch_first
-            ) for i in range(1, len(L)) ] )
-        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] ) 
-        self.no_hidden = [ None for _ in range(len(self.model)) ]
-        
-    def forward(self, x, h=None):
-        H = []
-        if h is None: h=self.no_hidden
-        for i,layer in enumerate(self.model):
-            x, lh = layer(x, h[i])
-            x = self.dropouts[i](x) #<--- dropout only output
-            H.append(lh)
-        return x, tt.stack(H)
-
-class StackedJANET(nn.Module):
-
-    def __init__(self, input_size, hidden_sizes, nlF, nlFA={}, beta=0.0, bias=True, dropout=0.0, device=None, dtype=None, do_init=True, batch_first=True):
-        super().__init__()
-        self.input_size=input_size
-        self.hidden_sizes=tuple(hidden_sizes)
-        self.has_bias = bias
-        self.beta = beta
-        self.dropout = dropout
-        self.layer_sizes = (self.input_size,) + self.hidden_sizes
-
-        self.iFL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.hFL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.iGL = nn.ModuleList([ nn.Linear(self.layer_sizes[i-1], self.layer_sizes[i], True, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.hGL = nn.ModuleList([ nn.Linear(self.layer_sizes[i], self.layer_sizes[i], bias, device=device, dtype=dtype ) for i in range(1, len(self.layer_sizes))  ])
-        self.nlL = [ nlF(**nlFA)  for i in range(1, len(self.layer_sizes))  ]
-        self.dropouts = nn.ModuleList( [ nn.Dropout(dropout) for _ in range(len(self.hidden_sizes)-1) ] + [nn.Dropout(0.0)] ) 
-        if do_init: self.reset_parameters()
-        self.batch_first = batch_first
-        self.batch_dim = (0 if batch_first else 1)
-        self.seq_dim = (1 if batch_first else 0)
-
-    def reset_parameters(self):
-        for i,hs in enumerate(self.hidden_sizes):
-            stdv = 1.0 / math.sqrt(hs) if hs > 0 else 0
-            for ww in zip(self.iFL[i].parameters(), self.hFL[i].parameters(), self.iGL[i].parameters(), self.hGL[i].parameters()):
-                for w in ww: nn.init.uniform_(w, -stdv, stdv)
-
-    def init_hidden(self, batch_size, dtype=None, device=None):
-        return [ tt.zeros(size=(batch_size, hs), dtype=dtype, device=device) for hs in self.hidden_sizes  ]
-
+        self.ifW, self.ifB, self.hfW, self.hfB = \
+            nn.ParameterList(ifW), nn.ParameterList(ifB), nn.ParameterList(hfW), nn.ParameterList(hfB)
+        self.igW, self.igB, self.hgW, self.hgB = \
+            nn.ParameterList(igW), nn.ParameterList(igB), nn.ParameterList(hgW), nn.ParameterList(hgB)
+        return \
+            (self.ifW, self.hfW, self.igW, self.hgW ), \
+            (self.ifB, self.hfB, self.igB, self.hgB )
 
     def forward(self, Xt, h=None): 
         if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
         seq=[h]
         seq_last = []
         for xt in tt.split(Xt, 1, dim=self.seq_dim): 
-            H = []
+            H = [] 
             x,h = xt.squeeze(dim=self.seq_dim), seq[-1]
             for i in range(len(self.hidden_sizes)):
-                #print(f'{x.shape=}, h[i].shape={seq[-1][i].shape}')
-                F = tt.sigmoid(self.iFL[i](x) + self.hFL[i](h[i]) - self.beta)
-                G = self.nlL[i](self.iGL[i](x) + self.hGL[i](h[i]))
+                F = tt.sigmoid(ff.linear(x, self.ifW[i], self.ifB[i]) + ff.linear(h[i], self.hfW[i], self.hfB[i]) - self.beta)
+                G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + ff.linear(h[i], self.hgW[i], self.hgB[i]))
                 x = F*h[i] + (1-F)*G
                 H.append(x)
-                x = self.dropouts[i](x) #<--- dropout only output
+                x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
             seq_last.append(x)
             seq.append(H)
             
         out = tt.stack(seq_last, dim=self.seq_dim)
         return out, tt.stack(seq[-1])
 
+    @tt.no_grad()
+    def copy_torch(self, model):
+        sd = model.state_dict()
+        for i in range(self.n_hidden):
+            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
+            self.ifW[i].copy_(ihW[0:self.hidden_sizes[i],:])
+            self.hfW[i].copy_(hhW[0:self.hidden_sizes[i],:])
+            self.igW[i].copy_(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
+            self.hgW[i].copy_(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
+            if self.input_bias:
+                ihB = sd[f'bias_ih_l{i}']
+                self.ifB[i].copy_(ihB[0:self.hidden_sizes[i]])
+                self.igB[i].copy_(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
+            if self.hidden_bias:
+                hhB = sd[f'bias_hh_l{i}']
+                self.hfB[i].copy_(hhB[0:self.hidden_sizes[i]])
+                self.hgB[i].copy_(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
 
-# @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ =
+    @tt.no_grad()
+    def diff_torch(self, model):
+        sd = model.state_dict()
+        dd = []
+        for i in range(self.n_hidden):
+            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
+            dd.append(self.ifW[i]-(ihW[0:self.hidden_sizes[i],:]))
+            dd.append(self.hfW[i]-(hhW[0:self.hidden_sizes[i],:]))
+            dd.append(self.igW[i]-(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
+            dd.append(self.hgW[i]-(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
+            if self.input_bias:
+                ihB = sd[f'bias_ih_l{i}']
+                dd.append(self.ifB[i]-(ihB[0:self.hidden_sizes[i]]))
+                dd.append(self.igB[i]-(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
+            if self.hidden_bias:
+                hhB = sd[f'bias_hh_l{i}']
+                dd.append(self.hfB[i]-(hhB[0:self.hidden_sizes[i]]))
+                dd.append(self.hgB[i]-(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
+
+        return dd
+
+
+class MGU(RNN):
+
+    def __init__(self, input_bias, hidden_bias, actF, **rnnargs) -> None:
+        self.input_bias, self.hidden_bias = input_bias, hidden_bias
+        self.actF = actF
+        super().__init__(**rnnargs)
+
+    def build_parameters(self, dtype, device):
+        ifW, ifB, hfW, hfB, igW, igB, hgW, hgB = \
+            [], [], [], [], [], [], [], []
+        for i in range(1, len(self.layer_sizes)):
+            in_features, out_features = self.layer_sizes[i-1], self.layer_sizes[i]
+            ifW.append( nn.Parameter( tt.empty(size=(out_features, in_features ),  dtype=dtype, device=device) ) )
+            ifB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.input_bias else None )
+            hfW.append( nn.Parameter( tt.empty(size=(out_features, out_features),  dtype=dtype, device=device) ) )
+            hfB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.hidden_bias else None )
+
+            igW.append( nn.Parameter( tt.empty(size=(out_features, in_features ),  dtype=dtype, device=device) ) )
+            igB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.input_bias else None )
+            hgW.append( nn.Parameter( tt.empty(size=(out_features, out_features),  dtype=dtype, device=device) ) )
+            hgB.append( nn.Parameter( tt.empty(size=(out_features,             ),  dtype=dtype, device=device) ) \
+                        if self.hidden_bias else None )
+
+        self.ifW, self.ifB, self.hfW, self.hfB = \
+            nn.ParameterList(ifW), nn.ParameterList(ifB), nn.ParameterList(hfW), nn.ParameterList(hfB)
+        self.igW, self.igB, self.hgW, self.hgB = \
+            nn.ParameterList(igW), nn.ParameterList(igB), nn.ParameterList(hgW), nn.ParameterList(hgB)
+        return \
+            (self.ifW, self.hfW, self.igW, self.hgW ), \
+            (self.ifB, self.hfB, self.igB, self.hgB )
+
+    def forward(self, Xt, h=None): 
+        if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
+        seq=[h]
+        seq_last = []
+        for xt in tt.split(Xt, 1, dim=self.seq_dim): 
+            H = [] 
+            x,h = xt.squeeze(dim=self.seq_dim), seq[-1]
+            for i in range(len(self.hidden_sizes)):
+                F = tt.sigmoid(ff.linear(x, self.ifW[i], self.ifB[i]) + ff.linear(h[i], self.hfW[i], self.hfB[i]) )
+                G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + (F * ff.linear(h[i], self.hgW[i], self.hgB[i])))
+                # or G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + ff.linear(F * h[i], self.hgW[i], self.hgB[i]))
+                x = (1-F)*h[i] + F*G
+                # or x = F*h[i] + (1-F)*G
+                H.append(x)
+                x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
+            seq_last.append(x)
+            seq.append(H)
+            
+        out = tt.stack(seq_last, dim=self.seq_dim)
+        return out, tt.stack(seq[-1])
+
+    @tt.no_grad()
+    def copy_torch(self, model):
+        sd = model.state_dict()
+        for i in range(self.n_hidden):
+            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
+            self.ifW[i].copy_(ihW[0:self.hidden_sizes[i],:])
+            self.hfW[i].copy_(hhW[0:self.hidden_sizes[i],:])
+            self.igW[i].copy_(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
+            self.hgW[i].copy_(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
+            if self.input_bias:
+                ihB = sd[f'bias_ih_l{i}']
+                self.ifB[i].copy_(ihB[0:self.hidden_sizes[i]])
+                self.igB[i].copy_(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
+            if self.hidden_bias:
+                hhB = sd[f'bias_hh_l{i}']
+                self.hfB[i].copy_(hhB[0:self.hidden_sizes[i]])
+                self.hgB[i].copy_(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
+
+    @tt.no_grad()
+    def diff_torch(self, model):
+        sd = model.state_dict()
+        dd = []
+        for i in range(self.n_hidden):
+            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
+            dd.append(self.ifW[i]-(ihW[0:self.hidden_sizes[i],:]))
+            dd.append(self.hfW[i]-(hhW[0:self.hidden_sizes[i],:]))
+            dd.append(self.igW[i]-(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
+            dd.append(self.hgW[i]-(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
+            if self.input_bias:
+                ihB = sd[f'bias_ih_l{i}']
+                dd.append(self.ifB[i]-(ihB[0:self.hidden_sizes[i]]))
+                dd.append(self.igB[i]-(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
+            if self.hidden_bias:
+                hhB = sd[f'bias_hh_l{i}']
+                dd.append(self.hfB[i]-(hhB[0:self.hidden_sizes[i]]))
+                dd.append(self.hgB[i]-(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
+
+        return dd
+
