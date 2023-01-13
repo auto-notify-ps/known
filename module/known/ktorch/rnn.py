@@ -14,8 +14,10 @@ class RNN(nn.Module):
                 hidden_sizes,       # hidden features at each layer
                 dropout=0.0,        # dropout after each layer, only if hidden_sizes > 1
                 batch_first=False,  # if true, excepts input as (batch_size, seq_len, input_size) else (seq_len, batch_size, input_size)
+                stack_output=False, # if true, stack output from all timesteps, else returns a list of outputs
                 dtype=None,
-                device=None,         
+                device=None,
+                n_states=None
                 ) -> None:
         super().__init__()
 
@@ -27,7 +29,8 @@ class RNN(nn.Module):
         self.batch_first = batch_first
         self.batch_dim = (0 if batch_first else 1)
         self.seq_dim = (1 if batch_first else 0)
-
+        self.stack_output = stack_output
+        self.n_states=n_states
         # set dropouts
         if hasattr(dropout, '__len__'): # different droupout at each layer
             if len(dropout) < self.n_hidden-1:
@@ -38,6 +41,7 @@ class RNN(nn.Module):
         else:
             self.dropouts = [ dropout for _ in range(self.n_hidden-1) ]
         self.dropouts.append(0.0) # for last layer, no dropout
+
 
         # build & initialize internal parameters
         self.parameters_weight, self.parameters_bias = self.build_parameters(dtype, device)
@@ -57,10 +61,29 @@ class RNN(nn.Module):
                     for b in bias[i]:   nn.init.uniform_(b, -stdv, stdv)
 
     def init_hidden(self, batch_size, dtype=None, device=None):
-        return [ tt.zeros(size=(batch_size, hs), dtype=dtype, device=device) for hs in self.hidden_sizes  ]
+        return tuple([ 
+            [tt.zeros(size=(batch_size, hs), dtype=dtype, device=device) for hs in self.hidden_sizes]  \
+              for _ in range(self.n_states)  ])
 
-    def forward(self, *args):
-        raise NotImplemented
+    def forward(self, Xt, h=None, future=0):
+        if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
+        Ht=[h]
+        Yt = [] #<---- outputs at each timestep
+        for xt in tt.split(Xt, 1, dim=self.seq_dim): 
+            x, h = xt.squeeze(dim=self.seq_dim), Ht[-1]
+            y, h_ = self.forward_one(x, h)
+            Yt.append(y)
+            Ht.append(h_)
+
+        for _ in range(future):
+            x, h = Yt[-1], Ht[-1]
+            y, h_ = self.forward_one(x, h)
+            Yt.append(y)
+            Ht.append(h_)
+
+        out = tt.stack(Yt, dim=self.seq_dim) if self.stack_output else Yt
+        hidden = Ht[-1]
+        return  out, hidden
 
 
 class ELMAN(RNN):
@@ -68,7 +91,7 @@ class ELMAN(RNN):
     def __init__(self, input_bias, hidden_bias, actF, **rnnargs) -> None:
         self.input_bias, self.hidden_bias = input_bias, hidden_bias
         self.actF = actF
-        super().__init__(**rnnargs)
+        super().__init__(n_states=1, **rnnargs)
 
     def build_parameters(self, dtype, device):
         ihW, ihB, hhW, hhB = [], [], [], []
@@ -86,22 +109,15 @@ class ELMAN(RNN):
             (self.ihW, self.hhW), \
             (self.ihB, self.hhB)
 
-    def forward(self, Xt, h=None):
-        if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
-        seq=[h]
-        seq_last = []
-        for xt in tt.split(Xt, 1, dim=self.seq_dim): 
-            H = []
-            x, h = xt.squeeze(dim=self.seq_dim), seq[-1]
-            for i in range(self.n_hidden):
-                x = self.actF( ff.linear(x, self.ihW[i], self.ihB[i]) + ff.linear(h[i], self.hhW[i], self.hhB[i]) )
-                H.append(x)
-                x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
-            seq_last.append(x)
-            seq.append(H)
-            
-        out = tt.stack(seq_last, dim=self.seq_dim)
-        return out, tt.stack(seq[-1])
+    def forward_one(self, x, s):
+        H = []
+        h, = s
+        for i in range(self.n_hidden):
+            x = self.actF( ff.linear(x, self.ihW[i], self.ihB[i]) + ff.linear(h[i], self.hhW[i], self.hhB[i]) )
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
+            H.append(x)
+        return x, (H,)
+
 
     @tt.no_grad()
     def copy_torch(self, model):
@@ -139,7 +155,7 @@ class GRU(RNN):
     def __init__(self, input_bias, hidden_bias, actF, **rnnargs) -> None:
         self.input_bias, self.hidden_bias = input_bias, hidden_bias
         self.actF = actF
-        super().__init__(**rnnargs)
+        super().__init__(n_states=1, **rnnargs)
 
     def build_parameters(self, dtype, device):
         irW, irB, hrW, hrB, izW, izB, hzW, hzB, inW, inB, hnW, hnB = \
@@ -177,27 +193,19 @@ class GRU(RNN):
             (self.irW, self.hrW, self.izW, self.hzW, self.inW, self.hnW ), \
             (self.irB, self.hrB, self.izB, self.hzB, self.inB, self.hnB )
 
-    def forward(self, Xt, h=None): 
-        if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
-        seq=[h]
-        seq_last = []
-        for xt in tt.split(Xt, 1, dim=self.seq_dim): 
-            H = [] 
-            x,h = xt.squeeze(dim=self.seq_dim), seq[-1]
-            for i in range(len(self.hidden_sizes)):
-                R = tt.sigmoid(ff.linear(x, self.irW[i], self.irB[i]) + ff.linear(h[i], self.hrW[i], self.hrB[i]))
-                Z = tt.sigmoid(ff.linear(x, self.izW[i], self.izB[i]) + ff.linear(h[i], self.hzW[i], self.hzB[i]))
-                N = self.actF(ff.linear(x, self.inW[i], self.inB[i]) + (R * ff.linear(h[i], self.hnW[i], self.hnB[i])))
-                # or N = self.actF(ff.linear(x, self.inW[i], self.inB[i]) + ff.linear(R * h[i], self.hnW[i], self.hnB[i]))
-                x = (1-Z) * N + (Z * h[i]) 
-                # or x = (1-Z) * h[i] + (Z * N) 
-                H.append(x)
-                x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
-            seq_last.append(x)
-            seq.append(H)
+    def forward_one(self, x, s):
+        H = []
+        h, = s
+        for i in range(self.n_hidden):
+            R = tt.sigmoid(ff.linear(x, self.irW[i], self.irB[i]) + ff.linear(h[i], self.hrW[i], self.hrB[i]))
+            Z = tt.sigmoid(ff.linear(x, self.izW[i], self.izB[i]) + ff.linear(h[i], self.hzW[i], self.hzB[i]))
+            N = self.actF(ff.linear(x, self.inW[i], self.inB[i]) + (R * ff.linear(h[i], self.hnW[i], self.hnB[i])))
+            #N = self.actF(ff.linear(x, self.inW[i], self.inB[i]) + ff.linear(R * h[i], self.hnW[i], self.hnB[i]))
+            x = (1-Z) * N + (Z * h[i])  #x = (1-Z) * h[i] + (Z * N) 
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
             
-        out = tt.stack(seq_last, dim=self.seq_dim)
-        return out, tt.stack(seq[-1])
+            H.append(x)
+        return x, (H,)
 
     @tt.no_grad()
     def copy_torch(self, model):
@@ -252,7 +260,7 @@ class LSTM(RNN):
     def __init__(self, input_bias, hidden_bias, actF, actC, **rnnargs) -> None:
         self.input_bias, self.hidden_bias = input_bias, hidden_bias
         self.actF, self.actC = actF, actC
-        super().__init__(**rnnargs)
+        super().__init__(n_states=2, **rnnargs)
 
     def build_parameters(self, dtype, device):
         iiW, iiB, hiW, hiB, ifW, ifB, hfW, hfB, igW, igB, hgW, hgB, ioW, ioB, hoW, hoB = \
@@ -299,33 +307,20 @@ class LSTM(RNN):
             (self.iiW, self.hiW, self.ifW, self.hfW, self.igW, self.hgW, self.ioW, self.hoW ), \
             (self.iiB, self.hiB, self.ifB, self.hfB, self.igB, self.hgB, self.ioB, self.hoB )
 
-    def forward(self, Xt, h=None, c=None): 
-        if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
-        if c is None: c=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
-        seq=[h]
-        ceq=[c]
-        seq_last = []
-        ceq_last = []
-        for xt in tt.split(Xt, 1, dim=self.seq_dim): 
-            H,C = [],[]
-            x,h,c = xt.squeeze(dim=self.seq_dim), seq[-1], ceq[-1]
-            for i in range(len(self.hidden_sizes)):
-                I = tt.sigmoid(ff.linear(x, self.iiW[i], self.iiB[i]) + ff.linear(h[i], self.hiW[i], self.hiB[i]))
-                F = tt.sigmoid(ff.linear(x, self.ifW[i], self.ifB[i]) + ff.linear(h[i], self.hfW[i], self.hfB[i]))
-                G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + ff.linear(h[i], self.hgW[i], self.hgB[i]))
-                O = tt.sigmoid(ff.linear(x, self.ioW[i], self.ioB[i]) + ff.linear(h[i], self.hoW[i], self.hoB[i]))
-                c_ = F*c[i] + I*G
-                x = O * self.actC(c_)
-                H.append(x)
-                C.append(c_)
-                x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
-            seq_last.append(x)
-            ceq_last.append(c_)
-            seq.append(H)
-            ceq.append(C)
-            
-        out = tt.stack(seq_last, dim=self.seq_dim)
-        return out, tt.stack(seq[-1]), tt.stack(ceq[-1])
+    def forward_one(self, x, s):
+        H,C=[],[]
+        h,c = s
+        for i in range(self.n_hidden):
+            I = tt.sigmoid(ff.linear(x, self.iiW[i], self.iiB[i]) + ff.linear(h[i], self.hiW[i], self.hiB[i]))
+            F = tt.sigmoid(ff.linear(x, self.ifW[i], self.ifB[i]) + ff.linear(h[i], self.hfW[i], self.hfB[i]))
+            G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + ff.linear(h[i], self.hgW[i], self.hgB[i]))
+            O = tt.sigmoid(ff.linear(x, self.ioW[i], self.ioB[i]) + ff.linear(h[i], self.hoW[i], self.hoB[i]))
+            c_ = F*c[i] + I*G
+            x = O * self.actC(c_)
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
+            H.append(x)
+            C.append(c_)
+        return x, (H,C)
 
     @tt.no_grad()
     def copy_torch(self, model):
@@ -388,7 +383,7 @@ class JANET(RNN):
         self.input_bias, self.hidden_bias = input_bias, hidden_bias
         self.actF = actF
         self.beta = beta
-        super().__init__(**rnnargs)
+        super().__init__(n_states=1, **rnnargs)
 
     def build_parameters(self, dtype, device):
         ifW, ifB, hfW, hfB, igW, igB, hgW, hgB = \
@@ -417,24 +412,17 @@ class JANET(RNN):
             (self.ifW, self.hfW, self.igW, self.hgW ), \
             (self.ifB, self.hfB, self.igB, self.hgB )
 
-    def forward(self, Xt, h=None): 
-        if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
-        seq=[h]
-        seq_last = []
-        for xt in tt.split(Xt, 1, dim=self.seq_dim): 
-            H = [] 
-            x,h = xt.squeeze(dim=self.seq_dim), seq[-1]
-            for i in range(len(self.hidden_sizes)):
-                F = tt.sigmoid(ff.linear(x, self.ifW[i], self.ifB[i]) + ff.linear(h[i], self.hfW[i], self.hfB[i]) - self.beta)
-                G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + ff.linear(h[i], self.hgW[i], self.hgB[i]))
-                x = F*h[i] + (1-F)*G
-                H.append(x)
-                x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
-            seq_last.append(x)
-            seq.append(H)
-            
-        out = tt.stack(seq_last, dim=self.seq_dim)
-        return out, tt.stack(seq[-1])
+
+    def forward_one(self, x, s):
+        H=[]
+        h, = s
+        for i in range(self.n_hidden):
+            F = tt.sigmoid(ff.linear(x, self.ifW[i], self.ifB[i]) + ff.linear(h[i], self.hfW[i], self.hfB[i]) - self.beta)
+            G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + ff.linear(h[i], self.hgW[i], self.hgB[i]))
+            x = F*h[i] + (1-F)*G
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
+            H.append(x)
+        return x, (H,)
 
     @tt.no_grad()
     def copy_torch(self, model):
@@ -481,7 +469,7 @@ class MGU(RNN):
     def __init__(self, input_bias, hidden_bias, actF, **rnnargs) -> None:
         self.input_bias, self.hidden_bias = input_bias, hidden_bias
         self.actF = actF
-        super().__init__(**rnnargs)
+        super().__init__(n_states=1, **rnnargs)
 
     def build_parameters(self, dtype, device):
         ifW, ifB, hfW, hfB, igW, igB, hgW, hgB = \
@@ -510,26 +498,18 @@ class MGU(RNN):
             (self.ifW, self.hfW, self.igW, self.hgW ), \
             (self.ifB, self.hfB, self.igB, self.hgB )
 
-    def forward(self, Xt, h=None): 
-        if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
-        seq=[h]
-        seq_last = []
-        for xt in tt.split(Xt, 1, dim=self.seq_dim): 
-            H = [] 
-            x,h = xt.squeeze(dim=self.seq_dim), seq[-1]
-            for i in range(len(self.hidden_sizes)):
-                F = tt.sigmoid(ff.linear(x, self.ifW[i], self.ifB[i]) + ff.linear(h[i], self.hfW[i], self.hfB[i]) )
-                G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + (F * ff.linear(h[i], self.hgW[i], self.hgB[i])))
-                # or G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + ff.linear(F * h[i], self.hgW[i], self.hgB[i]))
-                x = (1-F)*h[i] + F*G
-                # or x = F*h[i] + (1-F)*G
-                H.append(x)
-                x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
-            seq_last.append(x)
-            seq.append(H)
-            
-        out = tt.stack(seq_last, dim=self.seq_dim)
-        return out, tt.stack(seq[-1])
+    def forward_one(self, x, s):
+        H=[]
+        h, = s
+        for i in range(self.n_hidden):
+            F = tt.sigmoid(ff.linear(x, self.ifW[i], self.ifB[i]) + ff.linear(h[i], self.hfW[i], self.hfB[i]) )
+            G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + (F * ff.linear(h[i], self.hgW[i], self.hgB[i])))
+            # or G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + ff.linear(F * h[i], self.hgW[i], self.hgB[i]))
+            x = (1-F)*h[i] + F*G
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
+            # or x = F*h[i] + (1-F)*G
+            H.append(x)
+        return x, (H,)
 
     @tt.no_grad()
     def copy_torch(self, model):
@@ -569,4 +549,55 @@ class MGU(RNN):
                 dd.append(self.hgB[i]-(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
 
         return dd
+
+
+class GRNN(nn.Module):
+
+    """ Generalized RNN - takes any core module and applies Recuurance on it through forward method """
+
+    def __init__(self, core) -> None:
+        super().__init__()
+        self.core = core
+
+    def forward(self, Xt, H=None, future=0):
+        # X = input sequence
+        # H = hidden states for each layer at timestep (t-1)
+        # future = no of future steps to output
+
+        timesteps = self.timesteps_in(Xt) #<<---- how many timesteps in the input sequence X ? 
+
+        # H should contain hidden states for each layer at the last timestep
+        # if no hidden-state supplied, create a hidden states for each layer
+        if H is None: H=self.init_states(Xt) 
+
+
+        Ht = [H] #<==== hidden states at each timestep
+        Yt = []  #<---- output of last cell at each timestep
+        for t in range(timesteps): #<---- for each timestep 
+            x = self.get_input_at(Xt, t) #<--- input at this time step
+            h = Ht[-1] #<---- hidden states for each layer at this timestep
+            y, h_ = self.forward_one(x, h)
+
+            Yt.append(y)
+            Ht.append(h_)
+        
+
+        for _ in range(future):
+            x = Yt[-1]#<--- input at this time step
+            h = Ht[-1] #<---- hidden states for each layer at this timestep
+            y, h_ = self.forward_one(x, h)
+
+            Yt.append(y)
+            Ht.append(h_)
+
+        return Yt, Ht[-1]
+
+    def timesteps_in(self, Xt): return Xt.shape[self.core.seq_dim]
+
+    def init_states(self, Xt): return self.core.init_hidden(Xt.shape[self.core.batch_dim], Xt.dtype, Xt.device)
+    
+    def get_input_at(self, Xt, t): return (Xt[:, t, :] if self.core.batch_first else Xt[t, :, :])
+
+    def forward_one(self, x, h): return self.core.forward_one(x, h)
+
 

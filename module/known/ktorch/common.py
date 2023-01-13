@@ -44,6 +44,16 @@ def show_parameters(module, values=False):
     return nparam
 
 @tt.no_grad()
+def show_dict(module, values=False):
+    r""" prints the parameters using `nn.Module.parameters` iterator, use `values=True` to print full parameter tensor """
+    sd = module.state_dict()
+    for i,(k,v) in enumerate(sd.items()):
+        
+        print(f'#[{i+1}]\t[{k}]\tShape[{v.shape}]')
+        if values: print(f'{v}')
+    return 
+
+@tt.no_grad()
 def diff_parameters(module1, module2, do_abs=True, do_sum=True):
     d = [ (abs(p1 - p2) if do_abs else (p1 - p2)) for p1,p2 in zip(module1.parameters(), module2.parameters()) ]
     if do_sum: d = [ tt.sum(p) for p in d  ]

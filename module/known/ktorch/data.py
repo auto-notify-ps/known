@@ -57,29 +57,30 @@ class SeqDataset(Dataset):
 
     def split_csv(csv, cols, splits, file_names):
         signal = __class__.read_csv(csv, cols, False)
-        splits = np.array(splits).astype(np.int)
+        siglen = len(signal)
+        split_sum=0
         splits_ratio = []
         s=0
         for ratio,file_name in zip(splits,file_names):
-            e=ratio+s
-            signal_slice = signal[splits[s]:splits[e]]
-            splits_ratio.append((s,e))
+            e=int(ratio*siglen)+s
+            signal_slice = signal[s:e]
+            splits_ratio.append((s,e,e-s))
+            split_sum+=(e-s)
             s=e
-            df = pd.DataFrame({col: sig} for col, sig in zip(cols, signal))
+            df = pd.DataFrame({col: signal_slice[:,j] for j,col in enumerate(cols)})
             if (file_name is not None):
                 if len(file_name)>0: df.to_csv(file_name)
-        return splits_ratio
+        return siglen, splits, splits_ratio, split_sum
 
     def generate(
         genF, # a function like lambda rng, genX, dimS: y
-        genS, # int
         colS,
         normalize=False,
         seed=None,
         file_name=None, verbose=0): 
         rng = np.random.default_rng(seed)
         generated_priceS = []
-        for dimS in range(len(colS)): generated_priceS.append(genF(rng, genS, dimS))
+        for dimS in range(len(colS)): generated_priceS.append(genF(rng, dimS))
         dd = {}
         for col,generated_price in zip(colS,generated_priceS):
             if normalize:
@@ -97,3 +98,25 @@ class SeqDataset(Dataset):
                 if verbose>2:
                     print(df)
         return df 
+
+    def auto_split_csv(file_name, colS, splits, split_names=None):
+        if not split_names : split_names =   [ str(i+1) for i in range(len(splits)) ] 
+        #[ 'train', 'val', 'test'] #[ 'train', 'test']
+        sepi = file_name.rfind('.')
+        fn, fe = file_name[:sepi], file_name[sepi:]
+        file_names = [ f'{fn}_{sn}{fe}' for sn in split_names  ]
+        return __class__.split_csv(csv=file_name, cols=colS, splits=splits, file_names=file_names)
+
+    def generateS(
+            genF, # a function like lambda rng, genX, dimS: y
+            colS,
+            normalize=False,
+            seed=None,
+            file_name=None, splits=None, split_names=None, verbose=0): 
+        df = __class__.generate(genF, colS, normalize, seed, file_name, verbose)
+        if file_name is not None and splits is not None:
+            return __class__.auto_split_csv(file_name, colS, splits, split_names)
+        else:
+            return df
+
+

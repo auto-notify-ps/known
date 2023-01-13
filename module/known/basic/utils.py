@@ -16,7 +16,9 @@ def pj(path, sep='/') -> str:
     """ Path Join : similar to pjs but takes a string instead of individual args """
     return pjs(*path.split(sep))
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
+def pname(path, sep='.'): return path[0:path.rfind(sep)]
+def pext(path, sep='.'): return path[path.rfind(sep):]
+def psplit(path, sep='.'): return (path[0:path.rfind(sep)], path[path.rfind(sep):])
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 # Misc
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

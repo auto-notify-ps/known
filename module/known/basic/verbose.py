@@ -80,3 +80,6 @@ def showX(x, cep='\t\t:',P = print) -> None:
             v='?'
         P(d, cep, v)
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+class SpecialSymbols:
+    CORRECT = '✓'
+    INCORRECT = '✗'
