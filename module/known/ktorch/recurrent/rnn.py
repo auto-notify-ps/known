@@ -75,7 +75,7 @@ class RNN(nn.Module):
             Yt.append(y)
             Ht.append(h_)
 
-        for _ in range(future):
+        for _ in range(future): #<--- IMP: future arg will work only when (input_size == hidden_size of the last layer)
             x, h = Yt[-1], Ht[-1]
             y, h_ = self.forward_one(x, h)
             Yt.append(y)
@@ -84,6 +84,48 @@ class RNN(nn.Module):
         out = tt.stack(Yt, dim=self.seq_dim) if self.stack_output else Yt
         hidden = Ht[-1]
         return  out, hidden
+
+    @tt.no_grad()
+    def copy_torch(self, model):
+        sd = model.state_dict()
+        for i in range(self.n_hidden):
+            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
+
+            for n, (iw, hw) in enumerate(self.W_names):
+                getattr(self, iw)[i].copy_(ihW[n*self.hidden_sizes[i]:(n+1)*self.hidden_sizes[i],:])
+                getattr(self, hw)[i].copy_(hhW[n*self.hidden_sizes[i]:(n+1)*self.hidden_sizes[i],:])
+                
+            if self.input_bias:
+                ihB = sd[f'bias_ih_l{i}']
+                for n, (ib, hb) in enumerate(self.B_names): 
+                    getattr(self, ib)[i].copy_(ihB[n*self.hidden_sizes[i]:(n+1)*self.hidden_sizes[i]])
+
+            if self.hidden_bias:
+                hhB = sd[f'bias_hh_l{i}']
+                for n, (ib, hb) in enumerate(self.B_names): 
+                    getattr(self, hb)[i].copy_(hhB[n*self.hidden_sizes[i]:(n+1)*self.hidden_sizes[i]])
+
+    @tt.no_grad()
+    def diff_torch(self, model):
+        sd = model.state_dict()
+        dd = []
+        for i in range(self.n_hidden):
+            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
+
+            for n, (iw, hw) in enumerate(self.W_names):
+                dd.append(getattr(self, iw)[i]-(ihW[n*self.hidden_sizes[i]:(n+1)*self.hidden_sizes[i],:]))
+                dd.append(getattr(self, hw)[i]-(hhW[n*self.hidden_sizes[i]:(n+1)*self.hidden_sizes[i],:]))
+                
+            if self.input_bias:
+                ihB = sd[f'bias_ih_l{i}']
+                for n, (ib, hb) in enumerate(self.B_names): 
+                    dd.append(getattr(self, ib)[i]-(ihB[n*self.hidden_sizes[i]:(n+1)*self.hidden_sizes[i]]))
+
+            if self.hidden_bias:
+                hhB = sd[f'bias_hh_l{i}']
+                for n, (ib, hb) in enumerate(self.B_names): 
+                    dd.append(getattr(self, hb)[i]-(hhB[n*self.hidden_sizes[i]:(n+1)*self.hidden_sizes[i]]))
+        return dd
 
 
 class ELMAN(RNN):
@@ -94,6 +136,10 @@ class ELMAN(RNN):
         super().__init__(n_states=1, **rnnargs)
 
     def build_parameters(self, dtype, device):
+
+        self.W_names = ( ('ihW', 'hhW'), )
+        self.B_names = ( ('ihB', 'hhB'), )
+
         ihW, ihB, hhW, hhB = [], [], [], []
         for i in range(1, len(self.layer_sizes)):
             in_features, out_features = self.layer_sizes[i-1], self.layer_sizes[i]
@@ -119,37 +165,6 @@ class ELMAN(RNN):
         return x, (H,)
 
 
-    @tt.no_grad()
-    def copy_torch(self, model):
-        sd = model.state_dict()
-        for i in range(self.n_hidden):
-            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
-            self.ihW[i].copy_(ihW)
-            self.hhW[i].copy_(hhW)
-            if self.input_bias:
-                ihB = sd[f'bias_ih_l{i}']
-                self.ihB[i].copy_(ihB)
-            if self.hidden_bias:
-                hhB = sd[f'bias_hh_l{i}']
-                self.hhB[i].copy_(hhB)
-
-    @tt.no_grad()
-    def diff_torch(self, model):
-        sd = model.state_dict()
-        dd = []
-        for i in range(self.n_hidden):
-            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
-            dd.append(self.ihW[i]-(ihW))
-            dd.append(self.hhW[i]-(hhW))
-            if self.input_bias:
-                ihB = sd[f'bias_ih_l{i}']
-                dd.append(self.ihB[i]-(ihB))
-            if self.hidden_bias:
-                hhB = sd[f'bias_hh_l{i}']
-                dd.append(self.hhB[i]-(hhB))
-        return dd
-
-
 class GRU(RNN):
 
     def __init__(self, input_bias, hidden_bias, actF, **rnnargs) -> None:
@@ -158,6 +173,10 @@ class GRU(RNN):
         super().__init__(n_states=1, **rnnargs)
 
     def build_parameters(self, dtype, device):
+
+        self.W_names = ( ('irW', 'hrW'), ('izW', 'hzW'), ('inW', 'hnW'), )
+        self.B_names = ( ('irB', 'hrB'), ('izB', 'hzB'), ('inB', 'hnB'), )
+
         irW, irB, hrW, hrB, izW, izB, hzW, hzB, inW, inB, hnW, hnB = \
             [], [], [], [], [], [], [], [], [], [], [], []
         for i in range(1, len(self.layer_sizes)):
@@ -207,53 +226,6 @@ class GRU(RNN):
             H.append(x)
         return x, (H,)
 
-    @tt.no_grad()
-    def copy_torch(self, model):
-        sd = model.state_dict()
-        for i in range(self.n_hidden):
-            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
-            self.irW[i].copy_(ihW[0:self.hidden_sizes[i],:])
-            self.hrW[i].copy_(hhW[0:self.hidden_sizes[i],:])
-            self.izW[i].copy_(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
-            self.hzW[i].copy_(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
-            self.inW[i].copy_(ihW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:])
-            self.hnW[i].copy_(hhW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:])
-            if self.input_bias:
-                ihB = sd[f'bias_ih_l{i}']
-                self.irB[i].copy_(ihB[0:self.hidden_sizes[i]])
-                self.izB[i].copy_(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
-                self.inB[i].copy_(ihB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]])
-            if self.hidden_bias:
-                hhB = sd[f'bias_hh_l{i}']
-                self.hrB[i].copy_(hhB[0:self.hidden_sizes[i]])
-                self.hzB[i].copy_(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
-                self.hnB[i].copy_(hhB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]])
-
-    @tt.no_grad()
-    def diff_torch(self, model):
-        sd = model.state_dict()
-        dd = []
-        for i in range(self.n_hidden):
-            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
-            dd.append(self.irW[i]-(ihW[0:self.hidden_sizes[i],:]))
-            dd.append(self.hrW[i]-(hhW[0:self.hidden_sizes[i],:]))
-            dd.append(self.izW[i]-(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
-            dd.append(self.hzW[i]-(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
-            dd.append(self.inW[i]-(ihW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:]))
-            dd.append(self.hnW[i]-(hhW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:]))
-            if self.input_bias:
-                ihB = sd[f'bias_ih_l{i}']
-                dd.append(self.irB[i]-(ihB[0:self.hidden_sizes[i]]))
-                dd.append(self.izB[i]-(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
-                dd.append(self.inB[i]-(ihB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]]))
-            if self.hidden_bias:
-                hhB = sd[f'bias_hh_l{i}']
-                dd.append(self.hrB[i]-(hhB[0:self.hidden_sizes[i]]))
-                dd.append(self.hzB[i]-(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
-                dd.append(self.hnB[i]-(hhB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]]))
-
-        return dd
-
 
 class LSTM(RNN):
 
@@ -263,6 +235,10 @@ class LSTM(RNN):
         super().__init__(n_states=2, **rnnargs)
 
     def build_parameters(self, dtype, device):
+        
+        self.W_names = ( ('iiW', 'hiW'), ('ifW', 'hfW'), ('igW', 'hgW'), ('ioW', 'hoW'), )
+        self.B_names = ( ('iiB', 'hiB'), ('ifB', 'hfB'), ('igB', 'hgB'), ('ioB', 'hoB'), )
+
         iiW, iiB, hiW, hiB, ifW, ifB, hfW, hfB, igW, igB, hgW, hgB, ioW, ioB, hoW, hoB = \
             [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
         for i in range(1, len(self.layer_sizes)):
@@ -322,60 +298,6 @@ class LSTM(RNN):
             C.append(c_)
         return x, (H,C)
 
-    @tt.no_grad()
-    def copy_torch(self, model):
-        sd = model.state_dict()
-        for i in range(self.n_hidden):
-            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
-            self.iiW[i].copy_(ihW[0:self.hidden_sizes[i],:])
-            self.hiW[i].copy_(hhW[0:self.hidden_sizes[i],:])
-            self.ifW[i].copy_(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
-            self.hfW[i].copy_(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
-            self.igW[i].copy_(ihW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:])
-            self.hgW[i].copy_(hhW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:])
-            self.ioW[i].copy_(ihW[3*self.hidden_sizes[i]:4*self.hidden_sizes[i],:])
-            self.hoW[i].copy_(hhW[3*self.hidden_sizes[i]:4*self.hidden_sizes[i],:])
-            if self.input_bias:
-                ihB = sd[f'bias_ih_l{i}']
-                self.iiB[i].copy_(ihB[0:self.hidden_sizes[i]])
-                self.ifB[i].copy_(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
-                self.igB[i].copy_(ihB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]])
-                self.ioB[i].copy_(ihB[3*self.hidden_sizes[i]:4*self.hidden_sizes[i]])
-            if self.hidden_bias:
-                hhB = sd[f'bias_hh_l{i}']
-                self.hiB[i].copy_(hhB[0:self.hidden_sizes[i]])
-                self.hfB[i].copy_(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
-                self.hgB[i].copy_(hhB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]])
-                self.hoB[i].copy_(hhB[3*self.hidden_sizes[i]:4*self.hidden_sizes[i]])
-
-    @tt.no_grad()
-    def diff_torch(self, model):
-        sd = model.state_dict()
-        dd = []
-        for i in range(self.n_hidden):
-            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
-            dd.append(self.iiW[i]-(ihW[0:self.hidden_sizes[i],:]))
-            dd.append(self.hiW[i]-(hhW[0:self.hidden_sizes[i],:]))
-            dd.append(self.ifW[i]-(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
-            dd.append(self.hfW[i]-(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
-            dd.append(self.igW[i]-(ihW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:]))
-            dd.append(self.hgW[i]-(hhW[2*self.hidden_sizes[i]:3*self.hidden_sizes[i],:]))
-            dd.append(self.ioW[i]-(ihW[3*self.hidden_sizes[i]:4*self.hidden_sizes[i],:]))
-            dd.append(self.hoW[i]-(hhW[3*self.hidden_sizes[i]:4*self.hidden_sizes[i],:]))
-            if self.input_bias:
-                ihB = sd[f'bias_ih_l{i}']
-                dd.append(self.iiB[i]-(ihB[0:self.hidden_sizes[i]]))
-                dd.append(self.ifB[i]-(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
-                dd.append(self.igB[i]-(ihB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]]))
-                dd.append(self.ioB[i]-(ihB[3*self.hidden_sizes[i]:4*self.hidden_sizes[i]]))
-            if self.hidden_bias:
-                hhB = sd[f'bias_hh_l{i}']
-                dd.append(self.hiB[i]-(hhB[0:self.hidden_sizes[i]]))
-                dd.append(self.hfB[i]-(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
-                dd.append(self.hgB[i]-(hhB[2*self.hidden_sizes[i]:3*self.hidden_sizes[i]]))
-                dd.append(self.hoB[i]-(hhB[3*self.hidden_sizes[i]:4*self.hidden_sizes[i]]))
-        return dd
-
 
 class JANET(RNN):
 
@@ -386,6 +308,10 @@ class JANET(RNN):
         super().__init__(n_states=1, **rnnargs)
 
     def build_parameters(self, dtype, device):
+
+        self.W_names = ( ('ifW', 'hfW'), ('igW', 'hgW'), )
+        self.B_names = ( ('ifB', 'hfB'), ('igB', 'hgB'), )
+
         ifW, ifB, hfW, hfB, igW, igB, hgW, hgB = \
             [], [], [], [], [], [], [], []
         for i in range(1, len(self.layer_sizes)):
@@ -412,7 +338,6 @@ class JANET(RNN):
             (self.ifW, self.hfW, self.igW, self.hgW ), \
             (self.ifB, self.hfB, self.igB, self.hgB )
 
-
     def forward_one(self, x, s):
         H=[]
         h, = s
@@ -424,45 +349,6 @@ class JANET(RNN):
             H.append(x)
         return x, (H,)
 
-    @tt.no_grad()
-    def copy_torch(self, model):
-        sd = model.state_dict()
-        for i in range(self.n_hidden):
-            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
-            self.ifW[i].copy_(ihW[0:self.hidden_sizes[i],:])
-            self.hfW[i].copy_(hhW[0:self.hidden_sizes[i],:])
-            self.igW[i].copy_(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
-            self.hgW[i].copy_(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
-            if self.input_bias:
-                ihB = sd[f'bias_ih_l{i}']
-                self.ifB[i].copy_(ihB[0:self.hidden_sizes[i]])
-                self.igB[i].copy_(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
-            if self.hidden_bias:
-                hhB = sd[f'bias_hh_l{i}']
-                self.hfB[i].copy_(hhB[0:self.hidden_sizes[i]])
-                self.hgB[i].copy_(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
-
-    @tt.no_grad()
-    def diff_torch(self, model):
-        sd = model.state_dict()
-        dd = []
-        for i in range(self.n_hidden):
-            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
-            dd.append(self.ifW[i]-(ihW[0:self.hidden_sizes[i],:]))
-            dd.append(self.hfW[i]-(hhW[0:self.hidden_sizes[i],:]))
-            dd.append(self.igW[i]-(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
-            dd.append(self.hgW[i]-(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
-            if self.input_bias:
-                ihB = sd[f'bias_ih_l{i}']
-                dd.append(self.ifB[i]-(ihB[0:self.hidden_sizes[i]]))
-                dd.append(self.igB[i]-(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
-            if self.hidden_bias:
-                hhB = sd[f'bias_hh_l{i}']
-                dd.append(self.hfB[i]-(hhB[0:self.hidden_sizes[i]]))
-                dd.append(self.hgB[i]-(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
-
-        return dd
-
 
 class MGU(RNN):
 
@@ -472,6 +358,10 @@ class MGU(RNN):
         super().__init__(n_states=1, **rnnargs)
 
     def build_parameters(self, dtype, device):
+
+        self.W_names = ( ('ifW', 'hfW'), ('igW', 'hgW'), )
+        self.B_names = ( ('ifB', 'hfB'), ('igB', 'hgB'), )
+
         ifW, ifB, hfW, hfB, igW, igB, hgW, hgB = \
             [], [], [], [], [], [], [], []
         for i in range(1, len(self.layer_sizes)):
@@ -510,94 +400,4 @@ class MGU(RNN):
             # or x = F*h[i] + (1-F)*G
             H.append(x)
         return x, (H,)
-
-    @tt.no_grad()
-    def copy_torch(self, model):
-        sd = model.state_dict()
-        for i in range(self.n_hidden):
-            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
-            self.ifW[i].copy_(ihW[0:self.hidden_sizes[i],:])
-            self.hfW[i].copy_(hhW[0:self.hidden_sizes[i],:])
-            self.igW[i].copy_(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
-            self.hgW[i].copy_(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:])
-            if self.input_bias:
-                ihB = sd[f'bias_ih_l{i}']
-                self.ifB[i].copy_(ihB[0:self.hidden_sizes[i]])
-                self.igB[i].copy_(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
-            if self.hidden_bias:
-                hhB = sd[f'bias_hh_l{i}']
-                self.hfB[i].copy_(hhB[0:self.hidden_sizes[i]])
-                self.hgB[i].copy_(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]])
-
-    @tt.no_grad()
-    def diff_torch(self, model):
-        sd = model.state_dict()
-        dd = []
-        for i in range(self.n_hidden):
-            ihW, hhW = sd[f'weight_ih_l{i}'], sd[f'weight_hh_l{i}']
-            dd.append(self.ifW[i]-(ihW[0:self.hidden_sizes[i],:]))
-            dd.append(self.hfW[i]-(hhW[0:self.hidden_sizes[i],:]))
-            dd.append(self.igW[i]-(ihW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
-            dd.append(self.hgW[i]-(hhW[self.hidden_sizes[i]:2*self.hidden_sizes[i],:]))
-            if self.input_bias:
-                ihB = sd[f'bias_ih_l{i}']
-                dd.append(self.ifB[i]-(ihB[0:self.hidden_sizes[i]]))
-                dd.append(self.igB[i]-(ihB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
-            if self.hidden_bias:
-                hhB = sd[f'bias_hh_l{i}']
-                dd.append(self.hfB[i]-(hhB[0:self.hidden_sizes[i]]))
-                dd.append(self.hgB[i]-(hhB[self.hidden_sizes[i]:2*self.hidden_sizes[i]]))
-
-        return dd
-
-
-class GRNN(nn.Module):
-
-    """ Generalized RNN - takes any core module and applies Recuurance on it through forward method """
-
-    def __init__(self, core) -> None:
-        super().__init__()
-        self.core = core
-
-    def forward(self, Xt, H=None, future=0):
-        # X = input sequence
-        # H = hidden states for each layer at timestep (t-1)
-        # future = no of future steps to output
-
-        timesteps = self.timesteps_in(Xt) #<<---- how many timesteps in the input sequence X ? 
-
-        # H should contain hidden states for each layer at the last timestep
-        # if no hidden-state supplied, create a hidden states for each layer
-        if H is None: H=self.init_states(Xt) 
-
-
-        Ht = [H] #<==== hidden states at each timestep
-        Yt = []  #<---- output of last cell at each timestep
-        for t in range(timesteps): #<---- for each timestep 
-            x = self.get_input_at(Xt, t) #<--- input at this time step
-            h = Ht[-1] #<---- hidden states for each layer at this timestep
-            y, h_ = self.forward_one(x, h)
-
-            Yt.append(y)
-            Ht.append(h_)
-        
-
-        for _ in range(future):
-            x = Yt[-1]#<--- input at this time step
-            h = Ht[-1] #<---- hidden states for each layer at this timestep
-            y, h_ = self.forward_one(x, h)
-
-            Yt.append(y)
-            Ht.append(h_)
-
-        return Yt, Ht[-1]
-
-    def timesteps_in(self, Xt): return Xt.shape[self.core.seq_dim]
-
-    def init_states(self, Xt): return self.core.init_hidden(Xt.shape[self.core.batch_dim], Xt.dtype, Xt.device)
-    
-    def get_input_at(self, Xt, t): return (Xt[:, t, :] if self.core.batch_first else Xt[t, :, :])
-
-    def forward_one(self, x, h): return self.core.forward_one(x, h)
-
 

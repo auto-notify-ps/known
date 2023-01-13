@@ -4,7 +4,7 @@
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 from .verbose import now, fdate, pdate
 from .verbose import strN, tabN, spaceN, recP, strA, strD, strU, uid
-from .verbose import show, showX, SpecialSymbols
+from .verbose import show, showX, about, SpecialSymbols
 
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

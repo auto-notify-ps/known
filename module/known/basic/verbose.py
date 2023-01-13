@@ -80,6 +80,15 @@ def showX(x, cep='\t\t:',P = print) -> None:
             v='?'
         P(d, cep, v)
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+def about(O, show_object=False):
+    print(f'type: {type(O)}')
+    if hasattr(O, '__len__'):
+        print(f'len: {len(O)}')
+    if hasattr(O, 'shape'):
+        print(f'shape: {O.shape}')
+    if show_object:
+        print(f'Object:\n{O}')
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 class SpecialSymbols:
     CORRECT = '✓'
     INCORRECT = '✗'

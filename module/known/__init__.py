@@ -1,6 +1,6 @@
 # known
 
-import known.basic as basic
+from .basic import *
 import known.hyper as hyper
 import known.ktorch as ktorch
 

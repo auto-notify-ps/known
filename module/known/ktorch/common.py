@@ -59,7 +59,6 @@ def diff_parameters(module1, module2, do_abs=True, do_sum=True):
     if do_sum: d = [ tt.sum(p) for p in d  ]
     return d
 
-
 def save_state(path, model): tt.save(model.state_dict(), path) # simply save the state dictionary
 
 def load_state(path, model): model.load_state_dict(tt.load(path)) # simply load the state dictionary

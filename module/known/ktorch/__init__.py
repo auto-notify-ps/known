@@ -9,5 +9,4 @@ from .utils import QuantiyMonitor, Trainer
 
 from .mlp import MLP, MLPn, DLP
 
-from .rnn import GRNN, RNN, ELMAN, GRU, LSTM, JANET, MGU
-from .rnnc import RNNC, ELMANC, GRUC, LSTMC, JANETC, MGUC
+from .recurrent import *

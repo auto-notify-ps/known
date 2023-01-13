@@ -2,13 +2,18 @@
 # @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ =
 import torch as tt
 import torch.nn as nn
-import torch.nn.functional as ff
+#import torch.nn.functional as ff
 import math
 # @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ =
 
 
 class RNNC(nn.Module):
 
+    """ Concatenated versions of RNN 
+        - parameters are replaced by linear gate modules that have combined weights and common bias
+        - input and hidden states are concatenated before passing to linear gates
+        - is a little faster than normal RNN """
+        
     def __init__(self,
                 input_size,         # input features
                 hidden_sizes,       # hidden features at each layer
@@ -205,7 +210,6 @@ class JANETC(RNNC):
             nn.ModuleList(ifL), nn.ModuleList(igL)
         return (self.ifL, self.igL )
 
-
     def forward_one(self, x, s):
         H=[]
         h, = s
@@ -237,7 +241,6 @@ class MGUC(RNNC):
         self.ifL, self.igL = \
             nn.ModuleList(ifL), nn.ModuleList(igL)
         return (self.ifL, self.igL )
-
 
     def forward_one(self, x, s):
         H=[]
