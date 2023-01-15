@@ -4,12 +4,15 @@ import torch.nn as nn
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
+import math
 # -----------------------------------------------------------------------------------------------------
-
+from ..basic.numerical import ndigs, int2base, base2int
 
 class SeqDataset(Dataset):
 
     def __init__(self, signal, seqlen, squeeze_label=False) -> None:
+        super().__init__()
+        """ we may want to squeeze_label=True if connecting an fc at last output using batch first"""
         assert(signal.ndim>1), f'Must have at least two dimension'
         assert(signal.shape[0]>0), f'Must have at least one sample'
         self.signal = signal
@@ -30,7 +33,6 @@ class SeqDataset(Dataset):
 
     def dataloader(self, batch_size=1, shuffle=None):
         return DataLoader(self, batch_size=batch_size, shuffle=shuffle)
-
 
     def read_csv(csv, cols, reverse, normalize=False):
         df = pd.read_csv(csv) 
@@ -120,3 +122,78 @@ class SeqDataset(Dataset):
             return df
 
 
+class Vocab:
+
+    def __init__(self, vocab, nbase=2) -> None:
+        self.vocab = vocab
+        self.vlen = len(vocab)
+        self.nbase = nbase
+
+        assert self.vlen>=self.nbase, f'Vocal size [{self.vlen}] should be more than nBase [{self.nbase}]'
+
+        self.one_len = self.vlen
+        self.base_len = ndigs(self.vlen, self.nbase)
+
+        self.vocad = {k:v for v,k in enumerate(self.vocab)}
+
+    def embed_one_hot(self, word, dtype=None):
+        embeded = tt.zeros((self.vlen,), dtype=dtype )
+        if word in self.vocad: embeded[self.vocad[word]] += 1
+        return embeded
+        
+    def embed_one_cold(self, word, dtype=None):
+        if word in self.vocad: 
+            embeded = tt.ones((self.vlen,), dtype=dtype )
+            embeded[self.vocad[word]] -= 1
+            return embeded
+        else:
+            raise Exception(f'Word [{word}] not found in vocab!')
+        
+    def embed_base(self, word, dtype=None):
+        if word in self.vocad: 
+            return tt.tensor(int2base(self.vocad[word], self.nbase, self.base_len), dtype=dtype)
+        else:
+            raise Exception(f'Word [{word}] not found in vocab!')
+
+class LangDataset(Dataset):
+    
+    def __init__(self, vocab, embed=1, dtype=None) -> None:
+        super().__init__()
+        if embed>1:
+            self.vocab = Vocab(vocab, embed)
+            self.embed = self.vocab.embed_base
+        else:
+            self.vocab = Vocab(vocab)
+            self.embed = self.vocab.embed_one_hot if embed==1 else self.vocab.embed_one_cold
+        
+        self.classes = {}
+        self.n_classes = 0
+        self.data = []
+        self.dtype = dtype
+
+    def add_class(self, *labels):
+        for label in labels:
+            if label not in self.classes: 
+                self.classes[label] = [self.n_classes, 0] # index, no of samples
+                self.n_classes+=1
+            else:
+                print(f'Class label [{label}] already exists!')
+    
+    def add_samples(self, label, *samples):
+        if label in self.classes: 
+            self.classes[label][1] += len(samples)
+            self.data.extend( [(sample, label) for sample in samples] )
+        else:
+            print(f'Class label [{label}] not found!')
+
+    def __len__(self):
+        return len(self.data)
+
+    def class_one_hot(self, label):
+        hot_label = tt.zeros((self.n_classes,), dtype=tt.long)
+        hot_label[self.classes[label][0]] += 1
+        return hot_label
+
+    def __getitem__(self, index):
+        sample, label = self.data[index] # sample is a sequence
+        return tt.stack([ self.embed(s, dtype=self.dtype) for s in sample ]), self.class_one_hot(label)

@@ -89,6 +89,11 @@ def about(O, show_object=False):
     if show_object:
         print(f'Object:\n{O}')
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+def abouts(Ot, show_object=False):
+    for t,O in enumerate(Ot):
+        print(f'[object {t}]')
+        about(O, show_object=show_object)
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 class SpecialSymbols:
     CORRECT = '✓'
     INCORRECT = '✗'

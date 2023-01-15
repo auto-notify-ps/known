@@ -75,7 +75,8 @@ class RNN(nn.Module):
             Yt.append(y)
             Ht.append(h_)
 
-        for _ in range(future): #<--- IMP: future arg will work only when (input_size == hidden_size of the last layer)
+        #<--- IMP: future arg will work only when (input_size == hidden_size of the last layer)
+        for _ in range(future): 
             x, h = Yt[-1], Ht[-1]
             y, h_ = self.forward_one(x, h)
             Yt.append(y)

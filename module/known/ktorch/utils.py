@@ -87,6 +87,26 @@ class Trainer:
                 X, Y = next(data_iter)
                 self.optimizer.zero_grad()
                 P = self.model(X)
+                #if P.shape!=Y.shape: print(f'!!!! {P.shape}, {Y.shape}')
+                loss = self.criterion(P, Y)
+                loss.backward()
+                self.optimizer.step()
+                loss_value = loss.item()
+                batch_loss.append(loss_value)
+            except StopIteration:
+                break
+        return np.array(batch_loss)
+
+    def fit_epoch_rnn(self, data_loader):
+        self.model.train()
+        batch_loss=[]
+        data_iter = iter(data_loader)
+        while True:
+            try:
+                X, Y = next(data_iter)
+                self.optimizer.zero_grad()
+                P, *_ = self.model(X)
+                #if P.shape!=Y.shape: print(f'!!!! {P.shape}, {Y.shape}')
                 loss = self.criterion(P, Y)
                 loss.backward()
                 self.optimizer.step()
@@ -105,6 +125,23 @@ class Trainer:
             try:
                 X, Y = next(data_iter)
                 P = self.model(X)
+                #if P.shape!=Y.shape: print(f'!!!! {P.shape}, {Y.shape}')
+                loss_value = self.criterion(P, Y).item()
+                batch_loss.append(loss_value)
+            except StopIteration:
+                break
+        return np.array(batch_loss)
+
+    @tt.no_grad()
+    def eval_epoch_rnn(self, data_loader):
+        self.model.eval()
+        batch_loss=[]
+        data_iter = iter(data_loader)
+        while True:
+            try:
+                X, Y = next(data_iter)
+                P, *_ = self.model(X)
+                #if P.shape!=Y.shape: print(f'!!!! {P.shape}, {Y.shape}')
                 loss_value = self.criterion(P, Y).item()
                 batch_loss.append(loss_value)
             except StopIteration:
@@ -118,6 +155,7 @@ class Trainer:
             batch_size,
             shuffle,
             validation_freq,
+            save_path, use_rnn=False,
             verbose=0
             ):
 
@@ -178,7 +216,7 @@ class Trainer:
         for epoch in range(1, epochs+1):
             if verbose>1: print(f'[+] Epoch {epoch} of {epochs}')
             self.on_epoch_start(epoch)
-            self.train_loss=self.fit_epoch(training_data_loader)
+            self.train_loss= self.fit_epoch_rnn(training_data_loader) if use_rnn else self.fit_epoch(training_data_loader)
             self.train_loss_history.append(self.train_loss)
             self.mean_train_loss = np.mean(self.train_loss)
             if verbose>1: print(f'(-)\tTraining Loss: {self.mean_train_loss}')
@@ -186,7 +224,7 @@ class Trainer:
 
             if do_validation and (epoch%validation_freq==0):
                 #self.on_val_begin(epoch)
-                self.val_loss = self.eval_epoch(validation_data_loader)
+                self.val_loss = self.eval_epoch_rnn(validation_data_loader)  if use_rnn else self.eval_epoch(validation_data_loader) 
                 self.val_loss_history.append(self.val_loss)
                 self.mean_val_loss = np.mean(self.val_loss)
                 if verbose>1: print(f'(-)\tValidation Loss: {self.mean_val_loss}')
@@ -199,6 +237,9 @@ class Trainer:
                 break
         # end for epochs...................................................
         self.on_training_end(epochs)
+        if save_path: 
+            save_state( save_path, self.model)
+            if verbose: print(f'[*] Saved@ {save_path}')
         if verbose: print('-------------------------------------------')
         end_time=now()
         if verbose:
@@ -207,11 +248,11 @@ class Trainer:
             print('End Training @ {}, Elapsed Time: [{}]'.format(end_time, end_time-start_time))
         return
 
-    def evaluate(self, testing_data):
+    def evaluate(self, testing_data, use_rnn=False):
         testing_data_loader=DataLoader(testing_data, batch_size=len(testing_data), shuffle=False)
         print(f'Testing samples: [{len(testing_data)}]')
         print(f'Testing batches: [{len(testing_data_loader)}]')
-        test_loss = self.eval_epoch(testing_data_loader)
+        test_loss = self.eval_epoch_rnn(testing_data_loader) if use_rnn else  self.eval_epoch(testing_data_loader)
         mean_test_loss = np.mean(test_loss)
         print(f'Testing Loss: {mean_test_loss}') 
         return mean_test_loss, test_loss
