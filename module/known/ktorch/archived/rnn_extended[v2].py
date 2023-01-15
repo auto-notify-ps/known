@@ -33,13 +33,11 @@ class RNNX(nn.Module):
                 input_size,         # input features
                 hidden_sizes,       # hidden features at each layer
                 output_sizes=None,  # output features at each layer (if None, same as hidden)
-                output_sizes2=None,  # output features at each layer (if None, same as hidden)
                 dropout=0.0,        # dropout after each layer, only if hidden_sizes > 1
                 batch_first=False,  # if true, excepts input as (batch_size, seq_len, input_size) else (seq_len, batch_size, input_size)
                 stack_output=False, # if true, stack output from all timesteps, else returns a list of outputs
                 cell_bias = True, 
                 out_bias = True,
-                out_bias2 = True,
                 dtype=None,
                 device=None,
                 ) -> None:
@@ -51,29 +49,12 @@ class RNNX(nn.Module):
         if output_sizes is not None:
             self.output_sizes = tuple(output_sizes)
             self.n_output = len(self.output_sizes)
-            assert self.n_hidden==self.n_output, f'hidden_sizes should be equal to output_sizes, {self.n_hidden}!={self.n_output}'
-
-
-            if output_sizes2 is not None:
-                self.output_sizes2 = tuple(output_sizes2)
-                self.n_output2 = len(self.output_sizes2)
-                assert self.n_hidden==self.n_output2, f'hidden_sizes should be equal to output_sizes2, {self.n_hidden}!={self.n_output2}'
-            else:
-                self.output_sizes2 = None
-                self.n_output2=0
-
+            assert self.n_hidden==self.n_output, f'hidden_sizes should be euqal to output_sizes, {self.n_hidden}!={self.n_output}'
         else:
             self.output_sizes = None
             self.n_output=0
-            if output_sizes2 is not None:
-                print(f'Setting output_sizes2 requires setting output_sizes first')
-            self.output_sizes2 = None
-            self.n_output2=0
-
-
         self.cell_bias=cell_bias
         self.out_bias=out_bias
-        self.out_bias2=out_bias2
 
         self.batch_first = batch_first
         self.batch_dim = (0 if batch_first else 1)
@@ -95,35 +76,38 @@ class RNNX(nn.Module):
         self.parameters_module = self.build_parameters(dtype, device)
         self.reset_parameters() # reset_parameters should be the lass call before exiting __init__
 
-    def _build_parameters_(self, hidden_names, hidden_activations, 
-                            output_names, output_activations, 
-                            output_names2, output_activations2, last_activations, 
-                            dtype, device):
+    def _build_parameters_(self, hidden_names, hidden_activations, output_names, output_activations, last_activations, dtype, device):
         if self.n_output>0:
-            if self.n_output2>0:
-                names=hidden_names
-                input_sizes=(self.input_size,) + self.output_sizes2[:-1]
-                n = len(hidden_names)
-                weights = [[] for _ in range(n)]
-                for in_features, cat_features, out_features in zip(input_sizes, self.hidden_sizes, self.hidden_sizes):
+            names=hidden_names
+            input_sizes=(self.input_size,) + self.output_sizes[:-1]
+            n = len(hidden_names)
+            weights = [[] for _ in range(n)]
+            for in_features, cat_features, out_features in zip(input_sizes, self.hidden_sizes, self.hidden_sizes):
+                for j in range(n):
+                    if hidden_activations[j] is None:
+                        weights[j].append(nn.Linear(in_features + cat_features, out_features, 
+                                self.cell_bias, dtype=dtype, device=device))
+                    else:
+                        weights[j].append(LinearActivated(in_features + cat_features, out_features, 
+                                self.cell_bias, hidden_activations[j], dtype=dtype, device=device))
+
+            for name,weight in zip(hidden_names, weights): setattr(self, name, nn.ModuleList(weight))
+            
+            names=names+output_names
+
+            n = len(output_names)
+            weights = [[] for _ in range(n)]
+            is_last = len(input_sizes)-1
+            for i,(in_features, cat_features, out_features) in enumerate(zip(input_sizes, self.hidden_sizes, self.output_sizes)):
+                if i==is_last:
                     for j in range(n):
-                        if hidden_activations[j] is None:
+                        if last_activations[j] is None:
                             weights[j].append(nn.Linear(in_features + cat_features, out_features, 
-                                    self.cell_bias, dtype=dtype, device=device))
+                                    self.out_bias, dtype=dtype, device=device))
                         else:
                             weights[j].append(LinearActivated(in_features + cat_features, out_features, 
-                                    self.cell_bias, hidden_activations[j], dtype=dtype, device=device))
-
-                for name,weight in zip(hidden_names, weights): setattr(self, name, nn.ModuleList(weight))
-                
-
-
-                names=names+output_names
-
-                n = len(output_names)
-                weights = [[] for _ in range(n)]
-                
-                for in_features, cat_features, out_features in zip(input_sizes, self.hidden_sizes, self.output_sizes):
+                                    self.out_bias, last_activations[j], dtype=dtype, device=device))
+                else:
                     for j in range(n):
                         if output_activations[j] is None:
                             weights[j].append(nn.Linear(in_features + cat_features, out_features, 
@@ -132,78 +116,7 @@ class RNNX(nn.Module):
                             weights[j].append(LinearActivated(in_features + cat_features, out_features, 
                                     self.out_bias, output_activations[j], dtype=dtype, device=device))
 
-                for name,weight in zip(output_names, weights): setattr(self, name, nn.ModuleList(weight))
-                
-
-
-
-                names=names+output_names2
-
-                n = len(output_names2)
-                weights = [[] for _ in range(n)]
-                is_last = len(input_sizes)-1
-                #input_sizes=(self.input_size,) + self.output_sizes[:-1]
-                for i,(in_features, cat_features, out_features) in enumerate(zip(self.hidden_sizes, self.output_sizes, self.output_sizes2)):
-                    if i==is_last:
-                        for j in range(n):
-                            if last_activations[j] is None:
-                                weights[j].append(nn.Linear(in_features + cat_features, out_features, 
-                                        self.out_bias2, dtype=dtype, device=device))
-                            else:
-                                weights[j].append(LinearActivated(in_features + cat_features, out_features, 
-                                        self.out_bias2, last_activations[j], dtype=dtype, device=device))
-                    else:
-                        for j in range(n):
-                            if output_activations2[j] is None:
-                                weights[j].append(nn.Linear(in_features + cat_features, out_features, 
-                                        self.out_bias2, dtype=dtype, device=device))
-                            else:
-                                weights[j].append(LinearActivated(in_features + cat_features, out_features, 
-                                        self.out_bias2, output_activations2[j], dtype=dtype, device=device))
-
-                for name,weight in zip(output_names2, weights): setattr(self, name, nn.ModuleList(weight))
-                
-            else:
-                names=hidden_names
-                input_sizes=(self.input_size,) + self.output_sizes[:-1]
-                n = len(hidden_names)
-                weights = [[] for _ in range(n)]
-                for in_features, cat_features, out_features in zip(input_sizes, self.hidden_sizes, self.hidden_sizes):
-                    for j in range(n):
-                        if hidden_activations[j] is None:
-                            weights[j].append(nn.Linear(in_features + cat_features, out_features, 
-                                    self.cell_bias, dtype=dtype, device=device))
-                        else:
-                            weights[j].append(LinearActivated(in_features + cat_features, out_features, 
-                                    self.cell_bias, hidden_activations[j], dtype=dtype, device=device))
-
-                for name,weight in zip(hidden_names, weights): setattr(self, name, nn.ModuleList(weight))
-                
-                names=names+output_names
-
-                n = len(output_names)
-                weights = [[] for _ in range(n)]
-                is_last = len(input_sizes)-1
-                for i,(in_features, cat_features, out_features) in enumerate(zip(input_sizes, self.hidden_sizes, self.output_sizes)):
-                    if i==is_last:
-                        for j in range(n):
-                            if last_activations[j] is None:
-                                weights[j].append(nn.Linear(in_features + cat_features, out_features, 
-                                        self.out_bias, dtype=dtype, device=device))
-                            else:
-                                weights[j].append(LinearActivated(in_features + cat_features, out_features, 
-                                        self.out_bias, last_activations[j], dtype=dtype, device=device))
-                    else:
-                        for j in range(n):
-                            if output_activations[j] is None:
-                                weights[j].append(nn.Linear(in_features + cat_features, out_features, 
-                                        self.out_bias, dtype=dtype, device=device))
-                            else:
-                                weights[j].append(LinearActivated(in_features + cat_features, out_features, 
-                                        self.out_bias, output_activations[j], dtype=dtype, device=device))
-
-                for name,weight in zip(output_names, weights): setattr(self, name, nn.ModuleList(weight))
-
+            for name,weight in zip(output_names, weights): setattr(self, name, nn.ModuleList(weight))
         else:
             names=hidden_names
             n = len(hidden_names)
@@ -270,36 +183,25 @@ class RNNX(nn.Module):
 
 class ELMANX(RNNX):
 
-    def __init__(self, input_size, hidden_sizes, output_sizes=None, output_sizes2=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, out_bias2=True, dtype=None, device=None,
-            activation_gate=tt.sigmoid, activation_out=None, activation_out2=None, activation_last=None) -> None:
+    def __init__(self, input_size, hidden_sizes, output_sizes=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, dtype=None, device=None,
+            activation_gate=tt.sigmoid, activation_out=None, activation_last=None) -> None:
         self.activation_gate = activation_gate
         self.activation_out = activation_out
-        self.activation_out2 = activation_out2
         self.activation_last = activation_last
         self.n_states=1
-        super().__init__(input_size, hidden_sizes, output_sizes, output_sizes2, dropout, batch_first, stack_output, cell_bias, out_bias, out_bias2, dtype, device)
+        super().__init__(input_size, hidden_sizes, output_sizes, dropout, batch_first, stack_output, cell_bias, out_bias, dtype, device)
 
     def build_parameters(self, dtype, device):
         hidden_names = ('ihL',)
         hidden_activations = (self.activation_gate,)
-        
         if self.n_output>0: 
             output_names = ('iyL',)
             output_activations = (self.activation_out, )
             last_activations = (self.activation_last, )
-            if self.n_output2>0:
-                output_names2 = ('yyL',)
-                output_activations2 = (self.activation_out2, )
-                self.forward_one = self.forward_one_yy
-            else:
-                output_names2 = None
-                output_activations2 = None
-                self.forward_one = self.forward_one_y
+            self.forward_one = self.forward_one_y
         else:
             output_names = None
             output_activations = None
-            output_names2 = None
-            output_activations2 = None
             last_activations = None
             self.forward_one = self.forward_one_x
         return self._build_parameters_( 
@@ -307,8 +209,6 @@ class ELMANX(RNNX):
             hidden_activations, 
             output_names, 
             output_activations, 
-            output_names2, 
-            output_activations2, 
             last_activations, 
             dtype, device)
         
@@ -333,31 +233,17 @@ class ELMANX(RNNX):
             x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
 
-    def forward_one_yy(self, x, s):
-        H = []
-        h, = s
-        for i in range(self.n_hidden):
-            xh = tt.concat( (x, h[i]), dim=-1)
-            d = self.ihL[i]( xh )
-            H.append(d)
-            x = self.iyL[i]( xh ) 
-            x = tt.concat( (x, d), dim=-1)
-            x = self.yyL[i]( x )
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
-        return x, (H,)
-
 class GRUX(RNNX):
 
-    def __init__(self, input_size, hidden_sizes, output_sizes=None, output_sizes2=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, out_bias2=True,  dtype=None, device=None,
-                activation_r_gate=tt.sigmoid, activation_z_gate=tt.sigmoid, activation_n_gate=tt.sigmoid, activation_out=None, activation_out2=None, activation_last=None) -> None:
+    def __init__(self, input_size, hidden_sizes, output_sizes=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, dtype=None, device=None,
+                activation_r_gate=tt.sigmoid, activation_z_gate=tt.sigmoid, activation_n_gate=tt.sigmoid, activation_out=None, activation_last=None) -> None:
         self.activation_r_gate = activation_r_gate
         self.activation_z_gate = activation_z_gate
         self.activation_n_gate = activation_n_gate
         self.activation_out = activation_out
-        self.activation_out2 = activation_out2
         self.activation_last = activation_last
         self.n_states=1
-        super().__init__(input_size, hidden_sizes, output_sizes, output_sizes2, dropout, batch_first, stack_output, cell_bias, out_bias, out_bias2, dtype, device)
+        super().__init__(input_size, hidden_sizes, output_sizes, dropout, batch_first, stack_output, cell_bias, out_bias, dtype, device)
 
     def build_parameters(self, dtype, device):
         hidden_names = ('irL', 'izL', 'inL')
@@ -366,19 +252,10 @@ class GRUX(RNNX):
             output_names = ('iyL',)
             output_activations = (self.activation_out, )
             last_activations = (self.activation_last, )
-            if self.n_output2>0:
-                output_names2 = ('yyL',)
-                output_activations2 = (self.activation_out2, )
-                self.forward_one = self.forward_one_yy
-            else:
-                output_names2 = None
-                output_activations2 = None
-                self.forward_one = self.forward_one_y
+            self.forward_one = self.forward_one_y
         else:
             output_names = None
             output_activations = None
-            output_names2 = None
-            output_activations2 = None
             last_activations = None
             self.forward_one = self.forward_one_x
         return self._build_parameters_( 
@@ -386,10 +263,9 @@ class GRUX(RNNX):
             hidden_activations, 
             output_names, 
             output_activations, 
-            output_names2, 
-            output_activations2, 
             last_activations, 
             dtype, device)
+
 
     def forward_one_x(self, x, s):
         H = []
@@ -419,38 +295,20 @@ class GRUX(RNNX):
             x = self.iyL[i]( xh )
             x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
-        
-    def forward_one_yy(self, x, s):
-        H = []
-        h, = s
-        for i in range(self.n_hidden):
-            xh = tt.concat( (x, h[i]), dim=-1)
-            R = self.irL[i]( xh ) 
-            Z = self.izL[i]( xh )
-            xr = tt.concat( (x, R*h[i]), dim=-1)
-            N = self.inL[i]( xr )
-            d = (1-Z) * N + (Z * h[i])  #x = (1-Z) * h[i] + (Z * N) 
-            H.append(d)
-            x = self.iyL[i]( xh )
-            x = tt.concat( (x, d), dim=-1)
-            x = self.yyL[i]( x )
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
-        return x, (H,)
 
 class LSTMX(RNNX):
 
-    def __init__(self, input_size, hidden_sizes, output_sizes=None,output_sizes2=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, out_bias2=True,  dtype=None, device=None,
-                activation_i_gate=tt.sigmoid, activation_f_gate=tt.sigmoid, activation_g_gate=tt.sigmoid, activation_o_gate=tt.sigmoid, activation_cell=tt.tanh, activation_out=None, activation_out2=None, activation_last=None) -> None:
+    def __init__(self, input_size, hidden_sizes, output_sizes=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, dtype=None, device=None,
+                activation_i_gate=tt.sigmoid, activation_f_gate=tt.sigmoid, activation_g_gate=tt.sigmoid, activation_o_gate=tt.sigmoid, activation_cell=tt.tanh, activation_out=None, activation_last=None) -> None:
         self.activation_i_gate = activation_i_gate
         self.activation_f_gate = activation_f_gate
         self.activation_g_gate = activation_g_gate
         self.activation_o_gate = activation_o_gate
         self.activation_out = activation_out
-        self.activation_out2 = activation_out2
         self.activation_cell = activation_cell
         self.activation_last = activation_last
         self.n_states=2
-        super().__init__(input_size, hidden_sizes, output_sizes, output_sizes2, dropout, batch_first, stack_output, cell_bias, out_bias, out_bias2, dtype, device)
+        super().__init__(input_size, hidden_sizes, output_sizes, dropout, batch_first, stack_output, cell_bias, out_bias, dtype, device)
 
     def build_parameters(self, dtype, device):
         hidden_names = ('iiL', 'ifL', 'igL', 'ioL')
@@ -460,19 +318,10 @@ class LSTMX(RNNX):
             output_names = ('iyL',)
             output_activations = (self.activation_out, )
             last_activations = (self.activation_last, )
-            if self.n_output2>0:
-                output_names2 = ('yyL',)
-                output_activations2 = (self.activation_out2, )
-                self.forward_one = self.forward_one_yy
-            else:
-                output_names2 = None
-                output_activations2 = None
-                self.forward_one = self.forward_one_y
+            self.forward_one = self.forward_one_y
         else:
             output_names = None
             output_activations = None
-            output_names2 = None
-            output_activations2 = None
             last_activations = None
             self.forward_one = self.forward_one_x
         return self._build_parameters_( 
@@ -480,11 +329,10 @@ class LSTMX(RNNX):
             hidden_activations, 
             output_names, 
             output_activations, 
-            output_names2, 
-            output_activations2, 
             last_activations, 
             dtype, device)
         
+
     def forward_one_x(self, x, s):
         H,C=[],[]
         h,c = s
@@ -518,37 +366,17 @@ class LSTMX(RNNX):
             x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,C)
 
-    def forward_one_yy(self, x, s):
-        H,C=[],[]
-        h,c = s
-        for i in range(len(self.hidden_sizes)):
-            xh = tt.concat( (x, h[i]), dim=-1)
-            I =  self.iiL[i]( xh ) 
-            F =  self.ifL[i]( xh ) 
-            G =  self.igL[i]( xh ) 
-            O =  self.ioL[i]( xh ) 
-            c_ = F*c[i] + I*G
-            d = O * self.actC(c_)
-            H.append(d)
-            C.append(c_)
-            x =  self.iyL[i]( xh ) 
-            x = tt.concat( (x, d), dim=-1)
-            x = self.yyL[i]( x )
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
-        return x, (H,C)
-
 class JANETX(RNNX):
 
-    def __init__(self, input_size, hidden_sizes, output_sizes=None, output_sizes2=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, out_bias2=True,  dtype=None, device=None,
-                activation_f_gate=tt.sigmoid, activation_g_gate=tt.sigmoid, activation_out=None, activation_out2=None, activation_last=None, beta=0.0) -> None:
+    def __init__(self, input_size, hidden_sizes, output_sizes=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, dtype=None, device=None,
+                activation_f_gate=tt.sigmoid, activation_g_gate=tt.sigmoid, activation_out=None, activation_last=None, beta=0.0) -> None:
         self.activation_f_gate = activation_f_gate
         self.activation_g_gate = activation_g_gate
         self.activation_out = activation_out
-        self.activation_out2 = activation_out2
         self.activation_last = activation_last
         self.beta=beta
         self.n_states=1
-        super().__init__(input_size, hidden_sizes, output_sizes, output_sizes2, dropout, batch_first, stack_output, cell_bias, out_bias, out_bias2, dtype, device)
+        super().__init__(input_size, hidden_sizes, output_sizes, dropout, batch_first, stack_output, cell_bias, out_bias, dtype, device)
 
     def build_parameters(self, dtype, device):
         hidden_names = ('ifL', 'igL')
@@ -557,19 +385,10 @@ class JANETX(RNNX):
             output_names = ('iyL',)
             output_activations = (self.activation_out, )
             last_activations = (self.activation_last, )
-            if self.n_output2>0:
-                output_names2 = ('yyL',)
-                output_activations2 = (self.activation_out2, )
-                self.forward_one = self.forward_one_yy
-            else:
-                output_names2 = None
-                output_activations2 = None
-                self.forward_one = self.forward_one_y
+            self.forward_one = self.forward_one_y
         else:
             output_names = None
             output_activations = None
-            output_names2 = None
-            output_activations2 = None
             last_activations = None
             self.forward_one = self.forward_one_x
         return self._build_parameters_( 
@@ -577,10 +396,9 @@ class JANETX(RNNX):
             hidden_activations, 
             output_names, 
             output_activations, 
-            output_names2, 
-            output_activations2, 
             last_activations, 
             dtype, device)
+
 
     def forward_one_x(self, x, s):
         H=[]
@@ -607,32 +425,16 @@ class JANETX(RNNX):
             x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
 
-    def forward_one_yy(self, x, s):
-        H=[]
-        h, = s
-        for i in range(len(self.hidden_sizes)):
-            xh = tt.concat( (x, h[i]), dim=-1)
-            F =  self.ifL[i]( xh ) - self.beta
-            G =  self.igL[i]( xh )
-            d = F*h[i] + (1-F)*G
-            H.append(d)
-            x = self.iyL[i]( xh )
-            x = tt.concat( (x, d), dim=-1)
-            x = self.yyL[i]( x )
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
-        return x, (H,)
-
 class MGUX(RNNX):
 
-    def __init__(self, input_size, hidden_sizes, output_sizes=None, output_sizes2=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, out_bias2=True,  dtype=None, device=None,
-                activation_f_gate=tt.sigmoid, activation_g_gate=tt.tanh, activation_out=None, activation_out2=None, activation_last=None) -> None:
+    def __init__(self, input_size, hidden_sizes, output_sizes=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, dtype=None, device=None,
+                activation_f_gate=tt.sigmoid, activation_g_gate=tt.tanh, activation_out=None, activation_last=None) -> None:
         self.activation_f_gate = activation_f_gate
         self.activation_g_gate = activation_g_gate
         self.activation_out = activation_out
-        self.activation_out2 = activation_out2
         self.activation_last = activation_last
         self.n_states=1
-        super().__init__(input_size, hidden_sizes, output_sizes, output_sizes2, dropout, batch_first, stack_output, cell_bias, out_bias, out_bias2, dtype, device)
+        super().__init__(input_size, hidden_sizes, output_sizes, dropout, batch_first, stack_output, cell_bias, out_bias, dtype, device)
 
     def build_parameters(self, dtype, device):
         hidden_names = ('ifL', 'igL')
@@ -641,19 +443,10 @@ class MGUX(RNNX):
             output_names = ('iyL',)
             output_activations = (self.activation_out, )
             last_activations = (self.activation_last, )
-            if self.n_output2>0:
-                output_names2 = ('yyL',)
-                output_activations2 = (self.activation_out2, )
-                self.forward_one = self.forward_one_yy
-            else:
-                output_names2 = None
-                output_activations2 = None
-                self.forward_one = self.forward_one_y
+            self.forward_one = self.forward_one_y
         else:
             output_names = None
             output_activations = None
-            output_names2 = None
-            output_activations2 = None
             last_activations = None
             self.forward_one = self.forward_one_x
         return self._build_parameters_( 
@@ -661,10 +454,9 @@ class MGUX(RNNX):
             hidden_activations, 
             output_names, 
             output_activations, 
-            output_names2, 
-            output_activations2, 
             last_activations, 
             dtype, device)
+
 
     def forward_one_x(self, x, s):
         H=[]
@@ -692,22 +484,5 @@ class MGUX(RNNX):
             # or x = F*h[i] + (1-F)*G
             H.append(d)
             x = self.iyL[i]( xh ) 
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
-        return x, (H,)
-
-    def forward_one_yy(self, x, s):
-        H=[]
-        h, = s
-        for i in range(len(self.hidden_sizes)):
-            xh = tt.concat( (x, h[i]), dim=-1)
-            F = self.ifL[i]( xh )
-            xf = tt.concat( (x, F*h[i]), dim=-1)
-            G = self.igL[i]( xf )
-            d = (1-F)*h[i] + F*G
-            # or x = F*h[i] + (1-F)*G
-            H.append(d)
-            x = self.iyL[i]( xh ) 
-            x = tt.concat( (x, d), dim=-1)
-            x = self.yyL[i]( x )
             x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)

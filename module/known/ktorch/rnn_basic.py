@@ -64,7 +64,6 @@ class GRNN(nn.Module):
 
     def forward_one(self, x, h): return self.core.forward_one(x, h)
 
-
 class RNN(nn.Module):
 
     """ Concatenated versions of RNN 
@@ -147,7 +146,6 @@ class RNN(nn.Module):
         hidden = Ht[-1]
         return  out, hidden
 
-
 class ELMAN(RNN):
 
     def __init__(self, has_bias, actF, **rnnargs) -> None:
@@ -173,7 +171,6 @@ class ELMAN(RNN):
             x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
             H.append(x)
         return x, (H,)
-
 
 class GRU(RNN):
 
@@ -209,7 +206,6 @@ class GRU(RNN):
             
             H.append(x)
         return x, (H,)
-
 
 class LSTM(RNN):
 
@@ -248,7 +244,6 @@ class LSTM(RNN):
             C.append(c_)
         return x, (H,C)
 
-
 class JANET(RNN):
 
     def __init__(self, has_bias, actF, beta, **rnnargs) -> None:
@@ -280,7 +275,6 @@ class JANET(RNN):
             x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
             H.append(x)
         return x, (H,)
-
 
 class MGU(RNN):
 
