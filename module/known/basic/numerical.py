@@ -1,3 +1,18 @@
+__doc__=r"""
+===========
+Numerical
+===========
+
+Contains some helpful numerical functions
+
+"""
+__all__=[
+    'ndigs', 'int2base', 'base2int',
+    'REMAP',
+    'numel', 'arange',
+]
+
+
 from math import floor, log
 import numpy as np
 

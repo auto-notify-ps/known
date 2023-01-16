@@ -7,6 +7,7 @@ from io import BytesIO
 # ------------------------------------------------------------------
 # basic
 # ------------------------------------------------------------------
+
 def numel(shape): 
     r""" returns no of total elements (or addresses) in a multi-dim array 
         Note: for torch tensor use Tensor.numel()"""

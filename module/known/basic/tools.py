@@ -1,3 +1,16 @@
+__doc__=r"""
+===========
+Tools
+===========
+
+Contains some tools
+
+"""
+
+__all__=[
+    'graphfromimage',
+]
+
 import numpy as np
 
 def graphfromimage(img_path, pixel_choice='first', dtype=None):

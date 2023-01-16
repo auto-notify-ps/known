@@ -24,9 +24,9 @@ class LinearActivated(nn.Module):
 
 class RNNX(nn.Module):
 
-    """ second extended versions of RNN 
-        - additional parameters defined for 2 output
-        - can choose custom activation at each gate and each output (including seperate for last layrt)
+    """ Xtended versions of RNN 
+        - additional parameters defined for 2 output - intermediate and final
+        - can choose custom activation at each gate and each output (including seperate for last layer)
         - if output_sizes is None, works same as RNN """
     
     def __init__(self,
