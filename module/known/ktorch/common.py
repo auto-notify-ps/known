@@ -1,40 +1,57 @@
-# -----------------------------------------------------------------------------------------------------
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__doc__=r"""
+:py:mod:`known/ktorch/common.py`
+"""
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__all__ = [
+    'numel', 'arange', 'shares_memory', 
+    'copy_parameters', 'show_parameters', 'diff_parameters', 'show_dict',
+    'save_state', 'load_state', 'make_clone', 'make_clones', 'clone_model', 
+    'dense_sequential', 'LinearActivated',
+]
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 import torch as tt
+from torch import Tensor
 import torch.nn as nn
 from io import BytesIO
-# -----------------------------------------------------------------------------------------------------
+from typing import Any, Union, Iterable, Callable, Dict, Tuple, List
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-# ------------------------------------------------------------------
-# basic
-# ------------------------------------------------------------------
 
-def numel(shape): 
-    r""" returns no of total elements (or addresses) in a multi-dim array 
-        Note: for torch tensor use Tensor.numel()"""
+def numel(shape)->int: 
+    r""" Returns the number of elements in an array of given shape
+
+    .. note:: for ``torch.Tensor`` use ``Tensor.numel()``
+    """
     return tt.prod(tt.tensor(shape)).item()
 
-def arange(shape, start=0, step=1, dtype=None): 
-    r""" returns arange for multi-dimensional array (reshapes) """
+def arange(shape, start:int=0, step:int=1, dtype=None) -> Tensor: 
+    r""" Similar to ``torch.arange`` but reshapes the tensor to given shape """
     return tt.arange(start=start, end=start+step*numel(shape), step=step, dtype=dtype).reshape(shape)
 
 def shares_memory(a, b) -> bool: 
-    r""" checks if two tensors share same underlying storage, in which case, changing values of one will change values in other as well
-        Note: this is different from Tensor.is_set_to(Tensor) function which checks shape as well"""
-    return (a.storage().data_ptr() == b.storage().data_ptr())
-# ------------------------------------------------------------------
+    r""" 
+    Checks if two tensors share same underlying storage, in which case, 
+    changing values of one will change values in the other as well.
 
-# ------------------------------------------------------------------
-# module related
-# ------------------------------------------------------------------
+    .. note:: This is different from ``Tensor.is_set_to(Tensor)`` function which checks the shape as well.
+    """
+    return (a.storage().data_ptr() == b.storage().data_ptr())
 
 @tt.no_grad()
-def copy_parameters(module_from, module_to):
-    r""" copies only parameters, both models are supposed to be identical """
+def copy_parameters(module_from, module_to) -> None:
+    r""" Copies module parameters, both modules are supposed to be identical """
     for pt,pf in zip(module_to.parameters(), module_from.parameters()): pt.copy_(pf)
 
 @tt.no_grad()
-def show_parameters(module, values=False):
-    r""" prints the parameters using `nn.Module.parameters` iterator, use `values=True` to print full parameter tensor """
+def show_parameters(module, values:bool=False) -> int:
+    r""" Prints the parameters using ``nn.Module.parameters()``
+
+    :param module: an instance of ``nn.Module``
+    :param values: If `True`, prints the full parameter tensor 
+
+    :returns:   total number of parameters in the module
+    """
     nparam=0
     for i,p in enumerate(module.parameters()):
         iparam = p.numel()
@@ -45,8 +62,12 @@ def show_parameters(module, values=False):
     return nparam
 
 @tt.no_grad()
-def show_dict(module, values=False):
-    r""" prints the parameters using `nn.Module.parameters` iterator, use `values=True` to print full parameter tensor """
+def show_dict(module, values:bool=False) -> None:
+    r""" Prints the state dictionary using ``nn.Module.state_dict()``
+    
+    :param module: an instance of ``nn.Module``
+    :param values: If `True`, prints the full state tensor 
+    """
     sd = module.state_dict()
     for i,(k,v) in enumerate(sd.items()):
         
@@ -55,21 +76,41 @@ def show_dict(module, values=False):
     return 
 
 @tt.no_grad()
-def diff_parameters(module1, module2, do_abs=True, do_sum=True):
+def diff_parameters(module1, module2, do_abs:bool=True, do_sum:bool=True) -> List:
+    r""" Checks the difference between the parameters of two modules. 
+    This can be used to check if two models have exactly the same parameters.
+
+    :param module1: an instance of ``nn.Module``
+    :param module: an instance of ``nn.Module``
+    :param do_abs: if True, finds the absolute difference
+    :param do_sum: if True, finds the sum of difference
+
+    :returns: a list of differences in each parameter or their sum if ``do_sum`` is True.
+    """
     d = [ (abs(p1 - p2) if do_abs else (p1 - p2)) for p1,p2 in zip(module1.parameters(), module2.parameters()) ]
     if do_sum: d = [ tt.sum(p) for p in d  ]
     return d
 
-def save_state(path, model): tt.save(model.state_dict(), path) # simply save the state dictionary
+def save_state(model, path:str): 
+    r""" simply save the state dictionary """
+    tt.save(model.state_dict(), path) 
 
-def load_state(path, model): model.load_state_dict(tt.load(path)) # simply load the state dictionary
+def load_state(model, path:str): 
+    r""" simply load the state dictionary """
+    model.load_state_dict(tt.load(path))
 
-def make_clone(model, detach=False, set_eval=False):
+def make_clone(model, detach:bool=False, set_eval:bool=False):
     r""" Clone a model using memory buffer
-        NOTE: use `detach=True` to sets the `requires_grad` to `False` on all of the parameters of the cloned model. 
-        NOTE: use `set_eval=True` to call `eval()` on the cloned model. 
 
-        Returns: nn.Module or any torch object
+    :param model:    an ``nn.Module`` to clone
+    :param detach:   if True, sets the ``requires_grad`` to `False` on all of the parameters of the cloned model
+    :param set_eval: if True, calls ``eval()`` on cloned model
+
+    :returns: ``nn.Module``
+
+    .. seealso::
+        :func:`~known.ktorch.common.make_clones`
+        :func:`~known.ktorch.common.clone_model`
     """
     buffer = BytesIO()
     tt.save(model, buffer)
@@ -82,12 +123,19 @@ def make_clone(model, detach=False, set_eval=False):
     del buffer
     return model_copy
 
-def make_clones(model, n_copies, detach=False, set_eval=False):
+def make_clones(model, n_copies:int, detach:bool=False, set_eval:bool=False):
     r""" Clone a model multiple times using memory buffer
-        NOTE: use `detach=True` to sets the `requires_grad` to `False` on all of the parameters of the cloned model. 
-        NOTE: use `set_eval=True` to call `eval()` on the cloned model. 
 
-        Returns: Tuple of (nn.Module or any torch object)
+    :param model:    an ``nn.Module`` to clone
+    :param n_copies: number of copies to be made
+    :param detach:   if True, sets the ``requires_grad`` to `False` on all of the parameters of the cloned model
+    :param set_eval: if True, calls ``eval()`` on cloned model
+
+    :returns: tuple of ``nn.Module``
+
+    .. seealso::
+        :func:`~known.ktorch.common.make_clone`
+        :func:`~known.ktorch.common.clone_model`
     """
     buffer = BytesIO()
     
@@ -104,39 +152,43 @@ def make_clones(model, n_copies, detach=False, set_eval=False):
     del buffer
     return tuple(model_copies)
 
-def clone_model(model, n_copies=1, detach=False, set_eval=False):
-    r""" Clone a model using memory buffer
+def clone_model(model, n_copies:int=1, detach:bool=False, set_eval:bool=False):
+    r""" Clone a model multiple times using memory buffer
 
-        Args:
-            model       `nn.Module/object`  : a model or any torch object that can be saved/loaded using torch.save/load
-            n_copies    `integer`           : no of copies, default = 1
-            detach      `bool`              : if True, sets the `requires_grad` to `False` on all of the parameters of the cloned model. 
-            set_eval    `bool`              : if True, calls `eval()` on the cloned model. 
+    :param model:    an ``nn.Module`` to clone
+    :param n_copies: number of copies to be made
+    :param detach:   if True, sets the ``requires_grad`` to `False` on all of the parameters of the cloned model
+    :param set_eval: if True, calls ``eval()`` on cloned model
 
-        Returns: 
-            nn.Module or any torch object               if n_copies=1
-            
-            Tuple of (nn.Module or any torch object)    if n_copies>1
+    :returns: single ``nn.Module`` or tuple of ``nn.Module`` based on ``n_copies`` argument
+
+    .. note:: This is similar to :func:`~known.ktorch.common.make_clone` and :func:`~known.ktorch.common.make_clones` but
+        returns tuple or a single object based on `n_copies` argument
+
     """
     assert n_copies>0, f'no of copies must be atleast one'
     return (make_clone(model, detach, set_eval) if n_copies==1 else make_clones(model, n_copies, detach, set_eval))
 
-def dense_sequential(in_dim, layer_dims, out_dim, actF, actL, actFA={}, actLA={}, use_bias=True, use_biasL=True, dtype=None, device=None ):
+def dense_sequential(in_dim:int, layer_dims:Iterable[int], out_dim:int, 
+                    actF:Callable, actL:Callable, actFA:Dict={}, actLA:Dict={}, 
+                    use_bias:bool=True, use_biasL:bool=True, dtype=None, device=None ):
     r"""
-    Creats a stack of fully connected (dense) layers which is usually connected at end of other networks
-    Args:
-        in_dim          `integer`       : in_features or input_size
-        layer_dims      `List/Tuple`    : size of hidden layers
-        out_dim         `integer`       : out_features or output_size
-        actF            `nn.Module`     : activation function at hidden layer
-        actFA           `dict`          : args while initializing actF
-        actL            `nn.Module`     : activation function at last layer
-        actLA           `dict`          : args while initializing actL
-        use_bias        `bool`          : if True, uses bias at hidden layers
-        use_biasL       `bool`          : if True, uses bias at last layer
+    Creats a stack of fully connected (dense) layers which is usually connected at end of other networks.
+    
+    :param in_dim:       in_features or input_size
+    :param layer_dims:   size of hidden layers
+    :param out_dim:      out_features or output_size
+    :param actF:         activation function at hidden layer (like ``nn.Sigmoid``)
+    :param actFA:        args while initializing actF
+    :param actL:         activation function at last layer  (like ``nn.Sigmoid``)
+    :param actLA:        args while initializing actL
+    :param use_bias:     if True, uses bias at hidden layers
+    :param use_biasL:    if True, uses bias at last layer
 
-    Returns:
-        `nn.Module` : an instance of nn.Sequential
+    :returns: An instance of ``nn.Module`` 
+
+    .. seealso::
+        :class:`~known.ktorch.common.LinearActivated`
     """
     layers = []
     # first layer
@@ -151,3 +203,51 @@ def dense_sequential(in_dim, layer_dims, out_dim, actF, actL, actFA={}, actLA={}
     if actL is not None: layers.append(actL(**actLA))
     return nn.Sequential( *layers )
 
+class LinearActivated(nn.Module):
+    r""" 
+    A simple linear layer with added activation 
+   
+    :param in_features:     in_features or input_size
+    :param out_features:    out_features or output_size
+    :param bias:            if True, uses bias
+    :param activation:      can be a tuple like ``(nn.Tanh, {})`` or a callable like ``torch.tanh``
+    
+    :returns: An instance of ``nn.Module`` 
+
+    .. seealso::
+        :func:`~known.ktorch.common.dense_sequential`
+    """
+
+    def __init__(self, in_features:int, out_features:int, bias:bool, activation:Union[Callable, Tuple], device=None, dtype=None) -> None:
+        r""" 
+        Initialize a linear layer with added activation 
+        
+        :param in_features:     in_features or input_size
+        :param out_features:    out_features or output_size
+        :param bias:            if True, uses bias
+        :param activation:      can be a tuple like ``(nn.Tanh, {})`` or a callable like ``torch.tanh``
+        
+        :returns: An instance of ``nn.Module`` 
+        """
+        super().__init__()
+        def no_act(x): return x
+        if activation is None: activation=no_act
+        if hasattr(activation, '__len__'):
+            # activation_arg is like activation_arg=(nn.Tanh, {})
+            actModule = activation[0]
+            actArgs = activation[1]
+            self.A = actModule(**actArgs)
+        else:
+            # activation_arg is like activation_arg=tt.tanh
+            self.A = activation
+        self.L = nn.Linear(in_features, out_features, bias, device, dtype)
+    def forward(self, x): 
+        r""" Forward pass 
+
+        :shapes: 
+            * input has a shape ``(batch_size, input_size)``
+            * output has shape ``(batch_size, output_size)``
+        """
+        return self.A(self.L(x))
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

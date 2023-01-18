@@ -1,33 +1,141 @@
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__doc__=r"""
+:py:mod:`known/ktorch/rnn.py`
 
-# @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ =
+Implements base RNN class along with other RNN variants.
+The variants have some common initialization arguments which can be refered from the base RNN class.
+
+The RNN have base cell architecture for producing hidden states (`i2h`) and can be extended to have additional weights for
+
+    * producing output with only `(input + previous_hidden)` called (`i2o`) 
+        .. image:: rnn1.png
+    * producing output with `(input + previous_hidden + current_hidden)` called (`o2o`) 
+        .. image:: rnn2.png
+
+The base cell architecture can be implemented by not specifying any output (dont define ``output_sizes`` and ``output_sizes2``).
+The first architecture can be implemented by specifying only the first output (define ``output_sizes`` and dont define ``output_sizes2``).
+The second architecture can be implemented by specifying both the outputs (define ``output_sizes`` and ``output_sizes2``).
+"""
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__all__ = [
+    'RNN', 'ELMAN', 'GRU', 'LSTM', 'JANET', 'MGU', 'GRNN'
+]
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 import torch as tt
 import torch.nn as nn
 #import torch.nn.functional as ff
 import math
-# @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ = @ =
+from typing import Any, Union, Iterable, Callable, Dict, Tuple, List
+from .common import LinearActivated
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-class LinearActivated(nn.Module):
-    def __init__(self, in_features, out_features, bias, activation, device, dtype) -> None:
+
+
+class GRNN(nn.Module):
+    r""" Generalized RNN 
+        * takes any core module and applies recurance on it through forward method 
+        * works with existing RNN modules
+        * when inheriting this class make sure to implement the following functions: 
+            - ``timesteps_in()``
+            - ``init_states()``
+            - ``get_input_at()``
+            - ``forward_one()``
+
+    :param core: underlying core module on which recurance is applied
+    """
+
+    def __init__(self, core) -> None:
+        r"""
+        :param core: underlying core module on which recurance is applied
+        """
         super().__init__()
-        def no_act(x): return x
-        if activation is None: activation=no_act
-        if hasattr(activation, '__len__'):
-            # activation_arg is like activation_arg=(nn.Tanh, {})
-            actModule = activation[0]
-            actArgs = activation[1]
-            self.A = actModule(**actArgs)
-        else:
-            # activation_arg is like activation_arg=tt.tanh
-            self.A = activation
-        self.L = nn.Linear(in_features, out_features, bias, device, dtype)
-    def forward(self, x): return self.A(self.L(x))
+        self.core = core
 
-class RNNX(nn.Module):
+    def forward(self, Xt, H=None, future=0):
+        r""" Applies forward pass through the entire input sequence 
+        
+        :param Xt:  input sequence
+        :param H:   hidden states from previous timestep
+        :param future:  Number of future timesteps to predict, works only when ``input_size == output_size``
+        """
+        # X = input sequence
+        # H = hidden states for each layer at timestep (t-1)
+        # future = no of future steps to output
 
-    """ Xtended versions of RNN 
-        - additional parameters defined for 2 output - intermediate and final
-        - can choose custom activation at each gate and each output (including seperate for last layer)
-        - if output_sizes is None, works same as RNN """
+        timesteps = self.timesteps_in(Xt) #<<---- how many timesteps in the input sequence X ? 
+
+        # H should contain hidden states for each layer at the last timestep
+        # if no hidden-state supplied, create a hidden states for each layer
+        if H is None: H=self.init_states(Xt) 
+
+
+        Ht = [H] #<==== hidden states at each timestep
+        Yt = []  #<---- output of last cell at each timestep
+        for t in range(timesteps): #<---- for each timestep 
+            x = self.get_input_at(Xt, t) #<--- input at this time step
+            h = Ht[-1] #<---- hidden states for each layer at this timestep
+            y, h_ = self.forward_one(x, h)
+
+            Yt.append(y)
+            Ht.append(h_)
+        
+        #<--- IMP: future arg will work only when (input_size == hidden_size of the last layer)
+        for _ in range(future):
+            x = Yt[-1]#<--- input at this time step
+            h = Ht[-1] #<---- hidden states for each layer at this timestep
+            y, h_ = self.forward_one(x, h)
+
+            Yt.append(y)
+            Ht.append(h_)
+
+        return Yt, Ht[-1]
+
+    def timesteps_in(self, Xt): 
+        r""" returns the number of timesteps in an input sequence `Xt`"""
+        return Xt.shape[self.core.seq_dim]
+
+    def init_states(self, Xt): 
+        r""" returns the set of all hidden states required for the `core` module based on input sequence `Xt` """
+        return self.core.init_hidden(Xt.shape[self.core.batch_dim], Xt.dtype, Xt.device)
+    
+    def get_input_at(self, Xt, t): 
+        r""" returns the input at time step `t` from an input sequence `Xt` """
+        return (Xt[:, t, :] if self.core.batch_first else Xt[t, :, :])
+
+    def forward_one(self, x, h): 
+        r""" Applies forward pass through the a single timestep of the input
+        
+        :param x:  input at current timestep
+        :param h:  hidden states from previous timestep
+        """
+        return self.core.forward_one(x, h)
+
+class RNN(nn.Module):
+
+    """ Recurrent Neural Network base class
+        * additional parameters defined for 2 output -  `i2o` and `o2o`
+        * can choose custom activation at each gate and each output (including seperate for last layer)
+        * if output_sizes is None, no additional weights are defined for `i2o`
+        * if output_sizes2 is None, no additional weights are defined for `o2o`
+
+    :param input_size:      no of features in the input vector
+    :param hidden_sizes:    no of features in the hidden vector (`i2h`)
+    :param output_sizes:    optional, no of features in the first output vector (`i2o`)
+    :param output_sizes2:   optional, no of features in the second output vector (`o2o`)
+    :param dropout:         probability of dropout, dropout is not applied at the last layer
+    :param batch_first:     if True, `batch_size` is assumed as the first dimension in the input
+    :param stack_output:    if True, stacks the output of all timesteps into a single tensor, otherwise keeps them in a list
+    :param cell_bias:       if True, uses bias at the cell level gates (`i2h`)
+    :param out_bias:        if True, uses bias at first output (`i2o`)
+    :param out_bias2:       if True, uses bias at second output (`o2o`)
+    
+    .. note:: 
+        * Do not use this class directly, it is meant to provide a base class from which other RNN modules are inherited
+        * Activation arguments can be a tuple like ``(nn.Tanh, {})`` or a callable like ``torch.tanh``
+        * if ``batch_first`` is True, accepts input of the form ``(batch_size, seq_len, input_size)``, otherwise ``(seq_len, batch_size, input_size)``
+
+    """
     
     def __init__(self,
                 input_size,         # input features
@@ -248,6 +356,12 @@ class RNNX(nn.Module):
               for _ in range(self.n_states)  ])
 
     def forward(self, Xt, h=None, future=0):
+        r""" Applies forward pass through the entire input sequence 
+        
+        :param Xt:  input sequence
+        :param H:   hidden states from previous timestep
+        :param future:  Number of future timesteps to predict, works only when ``input_size == output_size``
+        """
         if h is None: h=self.init_hidden(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
         Ht=[h]
         Yt = [] #<---- outputs at each timestep
@@ -268,9 +382,21 @@ class RNNX(nn.Module):
         hidden = Ht[-1]
         return  out, hidden
 
-class ELMANX(RNNX):
+class ELMAN(RNN):
+    r"""
+    Defines an Elman RNN, additional arguments are as follows
 
-    def __init__(self, input_size, hidden_sizes, output_sizes=None, output_sizes2=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, out_bias2=True, dtype=None, device=None,
+    :param activation_gate: activation function at Elman gate 
+    :param activation_out:  activation at first output
+    :param activation_out2: activation at second output
+    :param activation_last: activation at the last layer of the final output
+
+    :ref: `Elman RNN <https://pytorch.org/docs/stable/generated/torch.nn.RNN.html>`__
+    """
+
+    def __init__(self, input_size, hidden_sizes, output_sizes=None, output_sizes2=None, dropout=0, 
+            batch_first=False, stack_output=False, cell_bias=True, out_bias=True, out_bias2=True, 
+            dtype=None, device=None,
             activation_gate=tt.sigmoid, activation_out=None, activation_out2=None, activation_last=None) -> None:
         self.activation_gate = activation_gate
         self.activation_out = activation_out
@@ -346,8 +472,19 @@ class ELMANX(RNNX):
             x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
 
-class GRUX(RNNX):
+class GRU(RNN):
+    r"""
+    Defines an Gated Recurrent Unit, additional arguments are as follows
 
+    :param activation_r_gate: activation function at R gate 
+    :param activation_z_gate: activation function at Z gate 
+    :param activation_n_gate: activation function at N gate 
+    :param activation_out:  activation at first output
+    :param activation_out2: activation at second output
+    :param activation_last: activation at the last layer of the final output
+
+    :ref: `GRU RNN <https://pytorch.org/docs/stable/generated/torch.nn.GRU.html>`__
+    """
     def __init__(self, input_size, hidden_sizes, output_sizes=None, output_sizes2=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, out_bias2=True,  dtype=None, device=None,
                 activation_r_gate=tt.sigmoid, activation_z_gate=tt.sigmoid, activation_n_gate=tt.sigmoid, activation_out=None, activation_out2=None, activation_last=None) -> None:
         self.activation_r_gate = activation_r_gate
@@ -437,8 +574,21 @@ class GRUX(RNNX):
             x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
 
-class LSTMX(RNNX):
+class LSTM(RNN):
+    r"""
+    Defines an Long Short Tem Memory RNN, additional arguments are as follows
 
+    :param activation_i_gate: activation function at I gate 
+    :param activation_f_gate: activation function at F gate 
+    :param activation_g_gate: activation function at G gate 
+    :param activation_o_gate: activation function at O gate 
+    :param activation_cell_out:  activation at cell state output
+    :param activation_out:  activation at first output
+    :param activation_out2: activation at second output
+    :param activation_last: activation at the last layer of the final output
+
+    :ref: `LSTM RNN <https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html>`__
+    """
     def __init__(self, input_size, hidden_sizes, output_sizes=None,output_sizes2=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, out_bias2=True,  dtype=None, device=None,
                 activation_i_gate=tt.sigmoid, activation_f_gate=tt.sigmoid, activation_g_gate=tt.sigmoid, activation_o_gate=tt.sigmoid, activation_cell=tt.tanh, activation_out=None, activation_out2=None, activation_last=None) -> None:
         self.activation_i_gate = activation_i_gate
@@ -537,8 +687,19 @@ class LSTMX(RNNX):
             x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,C)
 
-class JANETX(RNNX):
+class JANET(RNN):
+    r"""
+    Defines an Just Another NETwork RNN, additional arguments are as follows
 
+    :param activation_f_gate: activation function at F gate 
+    :param activation_g_gate: activation function at G gate 
+    :param activation_out:  activation at first output
+    :param activation_out2: activation at second output
+    :param activation_last: activation at the last layer of the final output
+    :param beta:    the ``beta`` hyperparameter
+
+    :ref: `JANET RNN <https://arxiv.org/pdf/1804.04849.pdf>`__
+    """
     def __init__(self, input_size, hidden_sizes, output_sizes=None, output_sizes2=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, out_bias2=True,  dtype=None, device=None,
                 activation_f_gate=tt.sigmoid, activation_g_gate=tt.sigmoid, activation_out=None, activation_out2=None, activation_last=None, beta=0.0) -> None:
         self.activation_f_gate = activation_f_gate
@@ -622,8 +783,18 @@ class JANETX(RNNX):
             x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
 
-class MGUX(RNNX):
+class MGU(RNN):
+    r"""
+    Defines an Minimal Gated Unit, additional arguments are as follows
 
+    :param activation_f_gate: activation function at F gate 
+    :param activation_g_gate: activation function at G gate 
+    :param activation_out:  activation at first output
+    :param activation_out2: activation at second output
+    :param activation_last: activation at the last layer of the final output
+
+    :ref: `MGU RNN <https://arxiv.org/pdf/1603.09420.pdf>`__
+    """
     def __init__(self, input_size, hidden_sizes, output_sizes=None, output_sizes2=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, out_bias2=True,  dtype=None, device=None,
                 activation_f_gate=tt.sigmoid, activation_g_gate=tt.tanh, activation_out=None, activation_out2=None, activation_last=None) -> None:
         self.activation_f_gate = activation_f_gate
@@ -711,3 +882,6 @@ class MGUX(RNNX):
             x = self.yyL[i]( x )
             x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
+
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

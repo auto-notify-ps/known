@@ -1,4 +1,12 @@
-# -----------------------------------------------------------------------------------------------------
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__doc__=r"""
+:py:mod:`known/ktorch/utils.py`
+"""
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__all__ = [
+    'QuantiyMonitor', 'Trainer', 
+]
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 import torch as tt
 import torch.nn as nn
 from torch.optim import lr_scheduler
@@ -6,15 +14,27 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from .common import save_state, load_state
 import matplotlib.pyplot as plt
-# -----------------------------------------------------------------------------------------------------
 import datetime
 now = datetime.datetime.now
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 
 class QuantiyMonitor:
-    """ Monitors a quantity overtime to check if it improves(decrease) after a given patience. """
+    """ Monitors a quantity overtime to check if it improves (decreases) after a given patience. 
+    Quantity is checked on each call to :func:`~known.ktorch.utils.QuantiyMonitor.check`. 
+    The ``__call__`` methods implements the ``check`` method. Can be used to monitor loss for early stopping.
+    
+    :param name: name of the quantity to be monitored
+    :param patience: number of calls before the monitor decides to stop
+    :param delta: the amount by which the monitored quantity should decrease to consider an improvement
+    """
 
-    def __init__(self, name, patience, delta):
+    def __init__(self, name:str, patience:int, delta:float) -> None:
+        r"""
+        :param name: name of the quantity to be monitored
+        :param patience: number of calls before the monitor decides to stop
+        :param delta: the amount by which the monitored quantity should decrease to consider an improvement
+        """
         assert(patience>0) # patience should be positive
         assert(delta>0) # delta should be positive
         self.patience, self.delta = patience, delta
@@ -22,12 +42,24 @@ class QuantiyMonitor:
         self.reset()
     
     def reset(self, initial=None):
+        r""" Resets the monitor's state and starts at a given `initial` value """
         self.last = (tt.inf if initial is None else initial)
         self.best = self.last
         self.counter = 0
         self.best_epoch = -1
 
-    def __call__(self, current, epoch=-1, verbose=False):
+    def __call__(self, current, epoch=-1, verbose=False) -> bool:
+        return self.check(current, epoch, verbose)
+        
+    def check(self, current, epoch=-1, verbose=False) -> bool:
+        r""" Calls the monitor to check the current value of monitored quality
+        
+        :param current: the current value of quantity
+        :param epoch:   optional, the current epoch (used only for verbose)
+        :param verbose: if `True`, prints monitor status when it changes
+
+        :returns: `True` if the quanity has stopped improving, `False` otherwise.
+        """
         self.last = current
         if self.best == tt.inf: 
             self.best=self.last
@@ -50,9 +82,8 @@ class QuantiyMonitor:
         return False
 
 class Trainer:
-    """ 
-    Holds a model, compiles it and calls fit() multiple times, evals/testing
-    """
+    r""" Holds a model, compiles it and trains/tests/evaluates it multiple times """
+    
     def __init__(self, model) -> None:
         self.model = model
 
@@ -274,7 +305,7 @@ class Trainer:
         return
 
 
-
+    @staticmethod
     def train(model, training_data=None, validation_data=None, testing_data=None,
                 epochs=0, batch_size=0, shuffle=None, validation_freq=0, 
                 criterion_type=None, criterion_args={}, optimizer_type=None, optimizer_args={}, lrs_type=None, lrs_args={},
@@ -293,6 +324,7 @@ class Trainer:
                 early_stop_train, early_stop_val, checkpoint_freq, save_path,
                 save_state_only, verbose, plot, loss_plot_start)
 
+    @staticmethod
     def train_(model, training_data=None, validation_data=None, testing_data=None,
                 epochs=0, batch_size=0, shuffle=None, validation_freq=0, 
                 criterion=None, optimizer=None, lrs=None,
