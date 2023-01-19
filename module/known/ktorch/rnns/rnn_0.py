@@ -164,8 +164,9 @@ class ELMAN(RNN):
         h, = s
         for i in range(self.n_hidden):
             x = self.actF( ff.linear(x, self.ihW[i], self.ihB[i]) + ff.linear(h[i], self.hhW[i], self.hhB[i]) )
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
             H.append(x)
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
+            
         return x, (H,)
 
 
@@ -225,9 +226,8 @@ class GRU(RNN):
             N = self.actF(ff.linear(x, self.inW[i], self.inB[i]) + (R * ff.linear(h[i], self.hnW[i], self.hnB[i])))
             #N = self.actF(ff.linear(x, self.inW[i], self.inB[i]) + ff.linear(R * h[i], self.hnW[i], self.hnB[i]))
             x = (1-Z) * N + (Z * h[i])  #x = (1-Z) * h[i] + (Z * N) 
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
-            
             H.append(x)
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
 
 
@@ -297,9 +297,10 @@ class LSTM(RNN):
             O = tt.sigmoid(ff.linear(x, self.ioW[i], self.ioB[i]) + ff.linear(h[i], self.hoW[i], self.hoB[i]))
             c_ = F*c[i] + I*G
             x = O * self.actC(c_)
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
+            
             H.append(x)
             C.append(c_)
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,C)
 
 
@@ -349,8 +350,9 @@ class JANET(RNN):
             F = tt.sigmoid(ff.linear(x, self.ifW[i], self.ifB[i]) + ff.linear(h[i], self.hfW[i], self.hfB[i]) - self.beta)
             G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + ff.linear(h[i], self.hgW[i], self.hgB[i]))
             x = F*h[i] + (1-F)*G
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
+            
             H.append(x)
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
 
 
@@ -400,8 +402,9 @@ class MGU(RNN):
             G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + (F * ff.linear(h[i], self.hgW[i], self.hgB[i])))
             # or G = self.actF(ff.linear(x, self.igW[i], self.igB[i]) + ff.linear(F * h[i], self.hgW[i], self.hgB[i]))
             x = (1-F)*h[i] + F*G
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
+            
             # or x = F*h[i] + (1-F)*G
             H.append(x)
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
 

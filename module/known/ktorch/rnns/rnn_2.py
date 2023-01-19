@@ -650,7 +650,7 @@ class JANET(RNN):
     :ref: `JANET RNN <https://arxiv.org/pdf/1804.04849.pdf>`__
     """
     def __init__(self, input_size, hidden_sizes, output_sizes=None, output_sizes2=None, dropout=0, batch_first=False, stack_output=False, cell_bias=True, out_bias=True, out_bias2=True,  bidir = False, dtype=None, device=None,
-                activation_f_gate=tt.sigmoid, activation_g_gate=tt.sigmoid, activation_out=None, activation_out2=None, activation_last=None, beta=0.0) -> None:
+                activation_f_gate=tt.sigmoid, activation_g_gate=tt.tanh, activation_out=None, activation_out2=None, activation_last=None, beta=0.0) -> None:
         self.activation_f_gate = activation_f_gate
         self.activation_g_gate = activation_g_gate
         self.activation_out = activation_out

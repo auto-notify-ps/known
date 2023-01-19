@@ -143,8 +143,9 @@ class ELMAN(RNN):
         for i in range(self.n_hidden):
             xh = tt.concat( (x, h[i]), dim=-1)
             x = self.actF( self.ihL[i]( xh ) )
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
+            
             H.append(x)
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
 
 class GRU(RNN):
@@ -178,9 +179,8 @@ class GRU(RNN):
             xr = tt.concat( (x, R*h[i]), dim=-1)
             N = self.actF( self.inL[i]( xr ) )
             x = (1-Z) * N + (Z * h[i])  #x = (1-Z) * h[i] + (Z * N) 
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
-            
             H.append(x)
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
 
 class LSTM(RNN):
@@ -216,9 +216,9 @@ class LSTM(RNN):
             O = tt.sigmoid( self.ioL[i]( xh ) )
             c_ = F*c[i] + I*G
             x = O * self.actC(c_)
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
             H.append(x)
             C.append(c_)
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,C)
 
 class JANET(RNN):
@@ -250,8 +250,8 @@ class JANET(RNN):
             F = tt.sigmoid( self.ifL[i]( xh ) - self.beta)
             G = self.actF( self.igL[i]( xh ))
             x = F*h[i] + (1-F)*G
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
             H.append(x)
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
 
 class MGU(RNN):
@@ -283,9 +283,9 @@ class MGU(RNN):
             xf = tt.concat( (x, F*h[i]), dim=-1)
             G = self.actF( self.igL[i]( xf ))
             x = (1-F)*h[i] + F*G
-            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
             # or x = F*h[i] + (1-F)*G
             H.append(x)
+            x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
