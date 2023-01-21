@@ -350,6 +350,8 @@ class LangDataset(Dataset):
         self.classes = {}
         self.n_classes = 0
         self.data = []
+        self.data_str = []
+        self.data_labels = []
         self.dtype = dtype
 
     def dataloader(self, batch_size:int=1, shuffle:bool=None) -> DataLoader:
@@ -371,24 +373,38 @@ class LangDataset(Dataset):
             self.classes[label] = [self.n_classes, 0] 
             self.n_classes+=1
         self.classes[label][1] += len(samples)
-        self.data.extend( [(sample, label) for sample in samples] )
+        
+        self.data_str.extend( [(sample, label) for sample in samples] )
+        self.data_labels.extend([self.classes[label][0] for _ in samples])
+        self.data.extend( [(tt.stack([self.embed(s, dtype=self.dtype) for s in sample]),(self.classes[label][0]))  for sample in samples] )
         
     def class_one_hot(self, label:str) -> Tensor:
         r""" returns one-hot vector for class label to be used as classification label """
-        if label not in self.classes: 
+        if label in self.classes: 
             hot_label = tt.zeros((self.n_classes,), dtype=tt.long)
             hot_label[self.classes[label][0]] += 1
             return hot_label
         else:
             print(f'Class label [{label}] does not exist!')
             return None
-
+        
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, index):
-        sample, label = self.data[index] # sample is a sequence
-        return tt.stack([ self.embed(s, dtype=self.dtype) for s in sample ]), self.class_one_hot(label)
+        return self.data[index]
+        #sample, label = self.data[index] # sample is a sequence
+        #return tt.stack([ self.embed(s, dtype=self.dtype) for s in sample ]), self.class_one_hot(label)
+
+    def get_word_from_class(self, label, index=None):
+        if label in self.classes: 
+            c = self.classes[label][0]
+            n = np.where(np.array(self.data_labels)==c)[0]
+            if index is None: 
+                index = np.random.choice(n)
+            else:
+                index=n[index]
+            return index, self.data[index], self.data_str[index]
 
 
 

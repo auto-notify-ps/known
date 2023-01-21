@@ -128,6 +128,19 @@ class Trainer:
                 break
         return np.array(batch_loss)
 
+    """
+    m = nn.LogSoftmax(dim=-1)
+    loss = nn.NLLLoss()
+    # input is of size N x C = 3 x 5
+    input = tt.zeros(5, 3, requires_grad=False)
+    ins = m(input)
+    print(input, '\n', ins, ins.shape)
+    # each element in target has to have 0 <= value < C
+    target = tt.tensor([1, 0, 2, 0, 1])
+    print('target', target.shape, target)
+    output = loss(ins, target)
+    print(output)
+    """
     def fit_epoch_rnn(self, data_loader):
         self.model.train()
         batch_loss=[]
@@ -137,8 +150,9 @@ class Trainer:
                 X, Y = next(data_iter)
                 self.optimizer.zero_grad()
                 P, *_ = self.model(X)
-                #if P.shape!=Y.shape: print(f'!!!! {P.shape}, {Y.shape}')
-                loss = self.criterion(P, Y)
+                #print(f'!!!! {P[:,-1,:].shape}, {Y.shape}, \n {P[:,-1,:]}, \n {Y=}')
+                #input()
+                loss = self.criterion(P[:,-1,:], Y)
                 loss.backward()
                 self.optimizer.step()
                 loss_value = loss.item()
@@ -172,8 +186,8 @@ class Trainer:
             try:
                 X, Y = next(data_iter)
                 P, *_ = self.model(X)
-                #if P.shape!=Y.shape: print(f'!!!! {P.shape}, {Y.shape}')
-                loss_value = self.criterion(P, Y).item()
+                #print(f'!!!! {P.shape}, {Y.shape}')
+                loss_value = self.criterion(P[:,-1,:], Y).item()
                 batch_loss.append(loss_value)
             except StopIteration:
                 break
@@ -269,7 +283,7 @@ class Trainer:
         # end for epochs...................................................
         self.on_training_end(epochs)
         if save_path: 
-            save_state( save_path, self.model)
+            save_state( self.model, save_path)
             if verbose: print(f'[*] Saved@ {save_path}')
         if verbose: print('-------------------------------------------')
         end_time=now()
@@ -279,8 +293,9 @@ class Trainer:
             print('End Training @ {}, Elapsed Time: [{}]'.format(end_time, end_time-start_time))
         return
 
-    def evaluate(self, testing_data, use_rnn=False):
-        testing_data_loader=DataLoader(testing_data, batch_size=len(testing_data), shuffle=False)
+    def evaluate(self, testing_data, batch_size=None, use_rnn=False):
+        if batch_size is None: batch_size=len(testing_data)
+        testing_data_loader=DataLoader(testing_data, batch_size=batch_size, shuffle=False)
         print(f'Testing samples: [{len(testing_data)}]')
         print(f'Testing batches: [{len(testing_data_loader)}]')
         test_loss = self.eval_epoch_rnn(testing_data_loader) if use_rnn else  self.eval_epoch(testing_data_loader)
@@ -288,17 +303,18 @@ class Trainer:
         print(f'Testing Loss: {mean_test_loss}') 
         return mean_test_loss, test_loss
 
-    def plot_results(self, loss_plot_start=0):
+    
+    def plot_results(self, color='black', loss_plot_start=0):
         plt.figure(figsize=(12,6))
         plt.title('Training Loss')
-        plt.plot(np.mean(self.train_loss_history,axis=1)[loss_plot_start:],color='tab:red', label='train_loss')
+        plt.plot(np.mean(self.train_loss_history,axis=1)[loss_plot_start:],color=color, label='train_loss')
         plt.legend()
         plt.show()
         plt.close()
         if self.val_loss_history:
             plt.figure(figsize=(12,6))
             plt.title('Validation Loss')
-            plt.plot(np.mean(self.val_loss_history,axis=1),color='tab:orange', label='val_loss')
+            plt.plot(np.mean(self.val_loss_history,axis=1),color=color, label='val_loss', linestyle='dotted')
             plt.legend()
             plt.show()
             plt.close()
@@ -396,9 +412,9 @@ class Trainer:
             if do_checkpoint:
                 if (epoch%checkpoint_freq==0):
                     if save_state_only:
-                        save_state(save_path, model)
+                        save_state( model, save_path)
                     else:
-                        tt.save(save_path, model)
+                        tt.save(model, save_path )
                     if verbose>1: print(f'(-)\tCheckpoint created on epoch {epoch}')
 
 
@@ -420,9 +436,9 @@ class Trainer:
 
         if save_path: 
             if save_state_only:
-                save_state(save_path, model)
+                save_state( model, save_path)
             else:
-                tt.save(save_path, model)
+                tt.save(model, save_path)
             if verbose: print(f'[*] Saved @ {save_path}')
         if verbose: print('-------------------------------------------')
         end_time=now()

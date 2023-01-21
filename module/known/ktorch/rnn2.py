@@ -171,7 +171,7 @@ class RNN(nn.Module):
                 i2h_bias = True, 
                 i2o_bias = True,
                 o2o_bias = True,
-                i2h_activations=(),
+                i2h_activations=None,
                 i2o_activation=None,
                 o2o_activation=None,
                 last_activation=None,
@@ -211,12 +211,13 @@ class RNN(nn.Module):
         self.i2o_bias=i2o_bias
         self.o2o_bias=o2o_bias
 
-        self.i2h_activations = i2h_activations
-        self.i2o_activation = i2o_activation
-        self.o2o_activation = o2o_activation
-        self.last_activation = last_activation
-        self.hypers = {} if hypers is None else hypers
 
+        #self.i2h_activations = i2h_activations
+        #self.i2o_activation = i2o_activation
+        #self.o2o_activation = o2o_activation
+        #self.last_activation = last_activation
+        #self.hypers = 
+        
 
         self.batch_first = batch_first
         self.batch_dim = (0 if batch_first else 1)
@@ -236,46 +237,57 @@ class RNN(nn.Module):
         self.dropouts.append(0.0) # for last layer, no dropout
 
         # build & initialize internal parameters
-        self.parameters_module = self.build_parameters(dtype, device)
+        if hypers is None: hypers = {} 
+        self.parameters_module = self._build_parameters_(*self.make_parameters(i2h_activations, **hypers),  
+                i2o_activation, o2o_activation, last_activation, dtype, device)
         self.reset_parameters() # reset_parameters should be the lass call before exiting __init__
 
-    def no_act(self, x): return x
+    def make_parameters(self, i2h_activations, hypers):
+        # return has_cell_state, i2h_names, i2h_activations, act_names, hyperparam
+        raise NotImplemented
 
-    def _build_meta_(self, has_cell_state):
+    def no_act(self, x): return x
+    
+    def _build_parameters_(self, 
+                    has_cell_state, i2h_names, i2h_activations, act_names, hypers,
+                    i2o_activation, o2o_activation, last_activation, dtype, device):
+        self.W_names = i2h_names
+        for k,v in hypers.items(): setattr(self, k, v)
         i2o_names = None
         o2o_names = None
         self.init_states = self.init_states_has_cell_state if has_cell_state else self.init_states_no_cell_state
         if self.n_output>0: 
-            self._build_activations_(self.last_activation, 'lastA')
+            self._build_activations_(last_activation, 'lastA')
 
             i2o_names = ('i2oL',)
-            if self.i2o_activation is None: self.i2o_activation = tt.relu
-            self._build_activations_(self.i2o_activation, 'i2oA')
+            if i2o_activation is None: i2o_activation = tt.relu
+            self._build_activations_(i2o_activation, 'i2oA')
             if self.n_output2>0:
                 o2o_names = ('o2oL',)
-                if self.o2o_activation is None: self.o2o_activation = tt.relu
-                self._build_activations_(self.o2o_activation, 'o2oA')
+                if o2o_activation is None: o2o_activation = tt.relu
+                self._build_activations_(o2o_activation, 'o2oA')
                 self.forward_one = self.forward_one_o2o_with_cell_state if has_cell_state else self.forward_one_o2o_no_cell_state
             else:
                 self.forward_one = self.forward_one_i2o_with_cell_state if has_cell_state else self.forward_one_i2o_no_cell_state
         else:
             self.forward_one = self.forward_one_i2h_with_cell_state if has_cell_state else self.forward_one_i2h_no_cell_state
-        return i2o_names, o2o_names
-    
-    def _build_parameters_(self, hidden_names, has_cell_state, dtype, device):
-        i2o_names, o2o_names = self._build_meta_(has_cell_state)
+
+        for a,n in zip(i2h_activations, act_names): self._build_activations_(a, n)
+
+
+        #i2o_names, o2o_names = self._build_meta_(has_cell_state)
         if self.n_output>0:
             if self.n_output2>0:
-                names=hidden_names
+                names=i2h_names
                 input_sizes=(self.input_size,) + self.o2o_sizes[:-1]
-                n = len(hidden_names)
+                n = len(i2h_names)
                 weights = [[] for _ in range(n)]
                 for in_features, cat_features, out_features in zip(input_sizes, self.i2h_sizes, self.i2h_sizes):
                     for j in range(n):
                         weights[j].append(nn.Linear(in_features + cat_features, out_features, 
                                 self.i2h_bias, dtype=dtype, device=device))
                         
-                for name,weight in zip(hidden_names, weights): setattr(self, name, nn.ModuleList(weight))
+                for name,weight in zip(i2h_names, weights): setattr(self, name, nn.ModuleList(weight))
                 
 
                 names=names+i2o_names
@@ -306,16 +318,16 @@ class RNN(nn.Module):
                 for name,weight in zip(o2o_names, weights): setattr(self, name, nn.ModuleList(weight))
                 
             else:
-                names=hidden_names
+                names=i2h_names
                 input_sizes=(self.input_size,) + self.i2o_sizes[:-1]
-                n = len(hidden_names)
+                n = len(i2h_names)
                 weights = [[] for _ in range(n)]
                 for in_features, cat_features, out_features in zip(input_sizes, self.i2h_sizes, self.i2h_sizes):
                     for j in range(n):
                         weights[j].append(nn.Linear(in_features + cat_features, out_features, 
                                 self.i2h_bias, dtype=dtype, device=device))
                         
-                for name,weight in zip(hidden_names, weights): setattr(self, name, nn.ModuleList(weight))
+                for name,weight in zip(i2h_names, weights): setattr(self, name, nn.ModuleList(weight))
                 
                 names=names+i2o_names
                 n = len(i2o_names)
@@ -334,8 +346,8 @@ class RNN(nn.Module):
                 for name,weight in zip(i2o_names, weights): setattr(self, name, nn.ModuleList(weight))
 
         else:
-            names=hidden_names
-            n = len(hidden_names)
+            names=i2h_names
+            n = len(i2h_names)
             weights = [[] for _ in range(n)]
             input_sizes=(self.input_size,) + self.i2h_sizes[:-1]
             for in_features, out_features in zip(input_sizes, self.i2h_sizes):
@@ -344,7 +356,7 @@ class RNN(nn.Module):
                     weights[j].append(nn.Linear(in_features + out_features, out_features, 
                             self.i2h_bias, dtype=dtype, device=device))
 
-            for name,weight in zip(hidden_names, weights): setattr(self, name, nn.ModuleList(weight))
+            for name,weight in zip(i2h_names, weights): setattr(self, name, nn.ModuleList(weight))
         return tuple([getattr(self, name) for name in names])
 
     def _build_activations_(self, activation_arg, name):
@@ -491,18 +503,15 @@ class ELMAN(RNN):
     r"""
     Defines `Elman RNN <https://pytorch.org/docs/stable/generated/torch.nn.RNN.html>`__
     """
-
-    def build_parameters(self, dtype, device):
+    
+    def make_parameters(self, i2h_activations, **hypers):
         has_cell_state=False
         i2h_names =     ('ihL', ) 
         act_names =     ('actX', )
-        self.W_names = i2h_names
-
-        if not self.i2h_activations: self.i2h_activations = (tt.tanh, )
-        assert len(self.i2h_activations)==1, f'need 1 activation for {__class__}'
-        for a,n in zip(self.i2h_activations, act_names): self._build_activations_(a, n)
-
-        return self._build_parameters_( i2h_names, has_cell_state, dtype, device)
+        hyperparam=dict()
+        if not i2h_activations: i2h_activations = (tt.tanh, )
+        assert len(i2h_activations)==1, f'need 1 activation for {__class__}'
+        return has_cell_state, i2h_names, i2h_activations, act_names, hyperparam
 
     def i2h_logic(self, xi, hi, i ):
         xh = tt.concat( (xi, hi), dim=-1)
@@ -515,17 +524,14 @@ class GRU(RNN):
     Defines `GRU RNN <https://pytorch.org/docs/stable/generated/torch.nn.GRU.html>`__
     """
     
-    def build_parameters(self, dtype, device):
+    def make_parameters(self, i2h_activations, **hypers):
         has_cell_state=False
         i2h_names =     ('irL', 'izL',  'inL')
         act_names =     ('actR','actZ', 'actN', )
-        self.W_names = i2h_names
-
-        if not self.i2h_activations: self.i2h_activations = (tt.sigmoid, tt.sigmoid, tt.tanh, )
-        assert len(self.i2h_activations)==3, f'need 3 activation for {__class__}'
-        for a,n in zip(self.i2h_activations, act_names): self._build_activations_(a, n)
-
-        return self._build_parameters_( i2h_names, has_cell_state, dtype, device)
+        hyperparam=dict()
+        if not i2h_activations: i2h_activations = (tt.sigmoid, tt.sigmoid, tt.tanh, )
+        assert len(i2h_activations)==3, f'need 3 activation for {__class__}'
+        return has_cell_state, i2h_names, i2h_activations, act_names, hyperparam
 
     def i2h_logic(self, xi, hi, i ):
         xh = tt.concat( (xi, hi), dim=-1)
@@ -541,18 +547,15 @@ class LSTM(RNN):
     r"""
     Defines `LSTM RNN <https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html>`__
     """
-
-    def build_parameters(self, dtype, device):
+    
+    def make_parameters(self, i2h_activations, **hypers):
         has_cell_state=True
         i2h_names =     ('iiL', 'ifL', 'igL', 'ioL')
         act_names =     ('actI','actF', 'actG', 'actO', 'actC' )
-        self.W_names = i2h_names
-
-        if not self.i2h_activations: self.i2h_activations = (tt.sigmoid, tt.sigmoid, tt.tanh, tt.sigmoid, tt.tanh, )
-        assert len(self.i2h_activations)==5, f'need 5 activation for {__class__}'
-        for a,n in zip(self.i2h_activations, act_names): self._build_activations_(a, n)
-
-        return self._build_parameters_( i2h_names, has_cell_state, dtype, device)
+        hyperparam=dict()
+        if not i2h_activations: i2h_activations = (tt.sigmoid, tt.sigmoid, tt.tanh, tt.sigmoid, tt.tanh, )
+        assert len(i2h_activations)==5, f'need 5 activation for {__class__}'
+        return has_cell_state, i2h_names, i2h_activations, act_names, hyperparam
 
     def i2h_logic(self, xi, hi, ci, i ):
         xh = tt.concat( (xi, hi), dim=-1)
@@ -570,17 +573,15 @@ class MGU(RNN):
     Defines `MGU RNN <https://arxiv.org/pdf/1603.09420.pdf>`__
     """
 
-    def build_parameters(self, dtype, device):
+    def make_parameters(self, i2h_activations, **hypers):
         has_cell_state=False
         i2h_names =     ('ifL', 'igL')
         act_names =     ('actF', 'actG')
-        self.W_names = i2h_names
-        if not self.i2h_activations: self.i2h_activations = (tt.sigmoid, tt.tanh, )
-        assert len(self.i2h_activations)==2, f'need 2 activation for {__class__}'
-        for a,n in zip(self.i2h_activations, act_names): self._build_activations_(a, n)
-
-        return self._build_parameters_( i2h_names, has_cell_state, dtype, device)
-
+        hyperparam=dict()
+        if not i2h_activations: i2h_activations = (tt.sigmoid, tt.tanh, )
+        assert len(i2h_activations)==2, f'need 2 activation for {__class__}'
+        return has_cell_state, i2h_names, i2h_activations, act_names, hyperparam
+    
     def i2h_logic(self, xi, hi, i ):
         xh = tt.concat( (xi, hi), dim=-1)
         F = self.actF(self.ifL[i]( xh )) #self.ifL[i]( xh - self.beta ) 
@@ -594,20 +595,17 @@ class JANET(RNN):
     r"""
     Defines `JANET RNN <https://arxiv.org/pdf/1804.04849.pdf>`__
     """
-    
-    def build_parameters(self, dtype, device):
+
+    def make_parameters(self, i2h_activations, **hypers):
         has_cell_state=False
         i2h_names =     ('ifL', 'igL')
         act_names =     ('actF', 'actG')
-        self.W_names = i2h_names
-        self.beta = self.hypers.get('beta', 1.0)
-        self.i2h_logic = self.i2h_logic_without_beta  if self.beta == 0 else self.i2h_logic_with_beta
-        if not self.i2h_activations: self.i2h_activations = (tt.sigmoid, tt.tanh, )
-        assert len(self.i2h_activations)==2, f'need 2 activation for {__class__}'
-        for a,n in zip(self.i2h_activations, act_names): self._build_activations_(a, n)
-
-        return self._build_parameters_( i2h_names, has_cell_state, dtype, device)
-
+        hyperparam=dict(beta = hypers.pop('beta', 1.0))
+        self.i2h_logic = self.i2h_logic_without_beta  if hyperparam['beta'] == 0 else self.i2h_logic_with_beta
+        if not i2h_activations: i2h_activations = (tt.sigmoid, tt.tanh, )
+        assert len(i2h_activations)==2, f'need 2 activation for {__class__}'
+        return has_cell_state, i2h_names, i2h_activations, act_names, hyperparam
+        
     def i2h_logic_without_beta(self, xi, hi, i ):
         xh = tt.concat( (xi, hi), dim=-1)
         F = self.actF(self.ifL[i]( xh )) #self.ifL[i]( xh - self.beta ) 
