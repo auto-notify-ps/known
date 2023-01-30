@@ -15,6 +15,7 @@ from numpy import ndarray
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 from pandas import DataFrame
+import os
 #import math
 from typing import Any, Union, Iterable, Callable, Dict, Tuple, List
 from ..basic.utils import ndigs, int2base
@@ -407,4 +408,24 @@ class LangDataset(Dataset):
             return index, self.data[index], self.data_str[index]
 
 
+    def save(self, path):
+        import json
+        ds = { label:[None, []] for label in self.classes }
+        for sample,label in self.data_str: 
+            ds[label][1].append(sample)
+            ds[label][0]=self.classes[label][0]
+        f=open(path, 'w')
+        json.dump(ds, f, indent=4)
+        f.close()
 
+    def load(self, path):
+        import json
+        f=open(path, 'r')
+        ds = json.load(f)
+        f.close()
+
+        label_order = [ None for _ in ds ]
+        for k,v in ds.items(): label_order[v[0]] = k
+        for label in label_order: self.add_samples(label, *ds[label][1])
+
+        

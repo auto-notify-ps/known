@@ -11,3 +11,5 @@ from .utils import *
 from .mlp import *
 
 from .rnn import *
+
+from .rnnc import *

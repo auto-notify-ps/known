@@ -169,6 +169,14 @@ def clone_model(model, n_copies:int=1, detach:bool=False, set_eval:bool=False):
     assert n_copies>0, f'no of copies must be atleast one'
     return (make_clone(model, detach, set_eval) if n_copies==1 else make_clones(model, n_copies, detach, set_eval))
 
+def no_activation(x): return x
+
+def build_activation( activation, default=None):
+    if activation is None:
+        return (no_activation if default is None else default)
+    else:
+        return (activation[0](**activation[1]) if hasattr(activation, '__len__') else activation)
+    
 def dense_sequential(in_dim:int, layer_dims:Iterable[int], out_dim:int, 
                     actF:Callable, actL:Callable, actFA:Dict={}, actLA:Dict={}, 
                     use_bias:bool=True, use_biasL:bool=True, dtype=None, device=None ):
@@ -191,16 +199,21 @@ def dense_sequential(in_dim:int, layer_dims:Iterable[int], out_dim:int,
         :class:`~known.ktorch.common.LinearActivated`
     """
     layers = []
+    
     # first layer
-    layers.append(nn.Linear(in_dim, layer_dims[0], bias=use_bias, dtype=dtype, device=device))
-    if actF is not None: layers.append(actF(**actFA))
-    # remaining layers
-    for i in range(len(layer_dims)-1):
-        layers.append(nn.Linear(layer_dims[i], layer_dims[i+1], bias=use_bias, dtype=dtype, device=device))
+    if layer_dims:
+        layers.append(nn.Linear(in_dim, layer_dims[0], bias=use_bias, dtype=dtype, device=device))
         if actF is not None: layers.append(actF(**actFA))
-    # last layer
-    layers.append(nn.Linear(layer_dims[-1], out_dim, bias=use_biasL, dtype=dtype, device=device))
-    if actL is not None: layers.append(actL(**actLA))
+        # remaining layers
+        for i in range(len(layer_dims)-1):
+            layers.append(nn.Linear(layer_dims[i], layer_dims[i+1], bias=use_bias, dtype=dtype, device=device))
+            if actF is not None: layers.append(actF(**actFA))
+        # last layer
+        layers.append(nn.Linear(layer_dims[-1], out_dim, bias=use_biasL, dtype=dtype, device=device))
+        if actL is not None: layers.append(actL(**actLA))
+    else:
+        layers.append(nn.Linear(in_dim, out_dim, bias=use_bias, dtype=dtype, device=device))
+        if actL is not None: layers.append(actL(**actLA))
     return nn.Sequential( *layers )
 
 class LinearActivated(nn.Module):
@@ -249,5 +262,6 @@ class LinearActivated(nn.Module):
             * output has shape ``(batch_size, output_size)``
         """
         return self.A(self.L(x))
+
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

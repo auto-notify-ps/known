@@ -5,127 +5,14 @@ __doc__=r"""
 
 import torch as tt
 import torch.nn as nn
-import torch.nn.functional as ff
+#import torch.nn.functional as ff
 import math
+from .common import dense_sequential, no_activation
 
 __all__ = [
-    'GRNN', 'RNN', 'ELMAN', 'GRU', 'LSTM', 'MGU', 'JANET'
+    'RNN', 'ELMAN', 'GRU', 'LSTM', 'MGU', 'JANET',
+    'BiRNN', 'XRNN', 'XARNN'
 ]
-
-
-class GRNN(nn.Module):
-    r""" Generalized RNN 
-        * takes any core module and applies recurance on it through forward method
-        * can apply bi-directional forward methods 
-        * works with existing RNN modules
-        * when inheriting this class make sure to implement the following functions: 
-            - ``timesteps_in()``
-            - ``init_states()``
-            - ``get_input_at()``
-            - ``forward_one()``
-
-    :param core_forward: underlying core_forward module on which forward recurance is applied
-    :param core_backward: underlying core_backward module on which reverse recurance is applied
-    """
-
-    def __init__(self, core_forward, core_backward=None) -> None:
-        r"""
-        :param core_forward: underlying core_forward module on which forward recurance is applied
-        :param core_backward: underlying core_backward module on which reverse recurance is applied
-        """
-        super().__init__()
-        self.core_forward = core_forward
-        self.core_backward = core_backward
-        self.bidir = (core_backward is not None)
-        self.forward = self.forward_bi_dir if self.bidir else self.forward_uni_dir
-
-    def forward_uni_dir(self, Xt, H=None, future=0):
-        r""" Applies one-way forward pass through the entire input sequence
-        
-        :param Xt:  input sequence
-        :param H:   hidden states from previous timestep
-        :param future:  Number of future timesteps to predict, works only when ``input_size == output_size``
-        """
-        Yf, Hf = self.call_core(self.core_forward, False, Xt, H, future)
-        return Yf, Hf
-    
-    def forward_bi_dir(self, Xt, H=(None, None), future=0):
-        r""" Applies two-way forward pass through the entire input sequence
-        
-        :param Xt:  input sequence
-        :param H:   tuple of hidden states from previous timestep
-        :param future:  Number of future timesteps to predict, works only when ``input_size == output_size``
-        """
-        Yf, Hf = self.call_core(self.core_forward, False, Xt, H[0], future)
-        Yb, Hb = self.call_core(self.core_backward, True, Xt, H[1], future)
-        return (Yf, Yb), (Hf, Hb)
-
-    def call_core(self, core, reverse, Xt, H=None, future=0):
-        r""" Applies forward pass through the entire input sequence for the given core
-        
-        :param core: selected core
-        :param reverse: if `True`, reverse the input sequence
-        :param Xt:  input sequence
-        :param H:   hidden states from previous timestep
-        :param future:  Number of future timesteps to predict, works only when ``input_size == output_size``
-        """
-        # X = input sequence
-        # H = hidden states for each layer at timestep (t-1)
-        # future = no of future steps to output
-
-        timesteps = self.timesteps_in(core, Xt) #<<---- how many timesteps in the input sequence X ? 
-
-        # H should contain hidden states for each layer at the last timestep
-        # if no hidden-state supplied, create a hidden states for each layer
-        if H is None: H=self.init_states(core, Xt) 
-
-
-        Ht = [H] #<==== hidden states at each timestep
-        Yt = []  #<---- output of last cell at each timestep
-        for t in (reversed(range(timesteps)) if reverse else range(timesteps)): #<---- for each timestep 
-            x = self.get_input_at(core, Xt, t) #<--- input at this time step
-            h = Ht[-1] #<---- hidden states for each layer at this timestep
-            y, h_ = self.forward_one(core, x, h)
-
-            Yt.append(y)
-            Ht.append(h_)
-        
-        #<--- IMP: future arg will work only when (input_size == hidden_size of the last layer)
-        for _ in range(future):
-            x = Yt[-1]#<--- input at this time step
-            h = Ht[-1] #<---- hidden states for each layer at this timestep
-            y, h_ = self.forward_one(core, x, h)
-
-            Yt.append(y)
-            Ht.append(h_)
-
-        if core.stack_output: Yt = tt.stack(Yt, dim=core.seq_dim)
-        return Yt , Ht[-1]
-
-    @staticmethod
-    def timesteps_in(core, Xt): 
-        r""" returns the number of timesteps in an input sequence `Xt`"""
-        return Xt.shape[core.seq_dim]
-
-    @staticmethod
-    def init_states(core, Xt): 
-        r""" returns the set of all hidden states required for the `core` module based on input sequence `Xt` """
-        return core.init_states(Xt.shape[core.batch_dim], Xt.dtype, Xt.device)
-    
-    @staticmethod
-    def get_input_at(core, Xt, t): 
-        r""" returns the input at time step `t` from an input sequence `Xt` """
-        return (Xt[:, t, :] if core.batch_first else Xt[t, :, :])
-
-    @staticmethod
-    def forward_one(core, x, h): 
-        r""" Applies forward pass through the a single timestep of the input
-
-        :param core: selected core
-        :param x:  input at current timestep
-        :param h:  hidden states from previous timestep
-        """
-        return core.forward_one(x, h)
 
 
 class RNN(nn.Module):
@@ -143,7 +30,6 @@ class RNN(nn.Module):
     :param o2o_sizes:   optional, no of features in the second output vector (`o2o`)
     :param dropout:         probability of dropout, dropout is not applied at the last layer
     :param batch_first:     if True, `batch_size` is assumed as the first dimension in the input
-    :param stack_output:    if True, stacks the output of all timesteps into a single tensor, otherwise keeps them in a list
     :param i2h_bias:       if True, uses bias at the cell level gates (`i2h`)
     :param i2o_bias:        if True, uses bias at first output (`i2o`)
     :param o2o_bias:       if True, uses bias at second output (`o2o`)
@@ -152,11 +38,18 @@ class RNN(nn.Module):
     :param o2o_activation:       activations at o2o level, keep `None` to use default
     :param last_activation:        last output activations, keep `None` to use `No Activation`
     :param hypers:       hyper-parameters dictionary
+    :param return_sequences:     if True, returns output from all timestep only else returns last timestep only
+    :param stack_output:    Behaviour dependent on ``return_sequences`` arg. 
+        * If ``return_sequences==True`` and ``stack_output==True`` then stacks outputs from each timestep along seq_dim
+        * If ``return_sequences==True`` and ``stack_output==False`` then returns output of each timestep as a list
+        * If ``return_sequences==False`` and ``stack_output==True`` then reshapes output to match sequence shape: (batch_size, 1, input_size) or (1, batch_size, input_size)
+        * If ``return_sequences==False`` and ``stack_output==False`` then returns output of shape: (batch_size, input_size)
     
     .. note:: 
         * Do not use this class directly, it is meant to provide a base class from which other RNN modules are inherited
         * Activation arguments can be a tuple like ``(nn.Tanh, {})`` or a callable like ``torch.tanh``
         * if ``batch_first`` is True, accepts input of the form ``(batch_size, seq_len, input_size)``, otherwise ``(seq_len, batch_size, input_size)``
+        * The forward method returns only the output not the hidden states. Last hidden state can be accessed using ``.Ht`` variable.
 
     """
     
@@ -166,8 +59,7 @@ class RNN(nn.Module):
                 i2o_sizes=None,  
                 o2o_sizes=None,  
                 dropout=0.0,        
-                batch_first=False,  
-                stack_output=False, 
+                batch_first=False,
                 i2h_bias = True, 
                 i2o_bias = True,
                 o2o_bias = True,
@@ -176,6 +68,8 @@ class RNN(nn.Module):
                 o2o_activation=None,
                 last_activation=None,
                 hypers=None,
+                return_sequences=False,
+                stack_output=False, 
                 dtype=None,
                 device=None,
                 ) -> None:
@@ -184,6 +78,9 @@ class RNN(nn.Module):
         self.i2h_sizes = tuple(i2h_sizes)
         self.n_hidden = len(self.i2h_sizes)
         self.n_last = self.n_hidden-1
+        self.return_sequences=return_sequences
+        self.Ht=None
+        #self.return_hidden=return_hidden
         if i2o_sizes is not None:
             self.i2o_sizes = tuple(i2o_sizes)
             self.n_output = len(self.i2o_sizes)
@@ -194,9 +91,12 @@ class RNN(nn.Module):
                 self.o2o_sizes = tuple(o2o_sizes)
                 self.n_output2 = len(self.o2o_sizes)
                 assert self.n_hidden==self.n_output2, f'i2h_sizes should be equal to o2o_sizes, {self.n_hidden}!={self.n_output2}'
+                self.output_size=self.o2o_sizes[-1]
             else:
                 self.o2o_sizes = None
                 self.n_output2=0
+                self.output_size=self.i2o_sizes[-1]
+
 
         else:
             self.i2o_sizes = None
@@ -205,6 +105,7 @@ class RNN(nn.Module):
                 print(f'Setting o2o_sizes requires setting i2o_sizes first')
             self.o2o_sizes = None
             self.n_output2=0
+            self.output_size=self.i2h_sizes[-1]
 
 
         self.i2h_bias=i2h_bias
@@ -222,6 +123,7 @@ class RNN(nn.Module):
         self.batch_first = batch_first
         self.batch_dim = (0 if batch_first else 1)
         self.seq_dim = (1 if batch_first else 0)
+        #self.input_dim = 2
         self.stack_output = stack_output
         
         self.null_state = [None for _ in self.i2h_sizes]
@@ -448,32 +350,41 @@ class RNN(nn.Module):
             x = tt.dropout(x, self.dropouts[i], self.training) #<--- dropout only output
         return x, (H,)
     
-    def forward(self, Xt, h=None, future=0):
+    def forward(self, Xt, Ht=None, future=0, reverse=False):
         r""" Applies forward pass through the entire input sequence 
         
         :param Xt:  input sequence
         :param H:   hidden states from previous timestep
         :param future:  Number of future timesteps to predict, works only when ``input_size == output_size``
+        :param reverse: It True, processes sequence in reverse order
         """
-        if h is None: h=self.init_states(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
-        Ht=[h]
+        if Ht is None: Ht=self.init_states(Xt.shape[self.batch_dim], Xt.dtype, Xt.device)
+        #Ht=[h] #<------ no need to store all the hidden states
         Yt = [] #<---- outputs at each timestep
-        for xt in tt.split(Xt, 1, dim=self.seq_dim): 
-            x, h = xt.squeeze(dim=self.seq_dim), Ht[-1]
-            y, h_ = self.forward_one(x, h)
+        timesteps = reversed(tt.split(Xt, 1, dim=self.seq_dim)) \
+                    if reverse else tt.split(Xt, 1, dim=self.seq_dim)
+        for xt in timesteps: 
+            x = xt.squeeze(dim=self.seq_dim)
+            y, Ht = self.forward_one(x, Ht)
             Yt.append(y)
-            Ht.append(h_)
+            #Ht.append(h_)
+            #Ht=h_
 
         #<--- IMP: future arg will work only when (input_size == hidden_size of the last layer)
         for _ in range(future):
-            x, h = Yt[-1], Ht[-1]
-            y, h_ = self.forward_one(x, h)
+            x = Yt[-1]
+            y, Ht = self.forward_one(x, Ht)
             Yt.append(y)
-            Ht.append(h_)
-
-        out = tt.stack(Yt, dim=self.seq_dim) if self.stack_output else Yt
-        hidden = Ht[-1]
-        return  out, hidden
+            #Ht.append(h_)
+            #Ht=h_
+        
+        self.Ht = Ht
+        if self.return_sequences:
+            out= (tt.stack(Yt, dim=self.seq_dim) if self.stack_output else Yt)
+        else:
+            out= (y.unsqueeze(dim=self.seq_dim) if self.stack_output else y)
+            
+        return  out
 
     @tt.no_grad()
     def copy_torch(self, model):
@@ -498,7 +409,7 @@ class RNN(nn.Module):
                             hhB[n*self.i2h_sizes[i]:(n+1)*self.i2h_sizes[i]]
                             )
 
-    
+
 class ELMAN(RNN):
     r"""
     Defines `Elman RNN <https://pytorch.org/docs/stable/generated/torch.nn.RNN.html>`__
@@ -622,3 +533,160 @@ class JANET(RNN):
         h_ = F*hi + (1-F_)*G
         return h_, xh
 
+
+class XRNN(nn.Module):
+    r"""
+    Xtended-RNN: with optional dense connection applied only at the last timestep
+    """
+
+    def __init__(self, 
+            coreF,
+            bidir = False,
+            fc_layers = None,
+            fc_act = None,
+            fc_last_act = None,
+            fc_bias = True,
+            **kwargs
+        ) -> None:
+        super().__init__()
+        #self.coreF=coreF
+        self.bidir=bidir
+        self.coreForward = coreF(**kwargs)
+        if bidir: self.coreBackward = coreF(**kwargs)
+
+        if fc_layers is None: 
+            print(f'[WARNING]:: FC not provided, will not be added.')
+            # if FC is not present, then return the output as is such that it can be contateated,
+            # this means we can set return_seqences == stack_output 
+            if bidir:
+                self.forward = \
+                    self.forward_bi_pairwise_cat if self.coreForward.return_sequences and \
+                    not self.coreForward.stack_output else self.forward_bi
+            else:
+                self.forward = self.forward_uni
+        else:
+            # if FC is present, then apply only at last output
+            # this means we can set return_seqences to false and stack_output to false
+            if self.coreForward.return_sequences:
+                print(f'[WARNING]:: setting "return_sequences = False"')
+                self.coreForward.return_sequences = False
+                if bidir: self.coreBackward.return_sequences = False
+            if self.coreForward.stack_output:
+                print(f'[WARNING]:: setting "stack_output = False"')
+                self.coreForward.stack_output = False
+                if bidir: self.coreBackward.stack_output = False
+
+            if fc_act is None: fc_act=(None, {})
+            if fc_last_act is None: fc_last_act = (None, {})
+            self.fc = dense_sequential(in_dim=(self.coreForward.output_size*2 if bidir else self.coreForward.output_size),
+                    layer_dims=fc_layers, out_dim=self.coreForward.input_size, 
+                    actF=fc_act[0], actL=fc_last_act[0], actFA=fc_act[1], actLA=fc_last_act[1], 
+                    use_bias=fc_bias, use_biasL=fc_bias, dtype=kwargs.get('dtype',None), device=kwargs.get('device',None))
+            self.forward = (self.forward_bi_FC if bidir else self.forward_uni_FC)
+
+
+    def forward_uni_FC(self, X): return self.fc(self.coreForward(X))
+
+    def forward_bi_FC(self, X):return self.fc(tt.cat(
+            (self.coreForward(X, reverse=False), self.coreBackward(X, reverse=True)), dim=-1))
+    
+    def forward_uni(self, X): return self.coreForward(X)
+
+    def forward_bi_pairwise_cat(self, X):
+        outF = self.coreForward(X, reverse=False)
+        outB = self.coreBackward(X, reverse=True)
+        return [ tt.cat(( f,b ), dim=-1) for f,b in zip(outF, outB) ]
+
+    def forward_bi(self, X):return self.fc(tt.cat(
+            (self.coreForward(X, reverse=False), self.coreBackward(X, reverse=True)), dim=-1))
+    
+
+class XARNN(nn.Module):
+    r"""
+    Xtended-Attention-RNN: with optional dense connection applied only at the context vector
+    .. note::
+        * Attention is applied to the outputs of cores, which depend upon (i2h, i2o, o2o)
+        * if FC is present, forward methods returns one output (that of fc, taking context as input)
+        * if FC is absent, forward methods returns 2-tuple - the output and context, 
+            where output is a list (of outputs from all timesteps)
+    """
+
+    def __init__(self, 
+            coreF,
+            bidir = False,
+            fc_layers = None,
+            fc_act = None,
+            fc_last_act = None,
+            fc_bias = True,
+            **kwargs
+        ) -> None:
+        super().__init__()
+        #self.coreF=coreF
+        self.bidir=bidir
+        self.coreForward = coreF(**kwargs)
+        if bidir: self.coreBackward = coreF(**kwargs)
+        output_size = self.coreForward.output_size*2 if bidir else self.coreForward.output_size
+
+        if not self.coreForward.return_sequences: 
+            print(f'[WARNING]:: setting "return_sequences = True"') #<---- required becuase attention is applied to all outputs
+            self.coreForward.return_sequences = True
+            if bidir: self.coreBackward.return_sequences = True
+        if self.coreForward.stack_output:
+            print(f'[WARNING]:: setting "stack_output = False"')
+            self.coreForward.stack_output = False
+            if bidir: self.coreBackward.stack_output = False
+
+        if fc_layers is None: 
+            print(f'[WARNING]:: FC not provided, will not be added.')
+            self.fc = no_activation
+            self.forward = (self.forward_bi if bidir else self.forward_uni)
+        else:
+            if fc_act is None: fc_act=(None, {})
+            if fc_last_act is None: fc_last_act = (None, {})
+            self.fc = dense_sequential(in_dim=output_size,
+                    layer_dims=fc_layers, out_dim=self.coreForward.input_size, 
+                    actF=fc_act[0], actL=fc_last_act[0], actFA=fc_act[1], actLA=fc_last_act[1], 
+                    use_bias=fc_bias, use_biasL=fc_bias, dtype=kwargs.get('dtype',None), device=kwargs.get('device',None))
+            self.forward = (self.forward_bi_FC if bidir else self.forward_uni_FC)
+
+        self.QW = nn.Parameter(tt.rand(output_size, self.coreForward.input_size)) #nn.Linear(output_size, self.coreForward.input_size)
+        self.KW = nn.Parameter(tt.rand(output_size, self.coreForward.input_size))
+
+    def forward_attention(self, Yt, batch_size):
+        Q0 = tt.matmul(Yt[-1], self.QW) # assert (Q0.shape[0]==batch_size)
+        Ki = [tt.matmul(y, self.KW)  for y in Yt ] 
+        Ai = tt.softmax(tt.stack([tt.stack([ tt.dot(Q0[b], k[b]) for b in range(batch_size) ]).unsqueeze(-1) for k in Ki], dim =-1), dim=-1)
+        return tt.stack([ tt.stack([ y[b]*Ai[b,0,i] for i,y in enumerate(Yt) ]).sum(dim=0) for b in range(batch_size) ])
+
+    def forward_uni(self, X):
+        Yt = self.coreForward(X)
+        c = self.forward_attention(Yt, X.shape[0])
+        return Yt, c #<---- outputs, context
+
+    def forward_uni_FC(self, X):
+        _, c = self.forward_uni(X)
+        return self.fc(c)
+    
+    def forward_bi(self, X):
+        Ytf, Ytb = self.coreForward(X, reverse=False), self.coreBackward(X, reverse=True)
+        Yt = [ tt.cat((yf, yb), dim=-1) for yf, yb in zip(Ytf, Ytb) ]
+        c = self.forward_attention(Yt, X.shape[0])
+        return Yt, c #<---- outputs, context
+    
+    def forward_bi_FC(self, X):
+        _, c = self.forward_bi(X)
+        return self.fc(c)
+
+
+#NOTE: make a verision of XARNN wich takes both Yt and c in FC layer
+# ARCIVE
+
+# Q0 = tt.matmul(Yt[-1], self.QW)
+# Ki = [tt.matmul(y, self.KW)  for y in Yt ]
+# # assert (Q0.shape[0]==batch_size)
+# Ab = [tt.stack([ tt.dot(Q0[b], k[b]) for b in range(batch_size) ]).unsqueeze(-1) for k in Ki]
+# Ai = tt.softmax(tt.stack(Ab, dim =-1), dim=-1) # (batch_size, 1, seq_len)
+# c = []
+# for b in range(batch_size):
+#     c.append(tt.stack([ y[b]*Ai[b,0,i] for i,y in enumerate(Yt) ]).sum(dim=0))
+# c = tt.stack(c)
