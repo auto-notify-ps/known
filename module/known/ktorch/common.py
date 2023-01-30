@@ -7,7 +7,7 @@ __all__ = [
     'numel', 'arange', 'shares_memory', 
     'copy_parameters', 'show_parameters', 'diff_parameters', 'show_dict',
     'save_state', 'load_state', 'make_clone', 'make_clones', 'clone_model', 
-    'dense_sequential', 'LinearActivated',
+    'no_activation', 'build_activation', 'dense_sequential', #'LinearActivated',
 ]
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 import torch as tt
@@ -216,52 +216,52 @@ def dense_sequential(in_dim:int, layer_dims:Iterable[int], out_dim:int,
         if actL is not None: layers.append(actL(**actLA))
     return nn.Sequential( *layers )
 
-class LinearActivated(nn.Module):
-    r""" 
-    A simple linear layer with added activation 
+# class LinearActivated(nn.Module):
+#     r""" 
+#     A simple linear layer with added activation 
    
-    :param in_features:     in_features or input_size
-    :param out_features:    out_features or output_size
-    :param bias:            if True, uses bias
-    :param activation:      can be a tuple like ``(nn.Tanh, {})`` or a callable like ``torch.tanh``
+#     :param in_features:     in_features or input_size
+#     :param out_features:    out_features or output_size
+#     :param bias:            if True, uses bias
+#     :param activation:      can be a tuple like ``(nn.Tanh, {})`` or a callable like ``torch.tanh``
     
-    :returns: An instance of ``nn.Module`` 
+#     :returns: An instance of ``nn.Module`` 
 
-    .. seealso::
-        :func:`~known.ktorch.common.dense_sequential`
-    """
+#     .. seealso::
+#         :func:`~known.ktorch.common.dense_sequential`
+#     """
 
-    def __init__(self, in_features:int, out_features:int, bias:bool, activation:Union[Callable, Tuple], device=None, dtype=None) -> None:
-        r""" 
-        Initialize a linear layer with added activation 
+#     def __init__(self, in_features:int, out_features:int, bias:bool, activation:Union[Callable, Tuple], device=None, dtype=None) -> None:
+#         r""" 
+#         Initialize a linear layer with added activation 
         
-        :param in_features:     in_features or input_size
-        :param out_features:    out_features or output_size
-        :param bias:            if True, uses bias
-        :param activation:      can be a tuple like ``(nn.Tanh, {})`` or a callable like ``torch.tanh``
+#         :param in_features:     in_features or input_size
+#         :param out_features:    out_features or output_size
+#         :param bias:            if True, uses bias
+#         :param activation:      can be a tuple like ``(nn.Tanh, {})`` or a callable like ``torch.tanh``
         
-        :returns: An instance of ``nn.Module`` 
-        """
-        super().__init__()
-        def no_act(x): return x
-        if activation is None: activation=no_act
-        if hasattr(activation, '__len__'):
-            # activation_arg is like activation_arg=(nn.Tanh, {})
-            actModule = activation[0]
-            actArgs = activation[1]
-            self.A = actModule(**actArgs)
-        else:
-            # activation_arg is like activation_arg=tt.tanh
-            self.A = activation
-        self.L = nn.Linear(in_features, out_features, bias, device, dtype)
-    def forward(self, x): 
-        r""" Forward pass 
+#         :returns: An instance of ``nn.Module`` 
+#         """
+#         super().__init__()
+#         def no_act(x): return x
+#         if activation is None: activation=no_act
+#         if hasattr(activation, '__len__'):
+#             # activation_arg is like activation_arg=(nn.Tanh, {})
+#             actModule = activation[0]
+#             actArgs = activation[1]
+#             self.A = actModule(**actArgs)
+#         else:
+#             # activation_arg is like activation_arg=tt.tanh
+#             self.A = activation
+#         self.L = nn.Linear(in_features, out_features, bias, device, dtype)
+#     def forward(self, x): 
+#         r""" Forward pass 
 
-        :shapes: 
-            * input has a shape ``(batch_size, input_size)``
-            * output has shape ``(batch_size, output_size)``
-        """
-        return self.A(self.L(x))
+#         :shapes: 
+#             * input has a shape ``(batch_size, input_size)``
+#             * output has shape ``(batch_size, output_size)``
+#         """
+#         return self.A(self.L(x))
 
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

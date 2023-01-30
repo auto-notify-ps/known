@@ -5,12 +5,11 @@ __doc__=r"""
 
 import torch as tt
 import torch.nn as nn
-#import torch.nn.functional as ff
 from copy import deepcopy
-from .common import dense_sequential, build_activation
+from .common import build_activation #, dense_sequential 
 
 __all__ = [
-    'ELMANCell', 'GRUCell', 'MGUCell', 'LSTMCell', 'PLSTMCell', 'JANETCell',
+    'ELMANCell', 'GRUCell', 'MGUCell', 'LSTMCell', 'PLSTMCell', 'JANETCell', 'MGRUCell',
     'RNNCell', 'RNNStack', 'RNNModule',
 ]
 
@@ -301,6 +300,50 @@ class JANETCell(nn.Module):
         f_ = self.forget_act(ff-self.beta)
         d = self.hidden_act(self.hidden_gate( xh ))
         h_ = (f * h) + ((1-f_) * d)
+        s_ = (h_, None)
+        return s_, xh #<--- next state s_ and conatenated input
+
+class MGRUCell(nn.Module):
+
+    def __init__(self, input_size, hidden_size,
+                hidden_bias=True, hidden_activation=None,
+                update_bias=True, update_activation=None, 
+                reset_bias=True, reset_activation=None, 
+                dtype=None, device=None) -> None:
+        super().__init__()
+        self.input_size, self.hidden_size = input_size, hidden_size
+        #---------- GATES ---------------------
+        self.hidden_gate = nn.Linear(
+            in_features = self.input_size + self.hidden_size, 
+            out_features = self.hidden_size, 
+            bias = hidden_bias, 
+            device=device, dtype=dtype )
+        self.hidden_act = build_activation(hidden_activation, tt.tanh)
+        #---------- ----- ---------------------
+        self.update_gate = nn.Linear(
+            in_features = self.input_size + self.hidden_size, 
+            out_features = self.hidden_size, 
+            bias = update_bias, 
+            device=device, dtype=dtype )
+        self.update_act = build_activation(update_activation, tt.sigmoid)
+        #---------- ----- ---------------------
+        self.reset_gate = nn.Linear(
+            in_features = self.input_size + self.hidden_size, 
+            out_features = self.hidden_size, 
+            bias = reset_bias, 
+            device=device, dtype=dtype )
+        self.reset_act = build_activation(reset_activation, tt.sigmoid)
+        #---------- ----- ---------------------
+        self.has_cell_state = False
+
+    def forward(self, x, s): #<-- input x and state s
+        h, _ = s
+        xh = tt.concat( (x, h), dim=-1)
+        u = self.update_act(self.update_gate( xh ))
+        r = self.reset_act(self.reset_gate( xh ))
+        d = self.hidden_act(self.hidden_gate( xh ))
+
+        h_ = (u * h) + (r * d)
         s_ = (h_, None)
         return s_, xh #<--- next state s_ and conatenated input
 

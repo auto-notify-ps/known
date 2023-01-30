@@ -10,8 +10,7 @@ import math
 from .common import dense_sequential, no_activation
 
 __all__ = [
-    'RNN', 'ELMAN', 'GRU', 'LSTM', 'MGU', 'JANET',
-    'BiRNN', 'XRNN', 'XARNN'
+    'RNN', 'ELMAN', 'GRU', 'LSTM', 'MGU', 'JANET', 'MGRU', 'XRNN', 'XARNN'
 ]
 
 
@@ -534,6 +533,33 @@ class JANET(RNN):
         return h_, xh
 
 
+class MGRU(RNN):
+    r"""
+    Defines `Modified GRU RNN`
+    """
+    
+    def make_parameters(self, i2h_activations, **hypers):
+        has_cell_state=False
+        i2h_names =     ('irL', 'izL',  'inL')
+        act_names =     ('actR','actZ', 'actN', )
+        hyperparam=dict()
+        if not i2h_activations: i2h_activations = (tt.sigmoid, tt.sigmoid, tt.tanh, )
+        assert len(i2h_activations)==3, f'need 3 activation for {__class__}'
+        return has_cell_state, i2h_names, i2h_activations, act_names, hyperparam
+
+    def i2h_logic(self, xi, hi, i ):
+        xh = tt.concat( (xi, hi), dim=-1)
+        R = self.actR(self.irL[i]( xh ))
+        Z = self.actZ(self.izL[i]( xh ))
+        N = self.actN(self.inL[i]( xh ))
+        h_ = (Z * hi) + (R * N)
+        #xr = tt.concat( (xi, R*hi), dim=-1)
+        #N = self.actN(self.inL[i]( xr ))
+        #h_ = (1-Z) * N + (Z * hi)  #x = (1-Z) * h[i] + (Z * N) 
+        return h_, xh
+
+
+
 class XRNN(nn.Module):
     r"""
     Xtended-RNN: with optional dense connection applied only at the last timestep
@@ -599,11 +625,12 @@ class XRNN(nn.Module):
 
     def forward_bi(self, X):return self.fc(tt.cat(
             (self.coreForward(X, reverse=False), self.coreBackward(X, reverse=True)), dim=-1))
-    
+
 
 class XARNN(nn.Module):
     r"""
-    Xtended-Attention-RNN: with optional dense connection applied only at the context vector
+    Xtended-Attention-RNN: with optional dense connection applied at the context vector, 
+    and optionally at the outputs (use fc_output=True)
     .. note::
         * Attention is applied to the outputs of cores, which depend upon (i2h, i2o, o2o)
         * if FC is present, forward methods returns one output (that of fc, taking context as input)
@@ -618,6 +645,7 @@ class XARNN(nn.Module):
             fc_act = None,
             fc_last_act = None,
             fc_bias = True,
+            fc_output=True,
             **kwargs
         ) -> None:
         super().__init__()
@@ -643,10 +671,13 @@ class XARNN(nn.Module):
         else:
             if fc_act is None: fc_act=(None, {})
             if fc_last_act is None: fc_last_act = (None, {})
-            self.fc = dense_sequential(in_dim=output_size,
+            self.fc_output = fc_output
+            fc_in_dim = output_size*2 if fc_output else output_size
+            self.fc = dense_sequential(in_dim=fc_in_dim,
                     layer_dims=fc_layers, out_dim=self.coreForward.input_size, 
                     actF=fc_act[0], actL=fc_last_act[0], actFA=fc_act[1], actLA=fc_last_act[1], 
                     use_bias=fc_bias, use_biasL=fc_bias, dtype=kwargs.get('dtype',None), device=kwargs.get('device',None))
+            
             self.forward = (self.forward_bi_FC if bidir else self.forward_uni_FC)
 
         self.QW = nn.Parameter(tt.rand(output_size, self.coreForward.input_size)) #nn.Linear(output_size, self.coreForward.input_size)
@@ -664,8 +695,8 @@ class XARNN(nn.Module):
         return Yt, c #<---- outputs, context
 
     def forward_uni_FC(self, X):
-        _, c = self.forward_uni(X)
-        return self.fc(c)
+        Yt, c = self.forward_uni(X)
+        return self.fc( tt.cat((Yt[-1], c), dim=-1) if self.fc_output else c)
     
     def forward_bi(self, X):
         Ytf, Ytb = self.coreForward(X, reverse=False), self.coreBackward(X, reverse=True)
@@ -674,11 +705,10 @@ class XARNN(nn.Module):
         return Yt, c #<---- outputs, context
     
     def forward_bi_FC(self, X):
-        _, c = self.forward_bi(X)
-        return self.fc(c)
+        Yt, c = self.forward_bi(X)
+        return self.fc( tt.cat((Yt[-1], c), dim=-1) if self.fc_output else c)
 
 
-#NOTE: make a verision of XARNN wich takes both Yt and c in FC layer
 # ARCIVE
 
 # Q0 = tt.matmul(Yt[-1], self.QW)
