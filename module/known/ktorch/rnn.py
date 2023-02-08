@@ -7,7 +7,7 @@ import torch as tt
 import torch.nn as nn
 #import torch.nn.functional as ff
 import math
-from .common import dense_sequential, no_activation
+from .common import dense_sequential, no_activation, build_activation
 
 __all__ = [
     'RNN', 'ELMAN', 'GRU', 'LSTM', 'MGU', 'JANET', 'MGRU', 'XRNN', 'XARNN'
@@ -641,6 +641,7 @@ class XARNN(nn.Module):
     def __init__(self, 
             coreF,
             bidir = False,
+            attention_activation=None,
             fc_layers = None,
             fc_act = None,
             fc_last_act = None,
@@ -682,11 +683,12 @@ class XARNN(nn.Module):
 
         self.QW = nn.Parameter(tt.rand(output_size, self.coreForward.input_size)) #nn.Linear(output_size, self.coreForward.input_size)
         self.KW = nn.Parameter(tt.rand(output_size, self.coreForward.input_size))
+        self.AF = build_activation(attention_activation, tt.tanh)
 
     def forward_attention(self, Yt, batch_size):
         Q0 = tt.matmul(Yt[-1], self.QW) # assert (Q0.shape[0]==batch_size)
         Ki = [tt.matmul(y, self.KW)  for y in Yt ] 
-        Ai = tt.softmax(tt.stack([tt.stack([ tt.dot(Q0[b], k[b]) for b in range(batch_size) ]).unsqueeze(-1) for k in Ki], dim =-1), dim=-1)
+        Ai = tt.softmax(tt.stack([tt.stack([ self.AF(tt.dot(Q0[b], k[b])) for b in range(batch_size) ]).unsqueeze(-1) for k in Ki], dim =-1), dim=-1)
         return tt.stack([ tt.stack([ y[b]*Ai[b,0,i] for i,y in enumerate(Yt) ]).sum(dim=0) for b in range(batch_size) ])
 
     def forward_uni(self, X):
