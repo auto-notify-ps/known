@@ -6,7 +6,7 @@ __doc__=r"""
 import torch as tt
 import torch.nn as nn
 from copy import deepcopy
-from .common import build_activation #, dense_sequential 
+from .common import build_activation  
 
 __all__ = [
     'ELMANCell', 'GRUCell', 'MGUCell', 'LSTMCell', 'PLSTMCell', 'JANETCell', 'MGRUCell',

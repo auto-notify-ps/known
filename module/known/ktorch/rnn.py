@@ -5,7 +5,6 @@ __doc__=r"""
 
 import torch as tt
 import torch.nn as nn
-#import torch.nn.functional as ff
 import math
 from .common import dense_sequential, no_activation, build_activation
 
@@ -606,10 +605,8 @@ class XRNN(nn.Module):
             if fc_last_act is None: fc_last_act = (None, {})
             self.fc = dense_sequential(in_dim=(self.coreForward.output_size*2 if bidir else self.coreForward.output_size),
                     layer_dims=fc_layers, out_dim=self.coreForward.input_size, 
-                    actF=fc_act[0], actL=fc_last_act[0], actFA=fc_act[1], actLA=fc_last_act[1], 
-                    use_bias=fc_bias, use_biasL=fc_bias, dtype=kwargs.get('dtype',None), device=kwargs.get('device',None))
+                    actF=fc_act, actL=fc_last_act, use_bias=fc_bias, dtype=kwargs.get('dtype',None), device=kwargs.get('device',None))
             self.forward = (self.forward_bi_FC if bidir else self.forward_uni_FC)
-
 
     def forward_uni_FC(self, X): return self.fc(self.coreForward(X))
 
@@ -628,14 +625,12 @@ class XRNN(nn.Module):
 
 
 class XARNN(nn.Module):
-    r"""
-    Xtended-Attention-RNN: with optional dense connection applied at the context vector, 
+    r"""Xtended-Attention-RNN: with optional dense connection applied at the context vector, 
     and optionally at the outputs (use fc_output=True)
     .. note::
-        * Attention is applied to the outputs of cores, which depend upon (i2h, i2o, o2o)
-        * if FC is present, forward methods returns one output (that of fc, taking context as input)
-        * if FC is absent, forward methods returns 2-tuple - the output and context, 
-            where output is a list (of outputs from all timesteps)
+    * Attention is applied to the outputs of cores, which depend upon (i2h, i2o, o2o)
+    * if FC is present, forward methods returns one output (that of fc, taking context as input)
+    * if FC is absent, forward methods returns 2-tuple - the output and context, where output is a list (of outputs from all timesteps)
     """
 
     def __init__(self, 
@@ -676,8 +671,7 @@ class XARNN(nn.Module):
             fc_in_dim = output_size*2 if fc_output else output_size
             self.fc = dense_sequential(in_dim=fc_in_dim,
                     layer_dims=fc_layers, out_dim=self.coreForward.input_size, 
-                    actF=fc_act[0], actL=fc_last_act[0], actFA=fc_act[1], actLA=fc_last_act[1], 
-                    use_bias=fc_bias, use_biasL=fc_bias, dtype=kwargs.get('dtype',None), device=kwargs.get('device',None))
+                    actF=fc_act, actL=fc_last_act, use_bias=fc_bias, dtype=kwargs.get('dtype',None), device=kwargs.get('device',None))
             
             self.forward = (self.forward_bi_FC if bidir else self.forward_uni_FC)
 

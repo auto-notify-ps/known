@@ -18,7 +18,7 @@ from pandas import DataFrame
 import os
 #import math
 from typing import Any, Union, Iterable, Callable, Dict, Tuple, List
-from ..basic.utils import ndigs, int2base
+from ..basic import ndigs, int2base
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 

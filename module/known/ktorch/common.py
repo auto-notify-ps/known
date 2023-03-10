@@ -172,48 +172,64 @@ def clone_model(model, n_copies:int=1, detach:bool=False, set_eval:bool=False):
 def no_activation(x): return x
 
 def build_activation( activation, default=None):
+    r""" Build an activation from argument 
+    
+    :param activation: Can be of following types:
+    * `None`                uses `no_activation` if `default=None` else uses the `default`
+    * `Callable`            directly uses the callable functions (which expects no extra arguments)
+    * `(nn.Module, Args)`   calls the `nn.Module` with given `Args`, eg: `activation=(nn.Softmax, {'dim':1})`
+    """
     if activation is None:
-        return (no_activation if default is None else default)
+        if default is None: 
+            return no_activation
+        else:
+            return (default[0](**default[1]) if hasattr(default, '__len__') else default)
     else:
         return (activation[0](**activation[1]) if hasattr(activation, '__len__') else activation)
+
+def build_activation_module( activation ):
+    r""" Build an activation module from argument 
+    
+    :param activation: `(nn.Module, Args)`
+        calls the `nn.Module` with given `Args`, eg: `activation=(nn.Softmax, {'dim':1})`
+    """
+    assert activation is not None, f'Argument "activation" cannot be none'
+    assert hasattr(activation, '__len__'),f'Expecting an Iterable for activation'
+    assert len(activation)>=2,f'Expecting a module and args dict for activation'
+    return activation[0](**activation[1])
     
 def dense_sequential(in_dim:int, layer_dims:Iterable[int], out_dim:int, 
-                    actF:Callable, actL:Callable, actFA:Dict={}, actLA:Dict={}, 
-                    use_bias:bool=True, use_biasL:bool=True, dtype=None, device=None ):
+                    actF:Union[None,Iterable], actL:Union[None,Iterable],
+                    use_bias:bool=True, dtype=None, device=None ):
     r"""
     Creats a stack of fully connected (dense) layers which is usually connected at end of other networks.
     
     :param in_dim:       in_features or input_size
-    :param layer_dims:   size of hidden layers
+    :param layer_dims:   size of hidden layers (can be empty)
     :param out_dim:      out_features or output_size
-    :param actF:         activation function at hidden layer (like ``nn.Sigmoid``)
-    :param actFA:        args while initializing actF
-    :param actL:         activation function at last layer  (like ``nn.Sigmoid``)
-    :param actLA:        args while initializing actL
-    :param use_bias:     if True, uses bias at hidden layers
-    :param use_biasL:    if True, uses bias at last layer
+    :param actF:         activation function at hidden layer 
+    :param actL:         activation function at last layer 
+    :param use_bias:     if True, uses bias at all layers
 
     :returns: An instance of ``nn.Module`` 
 
-    .. seealso::
-        :class:`~known.ktorch.common.LinearActivated`
     """
     layers = []
     
     # first layer
     if layer_dims:
         layers.append(nn.Linear(in_dim, layer_dims[0], bias=use_bias, dtype=dtype, device=device))
-        if actF is not None: layers.append(actF(**actFA))
+        if actF is not None: layers.append(build_activation_module(actF))
         # remaining layers
         for i in range(len(layer_dims)-1):
             layers.append(nn.Linear(layer_dims[i], layer_dims[i+1], bias=use_bias, dtype=dtype, device=device))
-            if actF is not None: layers.append(actF(**actFA))
+            if actF is not None: layers.append(build_activation_module(actF))
         # last layer
-        layers.append(nn.Linear(layer_dims[-1], out_dim, bias=use_biasL, dtype=dtype, device=device))
-        if actL is not None: layers.append(actL(**actLA))
+        layers.append(nn.Linear(layer_dims[-1], out_dim, bias=use_bias, dtype=dtype, device=device))
+        if actL is not None: layers.append(build_activation_module(actL))
     else:
         layers.append(nn.Linear(in_dim, out_dim, bias=use_bias, dtype=dtype, device=device))
-        if actL is not None: layers.append(actL(**actLA))
+        if actL is not None: layers.append(build_activation_module(actL))
     return nn.Sequential( *layers )
 
 # class LinearActivated(nn.Module):
