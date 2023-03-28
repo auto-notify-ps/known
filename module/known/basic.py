@@ -6,6 +6,7 @@ __doc__=r"""
 __all__ = [
     'now', 'fdate', 'pdate', 
     'uid', 'pjs', 'pj', 'pname', 'pext', 'psplit',
+    'd2j', 'j2d',
     'Fake', 'Verbose',
     #==============================
     'ndigs', 'int2base', 'base2int', 
@@ -19,6 +20,7 @@ from typing import Any, Union, Iterable
 import numpy as np
 from numpy import ndarray
 from math import floor, log
+import json
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 
@@ -396,6 +398,15 @@ def numel(shape) -> int:
 def arange(shape, start:int=0, step:int=1, dtype=None) -> ndarray: 
     r""" Similar to ``np.arange`` but reshapes the array to given shape. """
     return np.arange(start=start, stop=start+step*numel(shape), step=step, dtype=dtype).reshape(shape)
+
+def d2j(d, path, indent='\t', sort_keys=False):
+    r""" save dictionary to json file """
+    with open(path, 'w') as f: json.dump(d, f, indent=indent, sort_keys=sort_keys)
+
+def j2d(path):
+    r""" load json file to dictionary """
+    with open(path, 'r') as f: d = json.load(f)
+    return d
 
 class REMAP:
     r""" 

@@ -1,3 +1,10 @@
+# hyper
+__doc__=r"""
+
+core components for logger objects
+
+:py:mod:`known/hyper/core.py`
+"""
 #-----------------------------------------------------------------------------------------------------
 # mdlog/md.py
 #-----------------------------------------------------------------------------------------------------
@@ -10,11 +17,11 @@ class LOGGER:
 
     def __init__(self, log_dir, log_file, log_extension):
         """
-            log_dir         : [str]   directory to create new log file at
-            log_file        : [str]   name of new log file
-            log_extension   : [str]   extension for file (dont add dot)
-            
-            Note: By default, the escmode is False, does not escape any special chars
+        log_dir         : [str]   directory to create new log file at
+        log_file        : [str]   name of new log file
+        log_extension   : [str]   extension for file (dont add dot)
+        
+        Note: By default, the escmode is False, does not escape any special chars
         """
         self.log_dir = log_dir              
         self.log_file = log_file + '.' + log_extension
@@ -95,10 +102,10 @@ class LOGGER:
     # std-output-redirect
     # NOTE: Child classes should implement codeblock open and close
     def rdr_(self, as_code=True, dual=False): 
-        """ redirects std-out(console output) to log file 
-        Args:
-            as_code: if True, opens a code block before and after redirecting
-            dual:    if True, prints the std-output on consile as well
+        r""" redirects std-out(console output) to log file 
+        
+        :param as_code: if True, opens a code block before and after redirecting
+        :param dual:    if True, prints the std-output on consile as well
         """
         self.rdr_as_code = as_code
         if self.rdr_as_code:

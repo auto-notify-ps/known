@@ -1,3 +1,10 @@
+# hyper
+__doc__=r"""
+
+mark-down based logging
+
+:py:mod:`known/hyper/md.py`
+"""
 #-----------------------------------------------------------------------------------------------------
 # mdlog/md.py
 #-----------------------------------------------------------------------------------------------------
@@ -132,7 +139,7 @@ class MarkDownLogger(LOGGER):
         """ closes a list item """
         self.f.write('\n')
     def li(self, *msg):
-        """ short-hand for _li and li_ """
+        """ short-hand for list insert """
         self.f.write(self.ul_pre_str + self.ostrL[self.ostrP]) 
         self.write(*msg)
         self.f.write('\n')

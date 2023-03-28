@@ -66,10 +66,12 @@ class MLPn(nn.Module):
         :param actF: activation function at hidden layer 
         :param actL: activation function at last layer 
         """
+        in_dim = sum(in_dims)
+        assert in_dim > 0, f'at least on dimension is required!'
         super().__init__()
-        self.model = dense_sequential(sum(in_dims), layer_dims, out_dim, actF, actL, dtype=dtype, device=device)
+        self.model = dense_sequential(in_dim, layer_dims, out_dim, actF, actL, dtype=dtype, device=device)
 
-    def forward(self, x): #<--- here x is a tuple
+    def forward(self, x): #<--- here x is a tuple, this is easier to use with nn.Sequential
         r""" Forward pass 
 
         :shapes: 
@@ -78,7 +80,7 @@ class MLPn(nn.Module):
         """
         return self.model(tt.concat(x, dim=-1))
 
-
+    
 class DLP(nn.Module):
     r""" Decoupled Multi layer Perceptron for dueling-DQN architecture.
     This Module has 2 Decoupled networks. The `base` network takes the input. 

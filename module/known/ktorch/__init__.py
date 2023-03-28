@@ -1,5 +1,8 @@
 # ktorch
 __doc__=r"""
+
+Torch based deep learning tools
+
 :py:mod:`known/ktorch/__init__.py`
 """
 from .common import *
