@@ -1,5 +1,5 @@
 ﻿----------------------------------------
-core
+store
 ----------------------------------------
-.. automodule:: known.hyper.core
+.. automodule:: known.logger.store
     :members:

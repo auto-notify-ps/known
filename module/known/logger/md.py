@@ -3,15 +3,16 @@ __doc__=r"""
 
 mark-down based logging
 
-:py:mod:`known/hyper/md.py`
+:py:mod:`known/logger/md.py`
 """
+__all__ = [ 'MarkDownLogger' ]
 #-----------------------------------------------------------------------------------------------------
 # mdlog/md.py
 #-----------------------------------------------------------------------------------------------------
-from .core import LOGGER
+from .core import Logger
 #-----------------------------------------------------------------------------------------------------
 
-class MarkDownLogger(LOGGER):
+class MarkDownLogger(Logger):
     
     def __init__(self, log_dir, log_file, uri_title_quote=False):
         super().__init__(log_dir, log_file, log_extension='md')
@@ -21,18 +22,13 @@ class MarkDownLogger(LOGGER):
     # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~    
     """ Default codeblock creation for output redirection """
     # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
-    def codeblock_(self):
-        self.c_()
-    def _codeblock(self):
-        self._c(False)
-
-
+    def codeblock_(self): self.c_()
+    def _codeblock(self): self._c(False)
 
 
     # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~    
     """ Markdown Elements """
     # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
-
 
     # Strings/Chars (Lines and Paragraphs)
     def ln(self, *msg, sep=' ', term=False):

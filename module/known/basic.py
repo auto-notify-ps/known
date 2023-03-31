@@ -5,14 +5,11 @@ __doc__=r"""
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 __all__ = [
     'now', 'fdate', 'pdate', 
-    'uid', 'pjs', 'pj', 'pname', 'pext', 'psplit',
-    'd2j', 'j2d',
-    'Fake', 'Verbose',
+    'uid', 'pjs', 'pj', 'pname', 'pext', 'psplit', 'walk', 
+    'Fake', 'Verbose', 'BaseConvert', 
     #==============================
-    'ndigs', 'int2base', 'base2int', 
-    'numel', 'arange', 
-    'REMAP',
-    'graphfromimage'
+    'numel', 'arange', 'd2j', 'j2d',
+    'Remap', 'Misc'
 ]
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 import datetime, os
@@ -92,10 +89,106 @@ def psplit(path:str, sep:str='.'):
     """
     return (path[0:path.rfind(sep)], path[path.rfind(sep):])
 
+def walk(directory):
+    r""" recursively list all files and folders in a directory """
+    file_paths = []
+    dir_paths = []
+    for root, directories, files in os.walk(directory):
+        for dirname in directories: dir_paths.append(os.path.join(root, dirname))
+        for filename in files: file_paths.append(os.path.join(root, filename))
+    return file_paths, dir_paths
+
+def numel(shape) -> int: 
+    r""" Returns the number of elements in an array of given shape. """
+    return np.prod(np.array(shape))
+
+def arange(shape, start:int=0, step:int=1, dtype=None) -> ndarray: 
+    r""" Similar to ``np.arange`` but reshapes the array to given shape. """
+    return np.arange(start=start, stop=start+step*numel(shape), step=step, dtype=dtype).reshape(shape)
+
+def d2j(d, path, indent='\t', sort_keys=False):
+    r""" save dictionary to json file """
+    with open(path, 'w') as f: json.dump(d, f, indent=indent, sort_keys=sort_keys)
+
+def j2d(path):
+    r""" load json file to dictionary """
+    with open(path, 'r') as f: d = json.load(f)
+    return d
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+class BaseConvert:
+    r""" Number System Conversion """
+
+    @staticmethod
+    def ndigs(num:int, base:int) -> int:
+        r""" 
+        Returns the number of digits required to represent a base-10 number in the given base.
+
+        :param num:     base-10 number to be represented
+        :param base:    base-n number system
+        """
+        return 1 + (0 if num==0 else floor(log(num, base)))
+
+    @staticmethod
+    def int2base(num:int, base:int, digs:int) -> list:
+        r""" 
+        Convert base-10 integer to a base-n list of fixed no. of digits 
+
+        :param num:     base-10 number to be represented
+        :param base:    base-n number system
+        :param digs:    no of digits in the output
+
+        :returns:       represented number as a list of ordinals in base-n number system
+
+        .. seealso::
+            :func:`~known.basic.base2int`
+        """
+        if not digs: digs=__class__.ndigs(num, base)
+        res = [ 0 for _ in range(digs) ]
+        q = num
+        for i in range(digs): # <-- do not use enumerate plz
+            res[i]=q%base
+            q = floor(q/base)
+        return res
+
+    @staticmethod
+    def base2int(num:Iterable, base:int) -> int:
+        """ 
+        Convert an iterbale of digits in base-n system to base-10 integer
+
+        :param num:     iterable of base-n digits
+        :param base:    base-n number system
+
+        :returns:       represented number as a integer in base-10 number system
+
+        .. seealso::
+            :func:`~known.basic.int2base`
+        """
+        res = 0
+        for i,n in enumerate(num): res+=(base**i)*n
+        return res
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
 class Fake:
     r""" Fake Object - an object with members given in a keyword-args dict """
     def __init__(self, **members) -> None:
         for k,v in members.items(): setattr(self, k, v)
+    
+    @staticmethod
+    def try_create(members):
+        res = Fake()
+        failed=[]
+        for k,v in members.items(): 
+            if k:
+                try:
+                    setattr(res, k, v)
+                except:
+                    failed.append(k)
+            else:
+                failed.append(k)
+        return res, failed
 
 class Verbose:
     r""" Contains shorthand helper functions for printing outputs and representing objects as strings.
@@ -345,70 +438,7 @@ class Verbose:
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-def ndigs(num:int, base:int) -> int:
-    r""" 
-    Returns the number of digits required to represent a base-10 number in the given base.
-
-    :param num:     base-10 number to be represented
-    :param base:    base-n number system
-    """
-    return 1 + (0 if num==0 else floor(log(num, base)))
-
-def int2base(num:int, base:int, digs:int) -> list:
-    r""" 
-    Convert base-10 integer to a base-n list of fixed no. of digits 
-
-    :param num:     base-10 number to be represented
-    :param base:    base-n number system
-    :param digs:    no of digits in the output
-
-    :returns:       represented number as a list of ordinals in base-n number system
-
-    .. seealso::
-        :func:`~known.basic.base2int`
-    """
-    if not digs: digs=ndigs(num, base)
-    res = [ 0 for _ in range(digs) ]
-    q = num
-    for i in range(digs): # <-- do not use enumerate plz
-        res[i]=q%base
-        q = floor(q/base)
-    return res
-
-def base2int(num:Iterable, base:int) -> int:
-    """ 
-    Convert an iterbale of digits in base-n system to base-10 integer
-
-    :param num:     iterable of base-n digits
-    :param base:    base-n number system
-
-    :returns:       represented number as a integer in base-10 number system
-
-    .. seealso::
-        :func:`~known.basic.int2base`
-    """
-    res = 0
-    for i,n in enumerate(num): res+=(base**i)*n
-    return res
-
-def numel(shape) -> int: 
-    r""" Returns the number of elements in an array of given shape. """
-    return np.prod(np.array(shape))
-
-def arange(shape, start:int=0, step:int=1, dtype=None) -> ndarray: 
-    r""" Similar to ``np.arange`` but reshapes the array to given shape. """
-    return np.arange(start=start, stop=start+step*numel(shape), step=step, dtype=dtype).reshape(shape)
-
-def d2j(d, path, indent='\t', sort_keys=False):
-    r""" save dictionary to json file """
-    with open(path, 'w') as f: json.dump(d, f, indent=indent, sort_keys=sort_keys)
-
-def j2d(path):
-    r""" load json file to dictionary """
-    with open(path, 'r') as f: d = json.load(f)
-    return d
-
-class REMAP:
+class Remap:
     r""" 
     Provides a mapping between ranges, works with scalars, ndarrays and tensors.
 
@@ -459,47 +489,51 @@ class REMAP:
         r""" maps ``X`` from ``Input_Range`` to ``Output_Range`` """
         return ((X - self.input_low)*self.output_delta/self.input_delta) + self.output_low
 
-def graphfromimage(img_path:str, pixel_choice:str='first', dtype=None) -> ndarray:
-    r""" 
-    Covert an image to an array (1-Dimensional)
+class Misc:
+    r""" Helpful stuff """
 
-    :param img_path:        path of input image 
-    :param pixel_choice:    choose from ``[ 'first', 'last', 'mid', 'mean' ]``
+    @staticmethod
+    def graphfromimage(img_path:str, pixel_choice:str='first', dtype=None) -> ndarray:
+        r""" 
+        Covert an image to an array (1-Dimensional)
 
-    :returns: 1-D numpy array containing the data points
+        :param img_path:        path of input image 
+        :param pixel_choice:    choose from ``[ 'first', 'last', 'mid', 'mean' ]``
 
-    .. note:: 
-        * This is used to generate synthetic data in 1-Dimension. 
-            The width of the image is the number of points (x-axis),
-            while the height of the image is the range of data points, choosen based on their index along y-axis.
-    
-        * The provided image is opened in grayscale mode.
-            All the *black pixels* are considered as data points.
-            If there are multiple black points in a column then ``pixel_choice`` argument specifies which pixel to choose.
+        :returns: 1-D numpy array containing the data points
 
-        * Requires ``opencv-python``
+        .. note:: 
+            * This is used to generate synthetic data in 1-Dimension. 
+                The width of the image is the number of points (x-axis),
+                while the height of the image is the range of data points, choosen based on their index along y-axis.
+        
+            * The provided image is opened in grayscale mode.
+                All the *black pixels* are considered as data points.
+                If there are multiple black points in a column then ``pixel_choice`` argument specifies which pixel to choose.
 
-            Input image should be readable using ``cv2.imread``.
-            Use ``pip install opencv-python`` to install ``cv2`` package
-    """
-    try:
-        import cv2 # pip install opencv-python
-    except:
-        print(f'[!] failed to import cv2!')
-        return None
-    img= cv2.imread(img_path, 0)
-    imgmax = img.shape[1]-1
-    j = img*0
-    j[np.where(img==0)]=1
-    pixel_choice = pixel_choice.lower()
-    pixel_choice_dict = {
-        'first':    (lambda ai: ai[0]),
-        'last':     (lambda ai: ai[-1]),
-        'mid':      (lambda ai: ai[int(len(ai)/2)]),
-        'mean':     (lambda ai: np.mean(ai))
-    }
-    px = pixel_choice_dict[pixel_choice]
-    if dtype is None: dtype=np.float_
-    return np.array([ imgmax-px(np.where(j[:,i]==1)[0]) for i in range(j.shape[1]) ], dtype=dtype)
+            * Requires ``opencv-python``
+
+                Input image should be readable using ``cv2.imread``.
+                Use ``pip install opencv-python`` to install ``cv2`` package
+        """
+        try:
+            import cv2 # pip install opencv-python
+        except:
+            print(f'[!] failed to import cv2!')
+            return None
+        img= cv2.imread(img_path, 0)
+        imgmax = img.shape[1]-1
+        j = img*0
+        j[np.where(img==0)]=1
+        pixel_choice = pixel_choice.lower()
+        pixel_choice_dict = {
+            'first':    (lambda ai: ai[0]),
+            'last':     (lambda ai: ai[-1]),
+            'mid':      (lambda ai: ai[int(len(ai)/2)]),
+            'mean':     (lambda ai: np.mean(ai))
+        }
+        px = pixel_choice_dict[pixel_choice]
+        if dtype is None: dtype=np.float_
+        return np.array([ imgmax-px(np.where(j[:,i]==1)[0]) for i in range(j.shape[1]) ], dtype=dtype)
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

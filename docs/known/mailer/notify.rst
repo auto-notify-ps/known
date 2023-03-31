@@ -1,5 +1,5 @@
 ﻿----------------------------------------
-utils
+notify
 ----------------------------------------
-.. automodule:: known.ktorch.utils
+.. automodule:: known.mailer.notify
     :members:

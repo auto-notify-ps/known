@@ -7,7 +7,7 @@ known
     :caption: Modules
 
     known/basic
+    known/logger
     known/mailer
-    known/hyper
-    known/ktorch
+    
 

@@ -3,20 +3,19 @@ __doc__=r"""
 
 mark-up based logging
 
-:py:mod:`known/hyper/mu.py`
+:py:mod:`known/logger/mu.py`
 """
+__all__ = [ 'MarkUpLogger' ]
 #-----------------------------------------------------------------------------------------------------
 # mdlog/mu.py
 #-----------------------------------------------------------------------------------------------------
-from .core import LOGGER
+from .core import Logger
 #-----------------------------------------------------------------------------------------------------
 
-class MarkUpLogger(LOGGER):
+class MarkUpLogger(Logger):
 
     def __init__(self, log_dir, log_file):
         super().__init__(log_dir, log_file, log_extension='html')
-
-
 
     # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~    
     """ Default codeblock creation for output redirection """
@@ -32,7 +31,13 @@ class MarkUpLogger(LOGGER):
     # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~    
     """ Markup Elements """
     # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
-    
+
+
+    def ascape(s): # attribute-escape (for mu only)
+        t = str(s)
+        for k,v in {'"' : '&quot;', "'" : '&#39;'}: t = t.replace(k,v)
+        return t
+
 
     # markup can use direct tags for lists, uris and images
     def tag_(self, tag, nl=False, **atr):

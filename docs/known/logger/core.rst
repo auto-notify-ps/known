@@ -1,5 +1,5 @@
 ﻿----------------------------------------
-data
+core
 ----------------------------------------
-.. automodule:: known.ktorch.data
+.. automodule:: known.logger.core
     :members:

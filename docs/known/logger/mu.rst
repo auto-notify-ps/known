@@ -1,5 +1,5 @@
 ﻿----------------------------------------
-html
+mu
 ----------------------------------------
-.. automodule:: known.hyper.html
+.. automodule:: known.logger.mu
     :members:

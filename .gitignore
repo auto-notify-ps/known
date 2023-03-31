@@ -1,13 +1,12 @@
-# custom dirs
-__*__/
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
+__*__/
 *.py[cod]
 *$py.class
 
 # C extensions
 *.so
+*.bat
 
 # Distribution / packaging
 .Python

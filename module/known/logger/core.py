@@ -1,10 +1,11 @@
-# hyper
 __doc__=r"""
 
 core components for logger objects
 
-:py:mod:`known/hyper/core.py`
+:py:mod:`known/logger/core.py`
 """
+
+__all__ = [ 'Logger', 'Escaper']
 #-----------------------------------------------------------------------------------------------------
 # mdlog/md.py
 #-----------------------------------------------------------------------------------------------------
@@ -12,7 +13,7 @@ import os.path, sys
 from os import makedirs
 #-----------------------------------------------------------------------------------------------------
 
-class LOGGER:
+class Logger:
     """ base class for file-based logger """
 
     def __init__(self, log_dir, log_file, log_extension):
@@ -73,34 +74,25 @@ class LOGGER:
     def escape(self, msg):
         """ escapes all instances of chars in self.esc tuple """
         m = str(msg)
-        for k,v in self.esc.items():
-            m = m.replace(k, v)
+        for k,v in self.esc.items(): m = m.replace(k, v)
         return m
 
     def escaper(self, escdict):
-        """ returns a context-manager for temporary escaping special chars - see the ESCAPER class """
-        return ESCAPER(self, escdict)
+        """ returns a context-manager for temporary escaping special chars - see the Escaper class """
+        return Escaper(self, escdict)
 
     def write_no_esc(self, *msg):
         """ write msg without escaping """
-        for m in msg:
-            self.f.write(str(m))
+        for m in msg: self.f.write(str(m))
 
     def write_do_esc(self, *msg):  
         """ write msg with escaping - escapes all chars that are currently in self.esc tuple """
         emsg = map(self.escape, msg)
-        for m in emsg:
-            self.f.write(m)
+        for m in emsg: self.f.write(m)
 
-    def ascape(s): # attribute-escape (for mu only)
-        t = str(s)
-        for k,v in {'"' : '&quot;', "'" : '&#39;'}:
-            t = t.replace(k,v)
-        return t
 
 
     # std-output-redirect
-    # NOTE: Child classes should implement codeblock open and close
     def rdr_(self, as_code=True, dual=False): 
         r""" redirects std-out(console output) to log file 
         
@@ -108,15 +100,13 @@ class LOGGER:
         :param dual:    if True, prints the std-output on consile as well
         """
         self.rdr_as_code = as_code
-        if self.rdr_as_code:
-            self.codeblock_() #<---- must implement
+        if self.rdr_as_code: self.codeblock_() #<---- must implement
         self.xf = sys.stdout
-        sys.stdout = (FAKER(self) if dual else self.f)
+        sys.stdout = (__class__.DUAL_RDR(self) if dual else self.f)
     def _rdr(self):
         """ stop redirecting from std-output """
         sys.stdout = self.xf
-        if self.rdr_as_code:
-            self._codeblock() #<---- must implement
+        if self.rdr_as_code: self._codeblock() #<---- must implement
         del self.rdr_as_code
     def codeblock_(self):
         raise NotImplementedError(f'Should implement in inherited class')
@@ -133,16 +123,15 @@ class LOGGER:
         self.f.write('\n\n')
 
 
-class FAKER:
-    """ implements a fake-handle for dual output - mainly implements write method """
-    def __init__(self, parent) -> None:
-        self.parent = parent
-    def write(self, *args):
-        self.parent.f.write(*args)
-        self.parent.xf.write(*args) #<--- temporary 'xf' which is sys.stdout
+    class DUAL_RDR:
+        """ implements a dual-handle for dual output - mainly implements write method """
+        def __init__(self, parent) -> None:
+            self.parent = parent
+        def write(self, *args):
+            self.parent.f.write(*args)
+            self.parent.xf.write(*args) #<--- temporary 'xf' which is sys.stdout
 
-
-class ESCAPER:
+class Escaper:
     """ context manager for toggling character escaping while logging,
         > escaping requires extra computing and is avoided by default 
         > user can switch on escaping specific charecters using this context manager """
@@ -162,30 +151,19 @@ class ESCAPER:
         return True
 
     """ Predefined escape char sets """
-    MD_ESC = lambda *keys: {k:'\\'+k for k in keys}
+    NO_ESC =           {} #<--- anything evaluating to false is no_esc
+    DO_ESC = lambda *keys: {k:'\\'+k for k in keys}
 
-    MD_FORM_ESC =      MD_ESC('`', '*', '_', '~'  ) #{k:'\\'+k for k in (  '`', '*', '_', '~'  )}
-    MD_LINK_ESC =      MD_ESC( '{', '}', '[', ']', '(', ')', '!') #{k:'\\'+k for k in ( '{', '}', '[', ']', '(', ')', '!')} 
-    MD_BLOCK_ESC =     MD_ESC( '+', '-', '|', '>' ) #{k:'\\'+k for k in ( '+', '-', '|', '>' )}
+    MD_FORM_ESC =      DO_ESC('`', '*', '_', '~'  ) 
+    MD_LINK_ESC =      DO_ESC( '{', '}', '[', ']', '(', ')', '!') 
+    MD_BLOCK_ESC =     DO_ESC( '+', '-', '|', '>' ) 
     MD_ALL_ESC =       {**MD_FORM_ESC, **MD_LINK_ESC, **MD_BLOCK_ESC}
-    MD_NO_ESC =        {} #<--- anything evaluating to false is no_esc
-
+    
     MU_NBSP_ESC={' ' : '&nbsp;'}
-    MU_TAG_ESC = {
-    '<' : '&lt;', 
-    '>' : '&gt;', 
-    }
-    MU_STD_ESC = {
-    '&' : '&amp;',
-    '<' : '&lt;', 
-    '>' : '&gt;', 
-    }
-    MU_MU_ESC = {
-    '&' : '&amp;',
-    '<' : '&lt;', 
-    '>' : '&gt;', 
-    ' ' : '&nbsp;'
-    }
+    MU_TAG_ESC = { '<' : '&lt;', '>' : '&gt;',}
+    MU_STD_ESC = { '&' : '&amp;', **MU_TAG_ESC }
+    MU_ALL_ESC = { **MU_STD_ESC, **MU_NBSP_ESC}
+
 #-----------------------------------------------------------------------------------------------------
 # Foot-Note:
 """ NOTE:

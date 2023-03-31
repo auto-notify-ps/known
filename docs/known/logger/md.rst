@@ -1,5 +1,5 @@
 ﻿----------------------------------------
 md
 ----------------------------------------
-.. automodule:: known.hyper.md
+.. automodule:: known.logger.md
     :members:

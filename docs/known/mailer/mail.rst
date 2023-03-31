@@ -1,5 +1,5 @@
 ﻿----------------------------------------
-common
+mail
 ----------------------------------------
-.. automodule:: known.ktorch.common
+.. automodule:: known.mailer.mail
     :members:
