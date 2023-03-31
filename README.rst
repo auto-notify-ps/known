@@ -14,3 +14,5 @@ The package is frequently updated by adding new functionality, make sure to have
 
    >>> import known
    >>> known.__version__
+
+Visit PyPI package `homepage <https://pypi.org/project/known>`__
