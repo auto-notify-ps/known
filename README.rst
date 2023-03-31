@@ -13,4 +13,4 @@ The package is frequently updated by adding new functionality, make sure to have
 .. code-block:: console
 
    >>> import known
-   >>> known.\\_\\_version\\_\\__
+   >>> known.__version__
