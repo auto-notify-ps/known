@@ -1,8 +1,5 @@
 __doc__=r"""
-
-core components for logger objects
-
-:py:mod:`known/logger/store.py`
+:py:mod:`known/store.py`
 """
 import os
 

@@ -1,7 +1,8 @@
 from setuptools import setup
+
 setup(
     name =                      'known',
-    version =                   '0.0.5',
+    version =                   '0.0.6',
     url =                       'https://github.com/Nelson-iitp/known',
     author =                    'Nelson.S',
     author_email =              'mail.nelsonsharma@gmail.com',

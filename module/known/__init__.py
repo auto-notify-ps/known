@@ -15,10 +15,12 @@ The package is frequently updated by adding new functionality, make sure to have
 
 :py:mod:`known/__init__.py`
 """
-__version__ = '0.0.1'
-print(f'known.{__version__}')
+__version__ = '0.0.6'
+#print(f'known.{__version__}')
 
 
-from .basic import *
-from . import logger
-from . import mailer
+# from .basic import *
+# from .imgu import *
+# from .mailer import *
+# from .store import *
+
