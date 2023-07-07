@@ -11,109 +11,100 @@ from numpy import ndarray
 import matplotlib.pyplot as plt
 import cv2 # pip install opencv-python
 
-class Pix:
-    r""" Holds an Image as a pixel array (dtype = np.int8). Channels take value between 0 to 255.
+from .basic import BaseConvert
+
+
+
+CHANNELS = 4
+DTYPE = np.uint8
+CHANNEL_BRGA = (0, 1, 2, 3)
+CHANNEL_RBGA = (1, 2, 0, 3)
+
+
+class Pix(object):
+    r""" abstracts a 4-channel (brga) image """
+
+    def __init__(self, h, w, create=True) -> None:
+        self.h, self.w = int(h), int(w)
+        if create: self.i = np.zeros((self.h, self.w, CHANNELS), dtype=DTYPE) 
     
-    :param shape: (None) or 3-Tuple(width, height, channels)
-    :param path: (None) or string, location of image to load
-    :param flag: (str) can be ['g', 'c', 'u'] based on keys in cv2flags
+    @property
+    def RBGA(self): return self.i[:, :, CHANNEL_RBGA]
 
+    def plot_on(self, ax, grid): 
+        ax.imshow(self.RBGA)
+        if grid:
+            xtick, ytick = np.arange(self.w), np.arange(self.h)
+            ax.set_xticks(xtick-0.5)
+            ax.set_xticklabels(xtick)
+            ax.set_yticks(ytick-0.5)
+            ax.set_yticklabels(ytick)
+            ax.grid(axis='both')
 
-    .. note:: cv2 imread flags
-        * 'g'   cv2.IMREAD_GRAYSCALE : (H, W)
-        * 'c'   cv2.IMREAD_COLOR :     (H, W, 3) Channels=BGR
-        * 'u'   cv2.IMREAD_UNCHANGED : can be either of 'g', 'c' or (H, W, 4) Channels=BGRA
+    def clear(self, channel=None): 
+        if channel is None:     self.i[:,:,:]       =0 # clear all channels
+        else:                   self.i[:,:,channel] =0 # clear specified channel
+
+    def get_color_at(self, row, col, normalize=False):
+        b,g,r,a = (self.i[row, col, :]/255 if normalize else self.i[row, col, :])
+        return (r, g, b, a)
     
-        
-    """
-    cv2flags = {  'g' : cv2.IMREAD_GRAYSCALE,  'c' : cv2.IMREAD_COLOR, 'u' : cv2.IMREAD_UNCHANGED, }
-
-    def __init__(self, shape=None, path=None, flag='u') -> None:
-        # shape = (width, height, channels)
-        self.init_using_shape = None
-        do_fill=None
-        assert shape or path, f'either shape or path should be provided, path will take preference'
-        if path:
-            if shape: print(f'[!] shape provided bu will not be used!')
-
-            img = cv2.imread(path, __class__.cv2flags[flag])
-            if (img.ndim==2): img = np.expand_dims(img, -1) # this happens in flag='g'
-            assert img.ndim==3, f'Image Array must have 3 dimensions but got {img.ndim}'
-            h,w,c = img.shape
-            shape = (w,h,c)
-            do_fill = img
-            self.init_using_shape = False
-        else:
-            assert shape, f'Shape must be provided if path is not provided!'
-            assert len(shape)==3, f'(height, width, channels) must be provided but got {shape}'
-            self.init_using_shape = True
-
-        self.shape = shape
-        self.xrange, self.yrange, self.channels = self.shape
-        self.image = np.zeros(shape=(self.xrange, self.yrange, self.channels), dtype=np.uint8)
-        self.img = self.image.swapaxes(0,1)[::-1,:,:] #self.image.swapaxes(0,1)[:,::-1,:]
-        if do_fill is not None: self.img[:] = img
-        
-        # for get_color property
-        self.review =  (0,0,0) if self.channels<3 else (2, 1, 0, *range(3, self.channels))
-    # tuple(reversed(range(self.channels)))
+    def set_color_at(self, row:int, col:int, rgba:tuple, normalize=False): 
+        if normalize: rgba = [int(x*255) for x in rgba]
+        r,g,b,a = rgba
+        self.i[row, col, :] = (b, r, g, a) 
     
-    def save(self, path): return cv2.imwrite(path, self.img ) # plt.imshow(pix.img[:,:,pix.review])
+
+    def set_hex_at(self, row:int, col:int, hex:str):
+        if hex.startswith('#'): hex = hex[1:]
+        hex = hex.upper()
+        lenhex = len(hex)
+        assert lenhex==6 or lenhex==8, f'expecting 6 or 8 chars but got {lenhex} :: {hex}'
+        if lenhex==6: hex = 'FF' + hex # max alpha
+        B,G,R,A = tuple(BaseConvert.int2base(num=BaseConvert.to_base_10(BaseConvert.SYM_HEX, hex), base=256, digs=4))
+        return self.set_color_at(row,col,(R,G,B,A))
     
-    def show(self, fr=0.05, grid='both', show=True): 
-        fig = plt.figure(figsize=(self.xrange*fr, self.yrange*fr))
-        plt.imshow(self.img[:,:,self.review])
-        if grid is not None: plt.grid(axis=grid)
-        if show: 
-            plt.show()
-            plt.close()
-            fig = None
-        else:
-            plt.close()
-        return fig
 
-    def get_color(self, x, y):  return self.image[x,y,self.review]
-
-    def fill_image(self, vals): 
-        self.image[:] = vals
-        return self
-
-    def fill_img(self, vals): 
-        self.img[:] = vals
-        return self
+    def get_hex_at(self, row:int, col:int):
+        r,g,b,a = self.get_color_at(row, col, normalize=False)
+        int_code = BaseConvert.base2int(num=(b,g,r,a), base=256)
+        print(f'{int_code=}, {type(int_code)}')
+        hex_code = BaseConvert.int2hex(int_code,joiner='')
+        print(f'{hex_code=}')
+        return hex_code
     
-    def get_scaled_range(self):
-        return int(self.xrange/self.grid_scale), int(self.yrange/self.grid_scale)
-
-    def set_grid_scale(self, grid_scale):
-        self.grid_scale = grid_scale
-        return self
-    
-    def draw_empty_grid(self, back_color=255, line_color=0, save=None):
-        grid_scale = self.grid_scale
-        grid_width = self.xrange * grid_scale
-        grid_height = self.yrange * grid_scale
-        grid_channels = self.channels
-        grid = Pix(shape=(grid_width, grid_height, grid_channels)).fill_image(back_color)
-        for x in range(self.xrange):
-            grid.image[x*grid_scale, :, :] = line_color # black
-        for y in range(self.yrange):
-            grid.image[:, y*grid_scale, :] = line_color # black
-        if save: grid.save(save)
-        return grid
-
-    def get_cell(self, X, Y, skip_border=False):
-        incr = self.grid_scale
-        sx, sy = X*self.grid_scale, Y*self.grid_scale
-        if skip_border:
-            sx+=1
-            sy+=1
-            incr-=1
-        cell = self.image[sx:sx + incr, sy:sy + incr, :]
-        return cell #(  Pix(shape=cell.shape).fill_image(cell)   if as_pix else   cell  )
+    @staticmethod
+    def save(pix, path):  
+        return cv2.imwrite(path, pix.i)
 
     @staticmethod
-    def imshow(image): return image.swapaxes(0,1)[::-1,:,(2,1,0)]
+    def load(path): 
+        img =  cv2.imread(path, cv2.IMREAD_UNCHANGED)
+        assert img.ndim==3, f'expecting 3-D array but got {img.ndim}-D'
+        assert img.shape[-1]== CHANNELS, f'must be argb image with {CHANNELS} channels but got {img.shape[-1]} channels'
+        h, w, _ = img.shape
+        pix = __class__(h, w, False)
+        pix.i = img.astype(DTYPE)
+        return pix
+
+    @staticmethod
+    def plot(pix, ratio=0.75, grid=True):
+        fig, ax = plt.subplots(1,1, figsize=(pix.w*ratio, pix.h*ratio))
+        pix.plot_on(ax, grid)
+        plt.show()
+
+    def show_color_at(self, row, col, fs=1):
+        rgba = self.get_color_at(row,col, normalize=False)
+        hexc = self.get_hex_at(row, col)
+        color = self.get_color_at(row, col, normalize=True)
+        if not isinstance(fs, tuple): fs=(fs,fs)
+        plt.figure(figsize=fs)
+        plt.yticks([], [])
+        plt.title(f'{rgba=}')
+        plt.bar([f'{hexc}'], [1], color=color)
+        plt.show()
+        plt.close()
+
 
 def graphfromimage(img_path:str, pixel_choice:str='first', dtype=None) -> ndarray:
     r""" 
@@ -152,3 +143,5 @@ def graphfromimage(img_path:str, pixel_choice:str='first', dtype=None) -> ndarra
     px = pixel_choice_dict[pixel_choice]
     if dtype is None: dtype=np.float_
     return np.array([ imgmax-px(np.where(j[:,i]==1)[0]) for i in range(j.shape[1]) ], dtype=dtype)
+
+

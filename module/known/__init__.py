@@ -15,7 +15,7 @@ The package is frequently updated by adding new functionality, make sure to have
 
 :py:mod:`known/__init__.py`
 """
-__version__ = '0.0.6'
+__version__ = '0.0.7'
 #print(f'known.{__version__}')
 
 

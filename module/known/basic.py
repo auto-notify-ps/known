@@ -16,7 +16,7 @@ import datetime
 from typing import Any, Union, Iterable #, BinaryIO, cast, Dict, Optional, Type, Tuple, IO
 import numpy as np
 from numpy import ndarray
-from math import floor, log
+from math import floor, log, ceil
 import json, pickle
 from collections import UserDict
 #import pickle, pathlib, io
@@ -108,59 +108,10 @@ def dict_sort(D:dict, assending:bool=True, fin=lambda x:x, fmid=lambda x:x, fout
     
     return {k:v for k,v in zip(ks,vs)} if return_dict else (ks,vs,ss)
 
-#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-class BaseConvert:
-    r""" Number System Conversion """
 
-    @staticmethod
-    def ndigs(num:int, base:int) -> int:
-        r""" 
-        Returns the number of digits required to represent a base-10 number in the given base.
 
-        :param num:     base-10 number to be represented
-        :param base:    base-n number system
-        """
-        return 1 + (0 if num==0 else floor(log(num, base)))
 
-    @staticmethod
-    def int2base(num:int, base:int, digs:int) -> list:
-        r""" 
-        Convert base-10 integer to a base-n list of fixed no. of digits 
-
-        :param num:     base-10 number to be represented
-        :param base:    base-n number system
-        :param digs:    no of digits in the output
-
-        :returns:       represented number as a list of ordinals in base-n number system
-
-        .. seealso::
-            :func:`~known.basic.base2int`
-        """
-        if not digs: digs=__class__.ndigs(num, base)
-        res = [ 0 for _ in range(digs) ]
-        q = num
-        for i in range(digs): # <-- do not use enumerate plz
-            res[i]=q%base
-            q = floor(q/base)
-        return res
-
-    @staticmethod
-    def base2int(num:Iterable, base:int) -> int:
-        """ 
-        Convert an iterbale of digits in base-n system to base-10 integer
-
-        :param num:     iterable of base-n digits
-        :param base:    base-n number system
-
-        :returns:       represented number as a integer in base-10 number system
-
-        .. seealso::
-            :func:`~known.basic.int2base`
-        """
-        res = 0
-        for i,n in enumerate(num): res+=(base**i)*n
-        return res
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -580,33 +531,204 @@ class IndexedDict(UserDict):
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+class BaseConvert:
+    r""" Number System Conversion """
 
 
-# def pname(path:str, sep:str='.'): 
-#     r""" Path Name - retuns the path except file extension using ``path[0:path.rfind(sep)]`` 
+    @staticmethod
+    def ndigs(num:int, base:int) -> int:
+        r""" 
+        Returns the number of digits required to represent a base-10 number in the given base.
+
+        :param num:     base-10 number to be represented
+        :param base:    base-n number system
+        """
+        return 1 + (0 if num==0 else floor(log(num, base)))
+
+    @staticmethod
+    def int2base(num:int, base:int, digs:int) -> list:
+        r""" 
+        Convert base-10 integer to a base-n list of fixed no. of digits 
+
+        :param num:     base-10 number to be represented
+        :param base:    base-n number system
+        :param digs:    no of digits in the output
+
+        :returns:       represented number as a list of ordinals in base-n number system
+
+        .. seealso::
+            :func:`~known.basic.base2int`
+        """
+        if not digs: digs=__class__.ndigs(num, base)
+        res = [ 0 for _ in range(digs) ]
+        q = num
+        for i in range(digs): # <-- do not use enumerate plz
+            res[i]=q%base
+            q = floor(q/base)
+        return res
+
+    @staticmethod
+    def base2int(num:Iterable, base:int) -> int:
+        """ 
+        Convert an iterbale of digits in base-n system to base-10 integer
+
+        :param num:     iterable of base-n digits
+        :param base:    base-n number system
+
+        :returns:       represented number as a integer in base-10 number system
+
+        .. seealso::
+            :func:`~known.basic.int2base`
+        """
+        res = 0
+        for i,n in enumerate(num): res+=(base**i)*n
+        return int(res)
+
+
+    SYM_BIN = { f'{i}':i for i in range(2) }
+    SYM_OCT = { f'{i}':i for i in range(8) }
+    SYM_DEC = { f'{i}':i for i in range(10) }
+    SYM_HEX = {**SYM_DEC , **{ s:(i+10) for i,s in enumerate(('A', 'B', 'C', 'D', 'E', 'F'))}}
     
-#     .. seealso::
-#         :func:`~known.basic.pext`
-#         :func:`~known.basic.psplit`
-#     """
-#     return path[0:path.rfind(sep)]
+    @staticmethod
+    def n_syms(n): return { f'{i}':i for i in range(n) }
 
-# def pext(path:str, sep:str='.'): 
-#     r""" Path Extension - retuns the extension from a path using ``path[path.rfind(sep):]`` 
+    @staticmethod
+    def to_base_10(syms:dict, num:str):
+        b = len(syms)
+        l = [ syms[n] for n in num[::-1] ]
+        return __class__.base2int(l, b)
 
-#     .. seealso::
-#         :func:`~known.basic.pname`
-#         :func:`~known.basic.psplit`
-#     """
-#     return path[path.rfind(sep):]
+    @staticmethod
+    def from_base_10(syms:dict, num:int, joiner=''):
+        base = len(syms)
+        print(f'----{num=} {type(num)}, {base=}, {type(base)}')
+        ndig = 1 + (0 if num==0 else floor(log(num, base))) # __class__.ndigs(num, base)
+        ss = tuple(syms.keys())
+        S = [ ss[i]  for i in __class__.int2base(num, base, ndig) ]
+        return joiner.join(S[::-1])
 
-# def psplit(path:str, sep:str='.'): 
-#     r""" Path Split - splits the path into name and extension
 
-#     :returns: 2-tuple (Name, Ext)
+    @staticmethod
+    def int2hex(num:int, joiner=''): return __class__.from_base_10(__class__.SYM_HEX, num, joiner)
+        
 
-#     .. note:: This is the same as using :func:`~known.basic.pname` and :func:`~known.basic.pext` together. 
-#         This may be used to create copies of a file by adding a suffix to its name witout changing the extension.
 
-#     """
-#     return (path[0:path.rfind(sep)], path[path.rfind(sep):])
+
+class BaseConverter:
+    r""" Number System Conversion 
+    
+    A number is abstract concept that has many representations using sets of symbols
+
+    A base-n number system uses a set of n digits to represent any number
+    This is called the representation of the number
+
+    Given one representation, we only need to convert to another
+
+    """
+
+    DIGITS_DTYPE =  np.uint32
+    @staticmethod
+    def convert(digits, base_from, base_to, reversed=True):
+        r""" convers from one base to another 
+        
+        :param digits:      iterable of digits in base ```base_from```. NOTE: digits are Natural Numbers starting at 0. base 'b' will have digits between [0, b-1]
+        :param base_from:   int - the base to convert from
+        :param base_to:     int - the base to convert to
+        :param reversed:    bool - if True, digits are assumed in reverse (human readable left to right)
+                            e.g. if reversed is True then binary digits iterable [1,0,0] will represent [4] in decimal otherwise it will represent [1] in decimal
+        """
+
+        digits_from =  np.array(digits, dtype=__class__.DIGITS_DTYPE) # convert to int data-type
+        if reversed: digits_from = digits_from[::-1]
+        ndigits_from = len(digits_from)
+        mult_from = np.array([base_from**i for i in range(ndigits_from)], dtype=__class__.DIGITS_DTYPE)
+        repr_from = np.dot(digits_from , mult_from)
+
+        #ndc = base_from**ndigits_from
+        ndigits_to = ceil(log(repr_from,base_to))
+        digits_to =  np.zeros((ndigits_to,), dtype=__class__.DIGITS_DTYPE)
+        n = int(repr_from)
+        for d in range(ndigits_to):
+            digits_to[d] = n%base_to
+            n=n//base_to
+            #n = (n-digits_to[d])/base_to
+
+        #mult_to = np.array([base_to**i for i in range(ndigits_to)])
+        #repr_to = np.dot(digits_to , mult_to)
+        #assert repr_to==repr_from
+        if reversed: digits_to = digits_to[::-1]
+        return tuple(digits_to)
+
+
+    @staticmethod
+    def int2base(num:int, base:int, digs:int) -> list:
+        r""" 
+        Convert base-10 integer to a base-n list of fixed no. of digits 
+
+        :param num:     base-10 number to be represented
+        :param base:    base-n number system
+        :param digs:    no of digits in the output
+
+        :returns:       represented number as a list of ordinals in base-n number system
+
+        .. seealso::
+            :func:`~known.basic.base2int`
+        """
+        
+        ndigits = digs if digs else ceil(log(num,base)) 
+        digits =  np.zeros((ndigits,), dtype=__class__.DIGITS_DTYPE)
+        n = num
+        for d in range(ndigits):
+            digits[d] = n%base
+            n=n//base
+        return digits
+
+    @staticmethod
+    def base2int(num:Iterable, base:int) -> int:
+        """ 
+        Convert an iterbale of digits in base-n system to base-10 integer
+
+        :param num:     iterable of base-n digits
+        :param base:    base-n number system
+
+        :returns:       represented number as a integer in base-10 number system
+
+        .. seealso::
+            :func:`~known.basic.int2base`
+        """
+        res = 0
+        for i,n in enumerate(num): res+=(base**i)*n
+        return int(res)
+
+
+    SYM_BIN = { f'{i}':i for i in range(2) }
+    SYM_OCT = { f'{i}':i for i in range(8) }
+    SYM_DEC = { f'{i}':i for i in range(10) }
+    SYM_HEX = {**SYM_DEC , **{ s:(i+10) for i,s in enumerate(('A', 'B', 'C', 'D', 'E', 'F'))}}
+    
+    @staticmethod
+    def n_syms(n): return { f'{i}':i for i in range(n) }
+
+    @staticmethod
+    def to_base_10(syms:dict, num:str):
+        b = len(syms)
+        l = [ syms[n] for n in num[::-1] ]
+        return __class__.base2int(l, b)
+
+    @staticmethod
+    def from_base_10(syms:dict, num:int, joiner=''):
+        base = len(syms)
+        print(f'----{num=} {type(num)}, {base=}, {type(base)}')
+        ndig = 1 + (0 if num==0 else floor(log(num, base))) # __class__.ndigs(num, base)
+        ss = tuple(syms.keys())
+        S = [ ss[i]  for i in __class__.int2base(num, base, ndig) ]
+        return joiner.join(S[::-1])
+
+
+    @staticmethod
+    def int2hex(num:int, joiner=''): return __class__.from_base_10(__class__.SYM_HEX, num, joiner)
+        
+
