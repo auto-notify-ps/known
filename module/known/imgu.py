@@ -64,14 +64,6 @@ class Pix(object):
         B,G,R,A = tuple(BaseConvert.int2base(num=BaseConvert.to_base_10(BaseConvert.SYM_HEX, hex), base=256, digs=4))
         return self.set_color_at(row,col,(R,G,B,A))
     
-
-    def get_hex_at(self, row:int, col:int):
-        r,g,b,a = self.get_color_at(row, col, normalize=False)
-        int_code = BaseConvert.base2int(num=(b,g,r,a), base=256)
-        print(f'{int_code=}, {type(int_code)}')
-        hex_code = BaseConvert.int2hex(int_code,joiner='')
-        print(f'{hex_code=}')
-        return hex_code
     
     @staticmethod
     def save(pix, path):  
