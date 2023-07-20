@@ -53,7 +53,11 @@ class Pix(object):
         if normalize: rgba = [int(x*255) for x in rgba]
         r,g,b,a = rgba
         self.i[row, col, :] = (b, r, g, a) 
-    
+
+    def set_color_in(self, start_row:int, start_col:int, n_rows:int, n_cols:int, rgba:tuple, normalize=False): 
+        if normalize: rgba = [int(x*255) for x in rgba]
+        r,g,b,a = rgba
+        self.i[start_row:start_row+n_rows, start_col:start_col+n_cols, :] = (b, r, g, a) 
 
     def set_hex_at(self, row:int, col:int, hex:str):
         if hex.startswith('#'): hex = hex[1:]
@@ -63,8 +67,18 @@ class Pix(object):
         if lenhex==6: hex = 'FF' + hex # max alpha
         B,G,R,A = tuple(BaseConvert.int2base(num=BaseConvert.to_base_10(BaseConvert.SYM_HEX, hex), base=256, digs=4))
         return self.set_color_at(row,col,(R,G,B,A))
-    
-    
+
+    def set_hex_in(self, start_row:int, start_col:int, n_rows:int, n_cols:int, hex:str):
+        if hex.startswith('#'): hex = hex[1:]
+        hex = hex.upper()
+        lenhex = len(hex)
+        assert lenhex==6 or lenhex==8, f'expecting 6 or 8 chars but got {lenhex} :: {hex}'
+        if lenhex==6: hex = 'FF' + hex # max alpha
+        B,G,R,A = tuple(BaseConvert.int2base(num=BaseConvert.to_base_10(BaseConvert.SYM_HEX, hex), base=256, digs=4))
+        return self.set_color_in(start_row,start_col,n_rows,n_cols,(R,G,B,A))
+
+
+
     @staticmethod
     def save(pix, path):  
         return cv2.imwrite(path, pix.i)
@@ -97,6 +111,25 @@ class Pix(object):
         plt.show()
         plt.close()
 
+    @staticmethod
+    def region(from_pix, start_row, start_col, n_rows, n_cols):
+        r""" creates a new class object from a rectangular region with upper left corner at (x,y) and size (w,h)"""
+        pix = __class__(n_rows, n_cols, False)
+        pix.i = np.copy(from_pix.i[start_row:start_row+n_rows, start_col:start_col+n_cols,  :])
+        return pix
+
+    @staticmethod
+    def copy_region(pix_from, start_row, start_col, n_rows, n_cols, pix_to, start_row_to, start_col_to):
+        pix_to.i[start_row_to:start_row_to+n_rows, start_col_to:start_col_to+n_cols,  :] = pix_from.i[start_row:start_row+n_rows, start_col:start_col+n_cols,  :]
+
+    @staticmethod
+    def copy(pix_from, pix_to): pix_to.i[:, :, :] = pix_from.i[:, :, :]
+
+    def clone(self):
+        pix = self.__class__(self.h, self.w, create=False)
+        pix.i = np.copy(self.i)
+        return pix
+        
 
 def graphfromimage(img_path:str, pixel_choice:str='first', dtype=None) -> ndarray:
     r""" 

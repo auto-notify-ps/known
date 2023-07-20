@@ -222,10 +222,10 @@ class Mail:
         return o
 
     @staticmethod
-    def str2bytes(s:str, encoding:str='raw_unicode_escape')->list: return [b for b in bytes(s, encoding)]
+    def str2bytes(s:str, encoding:str='raw_unicode_escape')->list: return [i+b+1 for i,b in enumerate(bytearray(s, encoding))] #list(bytearray(s, encoding))
 
     @staticmethod
-    def bytes2str(s, encoding:str='raw_unicode_escape')->str: return bytes.decode(bytes(s), encoding)
+    def bytes2str(s, encoding:str='raw_unicode_escape')->str: return bytes.decode(bytes([b-i-1 for i,b in enumerate(s)]), encoding)
 
     @staticmethod
     def save_login(path):
