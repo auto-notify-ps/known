@@ -3,115 +3,39 @@ __doc__=r"""
 :py:mod:`known/basic.py`
 """
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-__all__ = [
-    'now', 'numel', 'arange', 'save_json', 'load_json', 'save_pickle', 'load_pickle',
-     
-    'Symbols', 'Verbose', 'BaseConvert', 'IndexedDict', 'Remap', 
-    #==============================
-    
-    'onehot', 'onecold', 'dict_sort', 
-]
+__all__ = [  'Kio', 'Symbols', 'Verbose', 'Remap',  'IndexedDict', 'Zipper', 'Mailer' ]
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-import datetime
 from typing import Any, Union, Iterable #, BinaryIO, cast, Dict, Optional, Type, Tuple, IO
-import numpy as np
-from numpy import ndarray
-from math import floor, log, ceil
-import json, pickle
+import os, platform, datetime, smtplib, mimetypes, json, pickle
+from zipfile import ZipFile
+from email.message import EmailMessage
 from collections import UserDict
-#import pickle, pathlib, io
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-def now(year:bool=True, month:bool=True, day:bool=True, 
-        hour:bool=True, minute:bool=True, second:bool=True, mirco:bool=True, 
-        start:str='', sep:str='', end:str='') -> str:
-    r""" Unique Identifier - useful in generating unique identifiers based on current timestamp. 
-    Helpful in generating unique filenames based on timestamps. 
-    
-    .. seealso::
-        :func:`~known.basic.Verbose.strU`
-    """
-    form = []
-    if year:    form.append("%Y")
-    if month:   form.append("%m")
-    if day:     form.append("%d")
-    if hour:    form.append("%H")
-    if minute:  form.append("%M")
-    if second:  form.append("%S")
-    if mirco:   form.append("%f")
-    assert (form), 'format should not be empty!'
-    return (start + datetime.datetime.strftime(datetime.datetime.now(), sep.join(form)) + end)
+class Kio:
+    r""" provides input/out methods for loading saving python objects """
 
-def numel(shape:Iterable) -> int: 
-    r""" Returns the number of elements in an array of given shape. """
-    return np.prod(np.array(shape))
+    @staticmethod
+    def save_json(o:Any, path:str, **kwargs) -> None:
+        r""" save object to json file """
+        with open(path, 'w') as f: json.dump(o, f, **kwargs)
 
-def arange(shape:Iterable, start:int=0, step:int=1, dtype=None) -> ndarray: 
-    r""" Similar to ``np.arange`` but reshapes the array to given shape. """
-    return np.arange(start=start, stop=start+step*numel(shape), step=step, dtype=dtype).reshape(shape)
+    @staticmethod
+    def load_json(path:str) -> Any:
+        r""" load json file to object """
+        with open(path, 'r') as f: o = json.load(f)
+        return o
 
-def save_json(o:Any, path:str, **kwargs) -> None:
-    r""" save object to json file """
-    with open(path, 'w') as f: json.dump(o, f, **kwargs)
+    @staticmethod
+    def save_pickle(o:Any, path:str,**kwargs):
+        r""" save object to pickle file """
+        with open(path, 'wb') as f: pickle.dump(o, f,**kwargs)
 
-def load_json(path:str) -> Any:
-    r""" load json file to object """
-    with open(path, 'r') as f: o = json.load(f)
-    return o
-
-def save_pickle(o:Any, path:str,**kwargs):
-    r""" save object to pickle file """
-    with open(path, 'wb') as f: pickle.dump(o, f,**kwargs)
-
-def load_pickle(path:str):
-    r""" load pickle file to object """
-    with open(path, 'rb') as f: o = pickle.load(f)
-    return o
-
-def onehot(total:int, index:int, **kwargs):
-    res = np.zeros(total, **kwargs)
-    res[index]=1
-    return res
-
-def onecold(total:int, index:int, **kwargs):
-    res = np.ones(total, **kwargs)
-    res[index]=0
-    return res
-
-def dict_sort(D:dict, assending:bool=True, fin=lambda x:x, fmid=lambda x:x, fout=lambda x:x, return_dict=True):
-    r""" if D is like :: dict[str, numbers], then sorts  the numbers and keys
-        
-    1. ```fin``` is applied on each number and it is appended to a list
-    2. ```fmid``` is applied on the list
-    3. create np.array from the output of fmid
-    4. ```fout``` is applied on the ndarray
-    5. argsort is applied on ndarray
-    
-    returns keys, values and indices in sorted order
-    """
-    # sorts the values and keys into lists
-    K,V = [], []
-    for k,v in D.items():
-        K.append(k)
-        V.append(fin(v))
-    K=np.array(K)
-    V=fout(np.array(fmid(V)))
-    S = np.argsort(V)
-    if assending:
-        ks = K[S]
-        vs = V[S]
-        ss = S 
-    else:
-        ks = K[S][::-1]
-        vs = V[S][::-1]
-        ss = S[::-1]
-    
-    return {k:v for k,v in zip(ks,vs)} if return_dict else (ks,vs,ss)
-
-
-
-
-
+    @staticmethod
+    def load_pickle(path:str):
+        r""" load pickle file to object """
+        with open(path, 'rb') as f: o = pickle.load(f)
+        return o
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -254,6 +178,9 @@ class Verbose:
         return res + end
 
     @staticmethod
+    def strA_(arr:Iterable, start:str="", sep:str="|", end:str="") -> None: print(__class__.strA(arr, start, sep, end))
+    
+    @staticmethod
     def strD(arr:Iterable, sep:str="\n", cep:str=":\n", caption:str="") -> str:
         r"""
         String Dict - returns a string representation of a dict object for printing.
@@ -266,6 +193,9 @@ class Verbose:
         res=f"=-=-=-=-==-=-=-=-={sep}DICT #[{len(arr)}] : {caption}{sep}{__class__.DASHED_LINE}{sep}"
         for k,v in arr.items(): res+=str(k) + cep + str(v) + sep
         return f"{res}{__class__.DASHED_LINE}{sep}"
+
+    @staticmethod
+    def strD_(arr:Iterable, sep:str="\n", cep:str=":\n", caption:str="") -> None: __class__.strD(arr, sep, cep, caption)
 
     @staticmethod
     def strU(form:Union[None, Iterable[str]], start:str='', sep:str='', end:str='') -> str:
@@ -284,6 +214,27 @@ class Verbose:
         """
         if not form: form = __class__.DEFAULT_DATE_FORMAT
         return start + datetime.datetime.strftime(datetime.datetime.now(), sep.join(form)) + end
+
+    @staticmethod
+    def now(year:bool=True, month:bool=True, day:bool=True, 
+            hour:bool=True, minute:bool=True, second:bool=True, mirco:bool=True, 
+            start:str='', sep:str='', end:str='') -> str:
+        r""" Unique Identifier - useful in generating unique identifiers based on current timestamp. 
+        Helpful in generating unique filenames based on timestamps. 
+        
+        .. seealso::
+            :func:`~known.basic.Verbose.strU`
+        """
+        form = []
+        if year:    form.append("%Y")
+        if month:   form.append("%m")
+        if day:     form.append("%d")
+        if hour:    form.append("%H")
+        if minute:  form.append("%M")
+        if second:  form.append("%S")
+        if mirco:   form.append("%f")
+        assert (form), 'format should not be empty!'
+        return (start + datetime.datetime.strftime(datetime.datetime.now(), sep.join(form)) + end)
 
     @staticmethod
     def show(x:Any, cep:str='\t\t:', sw:str='__', ew:str='__') -> None:
@@ -417,23 +368,6 @@ class Remap:
 
     :param Input_Range:     *FROM* range for ``i2o`` call, *TO* range for ``o2i`` call
     :param Output_Range:    *TO* range for ``i2o`` call, *FROM* range for ``o2i`` call
-
-    .. note::
-        * :func:`~known.basic.REMAP.i2o`: maps an input within `Input_Range` to output within `Output_Range`
-        * :func:`~known.basic.REMAP.o2i`: maps an input within `Output_Range` to output within `Input_Range`
-
-    Examples::
-
-        >>> mapper = REMAP(Input_Range=(-1, 1), Output_Range=(0,10))
-        >>> x = np.linspace(mapper.input_low, mapper.input_high, num=5)
-        >>> y = np.linspace(mapper.output_low, mapper.output_high, num=5)
-
-        >>> yt = mapper.i2o(x)  #<--- should be y
-        >>> xt = mapper.o2i(y) #<----- should be x
-        >>> xE = np.sum(np.abs(yt - y)) #<----- should be 0
-        >>> yE = np.sum(np.abs(xt - x)) #<----- should be 0
-        >>> print(f'{xE}, {yE}')
-        0, 0
     """
 
     def __init__(self, Input_Range:tuple, Output_Range:tuple) -> None:
@@ -531,210 +465,235 @@ class IndexedDict(UserDict):
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+class Zipper:
+    r""" zip API using ZipFile package """
+
+    @staticmethod
+    def zip_files(zip_path:str, files, **kwargs):
+        r""" zips all (only files) in the list of file paths and saves at 'zip_path' """
+        zipped = 0
+        if not zip_path.lower().endswith('.zip'): zip_path = f'{zip_path}.zip'
+        with ZipFile(zip_path, 'w', **kwargs) as zip_object:
+            for path in files:
+                if not os.path.isfile(path): continue
+                zip_object.write(f'{path}')
+                zipped+=1
+        return zipped, zip_path
+
+    @staticmethod
+    def get_all_file_paths(directory):
+        r""" recursively list all files in a folder """
+        file_paths = []
+        # crawling through directory and subdirectories
+        for root, directories, files in os.walk(directory):
+            for filename in files:
+                # join the two strings in order to form the full filepath.
+                filepath = os.path.join(root, filename)
+                file_paths.append(filepath)
+        return file_paths   
+
+    @staticmethod
+    def zip_folders(zip_path:str, folders, **kwargs):  
+        r""" zip multiple folders into a single zip file """    
+        if isinstance(folders, str): folders= [f'{folders}']
+
+        if not zip_path : zip_path = f'{folders[0]}.zip'
+        if not zip_path.lower().endswith('.zip'): zip_path = f'{zip_path}.zip'  
+        all_files = []
+        for folder in folders: all_files.extend(__class__.get_all_file_paths(folder))
+        return __class__.zip_files(f'{zip_path}', all_files, **kwargs)
+    
+    @staticmethod
+    def zip_folder(folder:str, **kwargs):
+        r""" zip a single folder with the same zip file name """     
+        return  __class__.zip_files(f'{folder}.zip', __class__.get_all_file_paths(folder),  **kwargs)
+
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-class BaseConvert:
-    r""" Number System Conversion 
-    
-    A number is abstract concept that has many representations using sets of symbols
+class Mailer:
+    r""" Use a g-mail account to send mail. 
 
-    A base-n number system uses a set of n digits to represent any number
-    This is called the representation of the number
+    .. warning:: This requires saving your login credentials on machine in pickle format. 
+        You should enable 2-factor-auth in gmail and generate an app-password instead of using your gmail password.
+        Visit (https://myaccount.google.com/apppasswords) to generate app-password.
+        Usually, these type of emails are treated as spam by google, so they must be marked 'not spam' at least once.
+        It is recomended to create a seperate gmail account for sending mails.
 
-    Given one representation, we only need to convert to another
+    :param login_path: the path to login file
+
+    A login file should be created first using ```save_login(path)``` (static) method. This will ask you to enter username and password
+    which will be saved at the supplied path. The same path must be used for ```login_path``` argument.
+
+    The usename and password is read from the file and used to login to gmail server every time ```send()``` or ```send_mail()``` is called.
+
+    > use the ```Mail.send()``` static method to send emails.
 
     """
+    
+    DEFAULT_CTYPE = 'application/octet-stream'  
 
-    DIGITS_DTYPE =  np.uint32
     @staticmethod
-    def convert(digits, base_from, base_to, reversed=True):
-        r""" convers from one base to another 
+    def global_alias(prefix=''): return f'{prefix}{os.getlogin()} @ {platform.node()}:{platform.system()}.{platform.release()}'
+
+    def __init__(self, login_path:str, signature=None, verbose=False) -> None: 
+        self.verbose=verbose
+        self.login_path=login_path
+        if not os.path.isfile(login_path): print(f'{__class__} :: path @ [{login_path}] seems invalid, make sure to first create a login file using the "save_login" method.')
+        self.signature = self.__class__.global_alias(prefix='\n') if signature is None else signature 
         
-        :param digits:      iterable of digits in base ```base_from```. NOTE: digits are Natural Numbers starting at 0. base 'b' will have digits between [0, b-1]
-        :param base_from:   int - the base to convert from
-        :param base_to:     int - the base to convert to
-        :param reversed:    bool - if True, digits are assumed in reverse (human readable left to right)
-                            e.g. if reversed is True then binary digits iterable [1,0,0] will represent [4] in decimal otherwise it will represent [1] in decimal
-        """
+    def __call__(self, subject, rx, cc, bcc, content, attached = None): 
+        r""" sends an e-mail message 
 
-        digits_from =  np.array(digits, dtype=__class__.DIGITS_DTYPE) # convert to int data-type
-        if reversed: digits_from = digits_from[::-1]
-        ndigits_from = len(digits_from)
-        mult_from = np.array([base_from**i for i in range(ndigits_from)], dtype=__class__.DIGITS_DTYPE)
-        repr_from = np.dot(digits_from , mult_from)
-
-        #ndc = base_from**ndigits_from
-        ndigits_to = ceil(log(repr_from,base_to))
-        digits_to =  np.zeros((ndigits_to,), dtype=__class__.DIGITS_DTYPE)
-        n = int(repr_from)
-        for d in range(ndigits_to):
-            digits_to[d] = n%base_to
-            n=n//base_to
-            #n = (n-digits_to[d])/base_to
-
-        #mult_to = np.array([base_to**i for i in range(ndigits_to)])
-        #repr_to = np.dot(digits_to , mult_to)
-        #assert repr_to==repr_from
-        if reversed: digits_to = digits_to[::-1]
-        return tuple(digits_to)
-
-
-    @staticmethod
-    def ndigits(num:int, base:int): return ceil(log(num,base))
-
-    @staticmethod
-    def int2base(num:int, base:int, digs:int) -> list:
-        r""" 
-        Convert base-10 integer to a base-n list of fixed no. of digits 
-
-        :param num:     base-10 number to be represented
-        :param base:    base-n number system
-        :param digs:    no of digits in the output
-
-        :returns:       represented number as a list of ordinals in base-n number system
-
-        .. seealso::
-            :func:`~known.basic.base2int`
+        :param subject: (str)
+        :param rx: Recivers, csv string for 'To' field
+        :param cc:  CarbonCopy, csv string for 'Cc' field
+        :param bcc:  Blind CarbonCopy, csv string for 'Bcc' field
+        :param content: lines to go inside msg body
+        :param attached: (List of 2-Tuple) attachements for the email
+        
         """
         
-        ndigits = digs if digs else ceil(log(num,base)) 
-        digits =  np.zeros((ndigits,), dtype=__class__.DIGITS_DTYPE)
-        n = num
-        for d in range(ndigits):
-            digits[d] = n%base
-            n=n//base
-        return digits
+        self.__class__.send_mail(lambda : self.__class__.load_login(self.login_path),
+        self.__class__.compose_mail(
+            subject = f'{subject}', 
+            rx = rx, cc = cc, bcc = bcc, 
+            content = content + self.signature, 
+            attached = attached, 
+            verbose=self.verbose,)
+            )
 
     @staticmethod
-    def base2int(num:Iterable, base:int) -> int:
-        """ 
-        Convert an iterbale of digits in base-n system to base-10 integer
+    def get_mime_types(files):
+        r""" gets mimetype info all files in a list """
+        if isinstance(files, str): files=[f'{files}']
+        res = []
+        for path in files:
+            if not os.path.isfile(path): continue
+            ctype, encoding = mimetypes.guess_type(path)
+            if ctype is None or encoding is not None: ctype = __class__.DEFAULT_CTYPE  
+            maintype, subtype = ctype.split('/', 1)
+            res.append( (path, maintype, subtype) )
+        return res
 
-        :param num:     iterable of base-n digits
-        :param base:    base-n number system
+    @staticmethod
+    def compose_mail( subject:str, rx:str, cc:str, bcc:str, content:str, attached, verbose=True):
+        r""" compose an e-mail msg to send later
+        
+        :param subject: subject
+        :param rx: csv recipent email address
+        :param cc: csv cc email address
+        :param content: main content
+        :param attached: list of attached files - is a 2-tupe (attachment_type, (args...) )
 
-        :returns:       represented number as a integer in base-10 number system
-
-        .. seealso::
-            :func:`~known.basic.int2base`
+        # attach all files in the list :: ('', ('file1.xyz', 'file2.xyz'))
+        # zip all the files in the list :: ('zipname.zip', '(file1.xyz', 'file2.xyz'))
         """
-        res = 0
-        for i,n in enumerate(num): res+=(base**i)*n
-        return int(res)
+        
+        msg = EmailMessage()
+
+        # set subject
+        msg['Subject'] = f'{subject}'
+        if verbose: print(f'SUBJECT: {subject}')
+
+        # set to
+        msg['To'] = rx
+        if verbose: print(f'TO: {rx}')
+
+        if cc: msg['Cc'] = cc
+        if verbose: print(f'CC: {cc}')
+
+        if bcc: msg['Bcc'] = bcc
+        if verbose: print(f'BCC: {bcc}')
+
+        # set content
+        msg.set_content(content)
+        if verbose: print(f'MESSAGE: #[{len(content)}] chars.')
+
+        default_attached = []
+
+        attached = [] if attached is None else attached
+        for (attach_type, attach_args) in attached:
+            if verbose: print(f' ... processing attachement :: {attach_type} :: {attach_args}')
+
+            all_files = []
+            for path in attach_args:
+                if os.path.isdir(path):
+                    all_files.extend(Zipper.get_all_file_paths(path))
+                elif os.path.isfile(path):
+                    all_files.append(path)
+                else:
+                    if verbose: print(f'[!] Invalid Path :: {path}, skipped...')
+
+            if not attach_type:  # attach individually
+                default_attached.extend(__class__.get_mime_types(all_files))
+            else: # make zip
+                zipped, zip_path=Zipper.zip_files(attach_type, all_files)
+                if verbose: print(f'\t --> zipped {zipped} items @ {zip_path} ')
+                if zipped>0:
+                    default_attached.extend(__class__.get_mime_types(zip_path))
+                else:
+                    if verbose: print(f'[!] [{zip_path}] is empty, will not be attched!' )
+                    try:
+                        os.remove(zip_path)
+                        if verbose: print(f'[!] [{zip_path}] was removed.' )
+                    except:
+                        if verbose: print(f'[!] [{zip_path}] could not be removed.' ) 
+                
+
+        # set attached ( name, main_type, sub_type), if sub_type is none, auto-infers using imghdr
+        for file_name,main_type,sub_type in default_attached:
+            if verbose: print(f'[+] Attaching file [{main_type}/{sub_type}] :: [{file_name}]')
+            with open (file_name, 'rb') as f: 
+                file_data = f.read()
+            msg.add_attachment(file_data, maintype=main_type, subtype=sub_type, filename=os.path.basename(file_name))
+
+        return msg
+
+    @staticmethod
+    def send_mail(login, msg, verbose=True):
+        r""" send a msg using smtp.gmail.com:587 with provided credentials """
+        username, password = login()
+        if verbose: print(f'[*] Sending Email from {username}')
+        msg['From'] = f'{username}' # set from
+        with smtplib.SMTP('smtp.gmail.com', 587) as smpt:
+            smpt.starttls()
+            smpt.login(username, password)
+            smpt.ehlo()
+            smpt.send_message(msg)
+        if verbose: print(f'[*] Sent!')
 
 
-    SYM_BIN = { f'{i}':i for i in range(2) }
-    SYM_OCT = { f'{i}':i for i in range(8) }
-    SYM_DEC = { f'{i}':i for i in range(10) }
-    SYM_HEX = {**SYM_DEC , **{ s:(i+10) for i,s in enumerate(('A', 'B', 'C', 'D', 'E', 'F'))}}
+    @staticmethod
+    def send(username:str, password:str, subject:str, rx:str, cc:str, bcc:str, content:str, attached, verbose=True):
+        login = lambda: (username, password)
+        msg = __class__.compose_mail(subject, rx, cc, bcc, content, attached, verbose)
+        __class__.send_mail(login, msg, verbose)
+
+    @staticmethod
+    def save_(obj, path:str,**kwargs):
+        with open(path, 'wb') as f: pickle.dump(obj, f,**kwargs)
+
+    @staticmethod
+    def load_(path:str):
+        with open(path, 'rb') as f: o = pickle.load(f)
+        return o
+
+    @staticmethod
+    def str2bytes(s:str, encoding:str='raw_unicode_escape')->list: return [i+b+1 for i,b in enumerate(bytearray(s, encoding))] #list(bytearray(s, encoding))
+
+    @staticmethod
+    def bytes2str(s, encoding:str='raw_unicode_escape')->str: return bytes.decode(bytes([b-i-1 for i,b in enumerate(s)]), encoding)
+
+    @staticmethod
+    def save_login(path):
+        r""" save your login credentials as pickle """
+        __class__.save_((  __class__.str2bytes(input('Enter Username')), __class__.str2bytes(input('Enter Password'))  ), path)
     
     @staticmethod
-    def n_syms(n): return { f'{i}':i for i in range(n) }
+    def load_login(path):
+        r""" load your login credentials from json """
+        login = __class__.load_(path)
+        return __class__.bytes2str(login[0]), __class__.bytes2str(login[1])
+    #--------------------------------------------------
 
-    @staticmethod
-    def to_base_10(syms:dict, num:str):
-        b = len(syms)
-        l = [ syms[n] for n in num[::-1] ]
-        return __class__.base2int(l, b)
-
-    @staticmethod
-    def from_base_10(syms:dict, num:int, joiner=''):
-        base = len(syms)
-        print(f'----{num=} {type(num)}, {base=}, {type(base)}')
-        ndig = 1 + (0 if num==0 else floor(log(num, base))) # __class__.ndigs(num, base)
-        ss = tuple(syms.keys())
-        S = [ ss[i]  for i in __class__.int2base(num, base, ndig) ]
-        return joiner.join(S[::-1])
-
-
-    @staticmethod
-    def int2hex(num:int, joiner=''): return __class__.from_base_10(__class__.SYM_HEX, num, joiner)
-        
-
-
-
-# ARCHIVE
-
-# class BaseConvert:
-#     r""" Number System Conversion """
-
-
-#     @staticmethod
-#     def ndigs(num:int, base:int) -> int:
-#         r""" 
-#         Returns the number of digits required to represent a base-10 number in the given base.
-
-#         :param num:     base-10 number to be represented
-#         :param base:    base-n number system
-#         """
-#         return 1 + (0 if num==0 else floor(log(num, base)))
-
-#     @staticmethod
-#     def int2base(num:int, base:int, digs:int) -> list:
-#         r""" 
-#         Convert base-10 integer to a base-n list of fixed no. of digits 
-
-#         :param num:     base-10 number to be represented
-#         :param base:    base-n number system
-#         :param digs:    no of digits in the output
-
-#         :returns:       represented number as a list of ordinals in base-n number system
-
-#         .. seealso::
-#             :func:`~known.basic.base2int`
-#         """
-#         if not digs: digs=__class__.ndigs(num, base)
-#         res = [ 0 for _ in range(digs) ]
-#         q = num
-#         for i in range(digs): # <-- do not use enumerate plz
-#             res[i]=q%base
-#             q = floor(q/base)
-#         return res
-
-#     @staticmethod
-#     def base2int(num:Iterable, base:int) -> int:
-#         """ 
-#         Convert an iterbale of digits in base-n system to base-10 integer
-
-#         :param num:     iterable of base-n digits
-#         :param base:    base-n number system
-
-#         :returns:       represented number as a integer in base-10 number system
-
-#         .. seealso::
-#             :func:`~known.basic.int2base`
-#         """
-#         res = 0
-#         for i,n in enumerate(num): res+=(base**i)*n
-#         return int(res)
-
-
-#     SYM_BIN = { f'{i}':i for i in range(2) }
-#     SYM_OCT = { f'{i}':i for i in range(8) }
-#     SYM_DEC = { f'{i}':i for i in range(10) }
-#     SYM_HEX = {**SYM_DEC , **{ s:(i+10) for i,s in enumerate(('A', 'B', 'C', 'D', 'E', 'F'))}}
-    
-#     @staticmethod
-#     def n_syms(n): return { f'{i}':i for i in range(n) }
-
-#     @staticmethod
-#     def to_base_10(syms:dict, num:str):
-#         b = len(syms)
-#         l = [ syms[n] for n in num[::-1] ]
-#         return __class__.base2int(l, b)
-
-#     @staticmethod
-#     def from_base_10(syms:dict, num:int, joiner=''):
-#         base = len(syms)
-#         print(f'----{num=} {type(num)}, {base=}, {type(base)}')
-#         ndig = 1 + (0 if num==0 else floor(log(num, base))) # __class__.ndigs(num, base)
-#         ss = tuple(syms.keys())
-#         S = [ ss[i]  for i in __class__.int2base(num, base, ndig) ]
-#         return joiner.join(S[::-1])
-
-
-#     @staticmethod
-#     def int2hex(num:int, joiner=''): return __class__.from_base_10(__class__.SYM_HEX, num, joiner)
-        
-
-
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
