@@ -366,8 +366,8 @@ class Remap:
     r""" 
     Provides a mapping between ranges, works with scalars, ndarrays and tensors.
 
-    :param Input_Range:     *FROM* range for ``i2o`` call, *TO* range for ``o2i`` call
-    :param Output_Range:    *TO* range for ``i2o`` call, *FROM* range for ``o2i`` call
+    :param Input_Range:     *FROM* range for ``forward`` call, *TO* range for ``backward`` call
+    :param Output_Range:    *TO* range for ``forward`` call, *FROM* range for ``forward`` call
     """
 
     def __init__(self, Input_Range:tuple, Output_Range:tuple) -> None:
