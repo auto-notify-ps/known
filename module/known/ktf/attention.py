@@ -41,10 +41,24 @@ class LearnableWeightedScoring(nn.Module):
         return d
 
 class LearnableScoring(LearnableWeightedScoring):
+    def __init__(self, embed_dim, num_heads, weight=0.5, bias=True, dtype=None, device=None) -> None:
+        super().__init__(embed_dim, num_heads, bias, dtype, device)
+        self.Wd = tt.tensor(weight, requires_grad=False, **self.factory)
     def setup_weights(self): 
         self.Ws = nn.ModuleList( [nn.Bilinear(in1_features=self.head_dim, in2_features=self.head_dim, out_features=1, bias=self.use_bias, **self.factory) for _ in range(self.num_heads)] )
-        self.Wd = tt.tensor(1.0, **self.factory)
-
+        
+    def forward(self, q, k): #  (B, nh, T, hs) 
+        
+        d = (q @ k.transpose(-2, -1)) * self.scale
+        assert d.shape[-1]==d.shape[-2]
+        block_size = d.shape[-1]
+        for h in range(self.num_heads):
+            for i in range(block_size):
+                for j in range(block_size): 
+                    ws = self.Ws[h].forward(q[:, h, i, :], k[:, h, j, :]) 
+                    d[:, h, i, j] += ws.squeeze(-1) * self.Wd
+        return d
+    
 class LearnableNoDotScoring(LearnableWeightedScoring):
     def setup_weights(self): 
         self.Ws = nn.ModuleList( [nn.Bilinear(in1_features=self.head_dim, in2_features=self.head_dim, out_features=1, bias=self.use_bias, **self.factory) for _ in range(self.num_heads)] )
@@ -79,6 +93,8 @@ class Attention(nn.Module):
         super().__init__()
         assert embed_dim % num_heads == 0, f'Requires {num_heads=} to be divisible by {embed_dim=}'
         self.factory = dict(dtype=dtype, device=device)
+        self.batch_first = True
+        self.learnable=None
 
         self.embed_dim = embed_dim
         self.num_heads = num_heads

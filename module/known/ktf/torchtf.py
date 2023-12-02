@@ -112,7 +112,9 @@ class TransformerEncoderLayer(nn.Module):
 
         # see Fig. 1 of https://arxiv.org/pdf/2002.04745v1.pdf
         why_not_sparsity_fast_path = ''
-        if not src.dim() == 3:
+        if hasattr(self.self_attn, 'learnable'):
+            why_not_sparsity_fast_path = f"Learnable Attention."
+        elif not src.dim() == 3:
             why_not_sparsity_fast_path = f"input not batched; expected src.dim() of 3 but got {src.dim()}"
         elif self.training:
             why_not_sparsity_fast_path = "training is enabled"
@@ -255,7 +257,9 @@ class TransformerEncoder(nn.Module):
         src_key_padding_mask_for_layers = src_key_padding_mask
         why_not_sparsity_fast_path = ''
         str_first_layer = "self.layers[0]"
-        if not isinstance(first_layer, TransformerEncoderLayer):
+        if hasattr(first_layer.self_attn, 'learnable'):
+            why_not_sparsity_fast_path = f"{str_first_layer} is Learnable Attention."
+        elif not isinstance(first_layer, TransformerEncoderLayer):
             why_not_sparsity_fast_path = f"{str_first_layer} was not TransformerEncoderLayer"
         elif first_layer.norm_first :
             why_not_sparsity_fast_path = f"{str_first_layer}.norm_first was True"
