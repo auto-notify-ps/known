@@ -3,10 +3,11 @@ __doc__=r"""
 :py:mod:`known/basic.py`
 """
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-__all__ = [  'Kio', 'Symbols', 'Verbose', 'Remap',  'IndexedDict', 'Zipper', 'Mailer' ]
+__all__ = [  'Kio', 'Symbols', 'Verbose', 'Remap',  'IndexedDict', 'Zipper', 'Mailer', 'BaseConvert' ]
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-from typing import Any, Union, Iterable #, BinaryIO, cast, Dict, Optional, Type, Tuple, IO
+from typing import Any, Union, Iterable, Callable #, BinaryIO, cast, Dict, Optional, Type, Tuple, IO
 import os, platform, datetime, smtplib, mimetypes, json, pickle
+from math import floor, log, ceil
 from zipfile import ZipFile
 from email.message import EmailMessage
 from collections import UserDict
@@ -406,6 +407,124 @@ class Remap:
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+class BaseConvert:
+    
+    r""" Number System Conversion 
+    
+    A number is abstract concept that has many representations using sets of symbols
+
+    A base-n number system uses a set of n digits to represent any number
+    This is called the representation of the number
+
+    Given one representation, we only need to convert to another
+
+    """
+
+    @staticmethod
+    def zeros(n): return [0 for _ in range(n)]
+
+    @staticmethod
+    def convert(digits, base_from, base_to, reversed=True):
+        r""" convers from one base to another 
+        
+        :param digits:      iterable of digits in base ```base_from```. NOTE: digits are Natural Numbers starting at 0. base 'b' will have digits between [0, b-1]
+        :param base_from:   int - the base to convert from
+        :param base_to:     int - the base to convert to
+        :param reversed:    bool - if True, digits are assumed in reverse (human readable left to right)
+                            e.g. if reversed is True then binary digits iterable [1,0,0] will represent [4] in decimal otherwise it will represent [1] in decimal
+        """
+
+        digits_from =  [int(abs(d)) for d in digits] # convert to int data-type
+        if reversed: digits_from = digits_from[::-1]
+        ndigits_from = len(digits_from)
+        mult_from = [base_from**i for i in range(ndigits_from)]
+        repr_from = sum([ui*vi for ui,vi in zip(digits_from,mult_from, strict=True)]) #dot(digits_from , mult_from)
+
+        #ndc = base_from**ndigits_from
+        ndigits_to = ceil(log(repr_from,base_to))
+        digits_to =  __class__.zeros(ndigits_to) 
+        n = int(repr_from)
+        for d in range(ndigits_to):
+            digits_to[d] = n%base_to
+            n=n//base_to
+
+        if reversed: digits_to = digits_to[::-1]
+        return tuple(digits_to)
+
+
+    @staticmethod
+    def ndigits(num:int, base:int): return ceil(log(num,base))
+
+    @staticmethod
+    def int2base(num:int, base:int, digs:int) -> list:
+        r""" 
+        Convert base-10 integer to a base-n list of fixed no. of digits 
+
+        :param num:     base-10 number to be represented
+        :param base:    base-n number system
+        :param digs:    no of digits in the output
+
+        :returns:       represented number as a list of ordinals in base-n number system
+
+        .. seealso::
+            :func:`~known.basic.base2int`
+        """
+        
+        ndigits = digs if digs else ceil(log(num,base)) 
+        digits =  __class__.zeros(ndigits)
+        n = num
+        for d in range(ndigits):
+            digits[d] = n%base
+            n=n//base
+        return digits
+
+    @staticmethod
+    def base2int(num:Iterable, base:int) -> int:
+        """ 
+        Convert an iterbale of digits in base-n system to base-10 integer
+
+        :param num:     iterable of base-n digits
+        :param base:    base-n number system
+
+        :returns:       represented number as a integer in base-10 number system
+
+        .. seealso::
+            :func:`~known.basic.int2base`
+        """
+        res = 0
+        for i,n in enumerate(num): res+=(base**i)*n
+        return int(res)
+
+
+    SYM_BIN = { f'{i}':i for i in range(2) }
+    SYM_OCT = { f'{i}':i for i in range(8) }
+    SYM_DEC = { f'{i}':i for i in range(10) }
+    SYM_HEX = {**SYM_DEC , **{ s:(i+10) for i,s in enumerate(('A', 'B', 'C', 'D', 'E', 'F'))}}
+    
+    @staticmethod
+    def n_syms(n): return { f'{i}':i for i in range(n) }
+
+    @staticmethod
+    def to_base_10(syms:dict, num:str):
+        b = len(syms)
+        l = [ syms[n] for n in num[::-1] ]
+        return __class__.base2int(l, b)
+
+    @staticmethod
+    def from_base_10(syms:dict, num:int, joiner='', ndigs=None):
+        base = len(syms)
+        #print(f'----{num=} {type(num)}, {base=}, {type(base)}')
+        if not ndigs: ndigs = (1 + (0 if num==0 else floor(log(num, base))))  # __class__.ndigs(num, base)
+        ss = tuple(syms.keys())
+        S = [ ss[i]  for i in __class__.int2base(num, base, ndigs) ]
+        return joiner.join(S[::-1])
+
+
+    @staticmethod
+    def int2hex(num:int, joiner=''): return __class__.from_base_10(__class__.SYM_HEX, num, joiner)
+  
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
 class IndexedDict(UserDict):
     r""" Implements an Indexed dict where values can be addressed using both index(int) and keys(str) """
 
@@ -513,20 +632,13 @@ class Zipper:
 class Mailer:
     r""" Use a g-mail account to send mail. 
 
-    .. warning:: This requires saving your login credentials on machine in pickle format. 
+    .. warning:: security concern
         You should enable 2-factor-auth in gmail and generate an app-password instead of using your gmail password.
         Visit (https://myaccount.google.com/apppasswords) to generate app-password.
         Usually, these type of emails are treated as spam by google, so they must be marked 'not spam' at least once.
         It is recomended to create a seperate gmail account for sending mails.
 
-    :param login_path: the path to login file
-
-    A login file should be created first using ```save_login(path)``` (static) method. This will ask you to enter username and password
-    which will be saved at the supplied path. The same path must be used for ```login_path``` argument.
-
-    The usename and password is read from the file and used to login to gmail server every time ```send()``` or ```send_mail()``` is called.
-
-    > use the ```Mail.send()``` static method to send emails.
+    :param login: callable like lambda : ('username@gmail.com', 'password')
 
     """
     
@@ -535,13 +647,23 @@ class Mailer:
     @staticmethod
     def global_alias(prefix=''): return f'{prefix}{os.getlogin()} @ {platform.node()}:{platform.system()}.{platform.release()}'
 
-    def __init__(self, login_path:str, signature=None, verbose=False) -> None: 
+    def __init__(self, login:Union[Callable, tuple, list, dict], verbose=False) -> None: 
         self.verbose=verbose
-        self.login_path=login_path
-        if not os.path.isfile(login_path): print(f'{__class__} :: path @ [{login_path}] seems invalid, make sure to first create a login file using the "save_login" method.')
-        self.signature = self.__class__.global_alias(prefix='\n') if signature is None else signature 
-        
-    def __call__(self, subject, rx, cc, bcc, content, attached = None): 
+        self.login=login
+        _ = self.setup() # defaults
+    
+    def setup(self, subject='', rx='', cc='', bcc='', content='', signature='', attached = None):
+        r""" one time setup - arguments are the default values """
+        self._subject = subject
+        self._rx = rx
+        self._cc = cc
+        self._bcc = bcc
+        self._content = content
+        self._signature = signature
+        self._attached = attached
+        return self
+
+    def __call__(self, subject=None, rx=None, cc=None, bcc=None, content=None, signature=None, attached = None): 
         r""" sends an e-mail message 
 
         :param subject: (str)
@@ -552,15 +674,23 @@ class Mailer:
         :param attached: (List of 2-Tuple) attachements for the email
         
         """
+        if subject is None: subject=self.subject
+        if rx is None: rx = self._rx
+        if cc is None: cc = self._cc
+        if bcc is None: bcc = self._bcc
+        if content is None: content = self._content
+        if signature is None: signature = self._signature
+        if attached is None: attached = self._attached
         
-        self.__class__.send_mail(lambda : self.__class__.load_login(self.login_path),
-        self.__class__.compose_mail(
+        self.__class__.send(
+            self.login,
             subject = f'{subject}', 
             rx = rx, cc = cc, bcc = bcc, 
-            content = content + self.signature, 
+            content = content,
+            signature=signature, 
             attached = attached, 
-            verbose=self.verbose,)
-            )
+            verbose=self.verbose
+        )
 
     @staticmethod
     def get_mime_types(files):
@@ -576,7 +706,7 @@ class Mailer:
         return res
 
     @staticmethod
-    def compose_mail( subject:str, rx:str, cc:str, bcc:str, content:str, attached, verbose=True):
+    def compose_mail( subject:str, rx:str, cc:str, bcc:str, content:str, signature:str, attached, verbose=True):
         r""" compose an e-mail msg to send later
         
         :param subject: subject
@@ -606,8 +736,9 @@ class Mailer:
         if verbose: print(f'BCC: {bcc}')
 
         # set content
-        msg.set_content(content)
-        if verbose: print(f'MESSAGE: #[{len(content)}] chars.')
+        body = content + signature
+        msg.set_content(body)
+        if verbose: print(f'MESSAGE: #[{len(body)}] chars.')
 
         default_attached = []
 
@@ -662,38 +793,36 @@ class Mailer:
             smpt.send_message(msg)
         if verbose: print(f'[*] Sent!')
 
-
     @staticmethod
-    def send(username:str, password:str, subject:str, rx:str, cc:str, bcc:str, content:str, attached, verbose=True):
-        login = lambda: (username, password)
-        msg = __class__.compose_mail(subject, rx, cc, bcc, content, attached, verbose)
-        __class__.send_mail(login, msg, verbose)
+    def send(login:Union[Callable, tuple, list, dict], subject:str, rx:str, cc:str, bcc:str, content:str, signature:str, attached, verbose=True):
+        r"""" Warning: providing password in plain text - not recomended """
+        if isinstance(login, (list, tuple)):
+            username, password = login
+            login = lambda: (username, password)
+        elif isinstance(login, dict):
+            username, password = login.get('username'), login.get('password')
+            login = lambda: (username, password)
+        else:   pass # assume callable
+        __class__.send_mail(login,  __class__.compose_mail(subject, rx, cc, bcc, content, signature, attached, verbose), verbose)
 
-    @staticmethod
-    def save_(obj, path:str,**kwargs):
-        with open(path, 'wb') as f: pickle.dump(obj, f,**kwargs)
 
-    @staticmethod
-    def load_(path:str):
-        with open(path, 'rb') as f: o = pickle.load(f)
-        return o
-
-    @staticmethod
-    def str2bytes(s:str, encoding:str='raw_unicode_escape')->list: return [i+b+1 for i,b in enumerate(bytearray(s, encoding))] #list(bytearray(s, encoding))
-
-    @staticmethod
-    def bytes2str(s, encoding:str='raw_unicode_escape')->str: return bytes.decode(bytes([b-i-1 for i,b in enumerate(s)]), encoding)
-
-    @staticmethod
-    def save_login(path):
-        r""" save your login credentials as pickle """
-        __class__.save_((  __class__.str2bytes(input('Enter Username')), __class__.str2bytes(input('Enter Password'))  ), path)
+    # encourage not to save login
+    # @staticmethod
+    # def save_login(path, encoding:str='raw_unicode_escape', **kwargs):
+    #     r""" save your login credentials as pickle """
+    #     username = [i+b+1 for i,b in enumerate(bytearray(input('Enter Username'), encoding))]
+    #     password = [i+b+1 for i,b in enumerate(bytearray(input('Enter Password'), encoding))]
+    #     with open(path, 'wb') as f: pickle.dump((username, password), f,**kwargs)
     
-    @staticmethod
-    def load_login(path):
-        r""" load your login credentials from json """
-        login = __class__.load_(path)
-        return __class__.bytes2str(login[0]), __class__.bytes2str(login[1])
+    # @staticmethod
+    # def load_login(path,  encoding:str='raw_unicode_escape'):
+    #     r""" load your login credentials from json """
+    #     if not os.path.isfile(path): 
+    #         print(f'{__class__} :: path @ [{path}] seems invalid, make sure to first create a login file using the "save_login" method.')
+    #     with open(path, 'rb') as f: login = pickle.load(f)
+    #     [bytes.decode(bytes([b-i-1 for i,b in enumerate(s)]), encoding) for s in login]
+    #     return tuple( [ bytes.decode(bytes([b-i-1 for i,b in enumerate(s)]), encoding) for s in login ] )
     #--------------------------------------------------
-
+        
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+

@@ -1,21 +1,21 @@
 __doc__=r"""
-:py:mod:`known/imgu.py`
+:py:mod:`known/pix.py`
 """
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-__all__ = [
-    'BaseConvert', 'Pix',
-]#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-from typing import Iterable
-import numpy as np
-from numpy import ndarray
+__all__ = ['BaseConvertNumpy', 'Pix'] 
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+from typing import Any, Union, Iterable, Callable #, BinaryIO, cast, Dict, Optional, Type, Tuple, IO
 from math import floor, log, ceil
+import numpy as np
 import matplotlib.pyplot as plt
 import cv2 # pip install opencv-python
 
 
-class BaseConvert:
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+class BaseConvertNumpy:
     
-    r""" Number System Conversion 
+    r""" Number System Conversion (using numpy)
     
     A number is abstract concept that has many representations using sets of symbols
 
@@ -25,8 +25,7 @@ class BaseConvert:
     Given one representation, we only need to convert to another
 
     """
-
-    DIGITS_DTYPE =  np.uint32
+    
     @staticmethod
     def convert(digits, base_from, base_to, reversed=True):
         r""" convers from one base to another 
@@ -38,24 +37,20 @@ class BaseConvert:
                             e.g. if reversed is True then binary digits iterable [1,0,0] will represent [4] in decimal otherwise it will represent [1] in decimal
         """
 
-        digits_from =  np.array(digits, dtype=__class__.DIGITS_DTYPE) # convert to int data-type
+        digits_from =  np.array(digits, dtype=np.uint32) # convert to int data-type
         if reversed: digits_from = digits_from[::-1]
         ndigits_from = len(digits_from)
-        mult_from = np.array([base_from**i for i in range(ndigits_from)], dtype=__class__.DIGITS_DTYPE)
+        mult_from = np.array([base_from**i for i in range(ndigits_from)], dtype=np.uint32)
         repr_from = np.dot(digits_from , mult_from)
 
         #ndc = base_from**ndigits_from
         ndigits_to = ceil(log(repr_from,base_to))
-        digits_to =  np.zeros((ndigits_to,), dtype=__class__.DIGITS_DTYPE)
+        digits_to =  np.zeros((ndigits_to,), dtype=np.uint32)
         n = int(repr_from)
         for d in range(ndigits_to):
             digits_to[d] = n%base_to
             n=n//base_to
-            #n = (n-digits_to[d])/base_to
 
-        #mult_to = np.array([base_to**i for i in range(ndigits_to)])
-        #repr_to = np.dot(digits_to , mult_to)
-        #assert repr_to==repr_from
         if reversed: digits_to = digits_to[::-1]
         return tuple(digits_to)
 
@@ -79,7 +74,7 @@ class BaseConvert:
         """
         
         ndigits = digs if digs else ceil(log(num,base)) 
-        digits =  np.zeros((ndigits,), dtype=__class__.DIGITS_DTYPE)
+        digits =  np.zeros((ndigits,), dtype=np.uint32)
         n = num
         for d in range(ndigits):
             digits[d] = n%base
@@ -119,18 +114,20 @@ class BaseConvert:
         return __class__.base2int(l, b)
 
     @staticmethod
-    def from_base_10(syms:dict, num:int, joiner=''):
+    def from_base_10(syms:dict, num:int, joiner='', ndigs=None):
         base = len(syms)
-        print(f'----{num=} {type(num)}, {base=}, {type(base)}')
-        ndig = 1 + (0 if num==0 else floor(log(num, base))) # __class__.ndigs(num, base)
+        #print(f'----{num=} {type(num)}, {base=}, {type(base)}')
+        if not ndigs: ndigs = (1 + (0 if num==0 else floor(log(num, base))))  # __class__.ndigs(num, base)
         ss = tuple(syms.keys())
-        S = [ ss[i]  for i in __class__.int2base(num, base, ndig) ]
+        S = [ ss[i]  for i in __class__.int2base(num, base, ndigs) ]
         return joiner.join(S[::-1])
 
 
     @staticmethod
     def int2hex(num:int, joiner=''): return __class__.from_base_10(__class__.SYM_HEX, num, joiner)
-        
+  
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
 class Pix(object):
     r""" abstracts a 4-channel (brga) image """
 
@@ -181,7 +178,7 @@ class Pix(object):
         lenhex = len(hex)
         assert lenhex==6 or lenhex==8, f'expecting 6 or 8 chars but got {lenhex} :: {hex}'
         if lenhex==6: hex = 'FF' + hex # max alpha
-        B,G,R,A = tuple(BaseConvert.int2base(num=BaseConvert.to_base_10(BaseConvert.SYM_HEX, hex), base=256, digs=4))
+        B,G,R,A = tuple(BaseConvertNumpy.int2base(num=BaseConvertNumpy.to_base_10(BaseConvertNumpy.SYM_HEX, hex), base=256, digs=4))
         return self.set_color_at(row,col,(R,G,B,A))
 
     def set_hex_in(self, start_row:int, start_col:int, n_rows:int, n_cols:int, hex:str):
@@ -190,7 +187,7 @@ class Pix(object):
         lenhex = len(hex)
         assert lenhex==6 or lenhex==8, f'expecting 6 or 8 chars but got {lenhex} :: {hex}'
         if lenhex==6: hex = 'FF' + hex # max alpha
-        B,G,R,A = tuple(BaseConvert.int2base(num=BaseConvert.to_base_10(BaseConvert.SYM_HEX, hex), base=256, digs=4))
+        B,G,R,A = tuple(BaseConvertNumpy.int2base(num=BaseConvertNumpy.to_base_10(BaseConvertNumpy.SYM_HEX, hex), base=256, digs=4))
         return self.set_color_in(start_row,start_col,n_rows,n_cols,(R,G,B,A))
 
 
@@ -247,7 +244,7 @@ class Pix(object):
         return pix
         
     @staticmethod
-    def graphfromimage(img_path:str, pixel_choice:str='first', dtype=None) -> ndarray:
+    def graphfromimage(img_path:str, pixel_choice:str='first', dtype=None):
         r""" 
         Covert an image to an array (1-Dimensional)
 
@@ -285,4 +282,4 @@ class Pix(object):
         if dtype is None: dtype=np.float_
         return np.array([ imgmax-px(np.where(j[:,i]==1)[0]) for i in range(j.shape[1]) ], dtype=dtype)
 
-
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
