@@ -12,5 +12,5 @@ setup(
     #package_dir =               { '' : ''},
     install_requires =          [],
     include_package_data =      False,
-    python_requires =           ">=3.8",
+    #python_requires =           ">=3.8",
 )   
