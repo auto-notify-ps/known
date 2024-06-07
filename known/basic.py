@@ -637,60 +637,12 @@ class Mailer:
         Visit (https://myaccount.google.com/apppasswords) to generate app-password.
         Usually, these type of emails are treated as spam by google, so they must be marked 'not spam' at least once.
         It is recomended to create a seperate gmail account for sending mails.
-
-    :param login: callable like lambda : ('username@gmail.com', 'password')
-
     """
     
     DEFAULT_CTYPE = 'application/octet-stream'  
 
     @staticmethod
     def global_alias(prefix=''): return f'{prefix}{os.getlogin()} @ {platform.node()}:{platform.system()}.{platform.release()}'
-
-    def __init__(self, login:Union[Callable, tuple, list, dict], verbose=False) -> None: 
-        self.verbose=verbose
-        self.login=login
-        _ = self.setup() # defaults
-    
-    def setup(self, subject='', rx='', cc='', bcc='', content='', signature='', attached = None):
-        r""" one time setup - arguments are the default values """
-        self._subject = subject
-        self._rx = rx
-        self._cc = cc
-        self._bcc = bcc
-        self._content = content
-        self._signature = signature
-        self._attached = attached
-        return self
-
-    def __call__(self, subject=None, rx=None, cc=None, bcc=None, content=None, signature=None, attached = None): 
-        r""" sends an e-mail message 
-
-        :param subject: (str)
-        :param rx: Recivers, csv string for 'To' field
-        :param cc:  CarbonCopy, csv string for 'Cc' field
-        :param bcc:  Blind CarbonCopy, csv string for 'Bcc' field
-        :param content: lines to go inside msg body
-        :param attached: (List of 2-Tuple) attachements for the email
-        
-        """
-        if subject is None: subject=self.subject
-        if rx is None: rx = self._rx
-        if cc is None: cc = self._cc
-        if bcc is None: bcc = self._bcc
-        if content is None: content = self._content
-        if signature is None: signature = self._signature
-        if attached is None: attached = self._attached
-        
-        self.__class__.send(
-            self.login,
-            subject = f'{subject}', 
-            rx = rx, cc = cc, bcc = bcc, 
-            content = content,
-            signature=signature, 
-            attached = attached, 
-            verbose=self.verbose
-        )
 
     @staticmethod
     def get_mime_types(files):
@@ -795,7 +747,6 @@ class Mailer:
 
     @staticmethod
     def send(login:Union[Callable, tuple, list, dict], subject:str, rx:str, cc:str, bcc:str, content:str, signature:str, attached, verbose=True):
-        r"""" Warning: providing password in plain text - not recomended """
         if isinstance(login, (list, tuple)):
             username, password = login
             login = lambda: (username, password)
@@ -805,24 +756,6 @@ class Mailer:
         else:   pass # assume callable
         __class__.send_mail(login,  __class__.compose_mail(subject, rx, cc, bcc, content, signature, attached, verbose), verbose)
 
-
-    # encourage not to save login
-    # @staticmethod
-    # def save_login(path, encoding:str='raw_unicode_escape', **kwargs):
-    #     r""" save your login credentials as pickle """
-    #     username = [i+b+1 for i,b in enumerate(bytearray(input('Enter Username'), encoding))]
-    #     password = [i+b+1 for i,b in enumerate(bytearray(input('Enter Password'), encoding))]
-    #     with open(path, 'wb') as f: pickle.dump((username, password), f,**kwargs)
-    
-    # @staticmethod
-    # def load_login(path,  encoding:str='raw_unicode_escape'):
-    #     r""" load your login credentials from json """
-    #     if not os.path.isfile(path): 
-    #         print(f'{__class__} :: path @ [{path}] seems invalid, make sure to first create a login file using the "save_login" method.')
-    #     with open(path, 'rb') as f: login = pickle.load(f)
-    #     [bytes.decode(bytes([b-i-1 for i,b in enumerate(s)]), encoding) for s in login]
-    #     return tuple( [ bytes.decode(bytes([b-i-1 for i,b in enumerate(s)]), encoding) for s in login ] )
-    #--------------------------------------------------
         
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
