@@ -14,3 +14,7 @@ class UserModule:
     def handle_file(self, host, files):
         print(f'\n--------------> Incoming file data from {host}\n{files}')
         return "Got Files Data"
+
+    def handle_msg(self, body):
+        print(f'\n--------------> Incoming msg data from broker\n{body}')
+        #return "Got Broker Msg Data"

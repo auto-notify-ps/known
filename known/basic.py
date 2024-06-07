@@ -3,7 +3,7 @@ __doc__=r"""
 :py:mod:`known/basic.py`
 """
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-__all__ = [  'Kio', 'Symbols', 'Verbose', 'Remap',  'IndexedDict', 'Zipper', 'Mailer', 'BaseConvert' ]
+__all__ = [  'Kio', 'Verbose', 'Remap',  'IndexedDict', 'Zipper', 'Mailer', 'BaseConvert' ]
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 from typing import Any, Union, Iterable, Callable #, BinaryIO, cast, Dict, Optional, Type, Tuple, IO
 import os, platform, datetime, smtplib, mimetypes, json, pickle
@@ -11,117 +11,46 @@ from math import floor, log, ceil
 from zipfile import ZipFile
 from email.message import EmailMessage
 from collections import UserDict
+from io import BytesIO
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 class Kio:
-    r""" provides input/out methods for loading saving python objects """
+    r""" provides input/out methods for loading saving python objects using json and pickle """
+    IOAS = dict(json=json, pickle=pickle)
+    IOFLAG = dict(json='', pickle='b')
 
     @staticmethod
-    def save_json(o:Any, path:str, **kwargs) -> None:
-        r""" save object to json file """
-        with open(path, 'w') as f: json.dump(o, f, **kwargs)
+    def save_buffer(o:Any, ioas:str, seek0=False, **kwargs) -> None:
+        d = __class__.IOAS.get(f'{ioas}', None)
+        assert d is not None, f'key error {ioas}'
+        buffer = BytesIO()
+        d.dump(o, buffer)
+        if seek0: buffer.seek(0) # prepares for reading
+        return buffer
 
     @staticmethod
-    def load_json(path:str) -> Any:
-        r""" load json file to object """
-        with open(path, 'r') as f: o = json.load(f)
-        return o
+    def load_buffer(buffer:BytesIO, ioas:str, seek0=True): 
+        d = __class__.IOAS.get(f'{ioas}', None)
+        assert d is not None, f'key error {ioas}'
+        if seek0: buffer.seek(0) # prepares for reading
+        return d.load(buffer)
 
     @staticmethod
-    def save_pickle(o:Any, path:str,**kwargs):
-        r""" save object to pickle file """
-        with open(path, 'wb') as f: pickle.dump(o, f,**kwargs)
+    def save_file(o:Any, path:str, ioas:str, **kwargs) -> None:
+        d = __class__.IOAS.get(f'{ioas}', None)
+        assert d is not None, f'key error {ioas}'
+        with open(path, f'w{__class__.IOFLAG[d]}') as f: d.dump(o, f, **kwargs)
+        return path
 
     @staticmethod
-    def load_pickle(path:str):
-        r""" load pickle file to object """
-        with open(path, 'rb') as f: o = pickle.load(f)
+    def load_file(path:str, ioas:str):
+        d = __class__.IOAS.get(f'{ioas}', None)
+        assert d is not None, f'key error {ioas}'
+        with open(path, f'r{__class__.IOFLAG[d]}') as f: o = d.load(f)
         return o
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-class Symbols:
-    r"""
-    contains some special symbols described in the table below
-
-    .. list-table:: 
-        :widths: 5 3 5 3
-        :header-rows: 1
-
-        * - Name
-          - Symbol
-          - Name
-          - Symbol
-        * - CORRECT
-          - ✓
-          - INCORRECT
-          - ✗
-        * - ALPHA
-          - α
-          - BETA
-          - β
-        * - GAMMA
-          - γ
-          - DELTA
-          - δ
-        * - EPSILON
-          - ε
-          - ZETA
-          - ζ
-        * - ETA
-          - η
-          - THETA
-          - θ
-        * - KAPPA
-          - κ
-          - LAMBDA
-          - λ
-        * - MU
-          - μ 
-          - XI
-          - ξ
-        * - PI
-          - π
-          - ROH
-          - ρ
-        * - SIGMA
-          - σ
-          - PHI
-          - φ
-        * - PSI
-          - Ψ
-          - TAU
-          - τ
-        * - OMEGA
-          - Ω
-          - TRI
-          - Δ
-    """
-    
-    CORRECT =       '✓'
-    INCORRECT =     '✗'
-    ALPHA =         'α'
-    BETA =          'β'
-    GAMMA =         'γ'
-    DELTA =         'δ'
-    EPSILON =       'ε'
-    ZETA =          'ζ'
-    ETA =           'η'
-    THETA =         'θ'
-    KAPPA =         'κ'
-    LAMBDA =        'λ'
-    MU =            'μ' 
-    XI =            'ξ'
-    PI =            'π'
-    ROH =           'ρ'
-    SIGMA =         'σ'
-    PHI =           'φ'
-    PSI =           'Ψ'
-    TAU =           'τ'
-    OMEGA =         'Ω'
-    TRI =           'Δ'
-
-#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 class Verbose:
     r""" Contains shorthand helper functions for printing outputs and representing objects as strings.
@@ -129,6 +58,30 @@ class Verbose:
     .. note::
         This class contains only static methods.
     """
+    class Symbols:
+        CORRECT =       '✓'
+        INCORRECT =     '✗'
+        ALPHA =         'α'
+        BETA =          'β'
+        GAMMA =         'γ'
+        DELTA =         'δ'
+        EPSILON =       'ε'
+        ZETA =          'ζ'
+        ETA =           'η'
+        THETA =         'θ'
+        KAPPA =         'κ'
+        LAMBDA =        'λ'
+        MU =            'μ' 
+        XI =            'ξ'
+        PI =            'π'
+        ROH =           'ρ'
+        SIGMA =         'σ'
+        PHI =           'φ'
+        PSI =           'Ψ'
+        TAU =           'τ'
+        OMEGA =         'Ω'
+        TRI =           'Δ'
+    
     DEFAULT_DATE_FORMAT = ["%Y","%m","%d","%H","%M","%S","%f"]
     r""" Default date format for :func:`~known.basic.Verbose.strU` """
 
