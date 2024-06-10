@@ -118,7 +118,7 @@ class Verbose:
         __class__._recP_(arr, 0, -1, '', '\t', show_dim)
     
     @staticmethod
-    def strA(arr:Iterable, start:str="", sep:str="|", end:str="") -> str:
+    def strA_(arr:Iterable, start:str="", sep:str="|", end:str="") -> str:
         r"""
         String Array - returns a string representation of an iterable for printing.
         
@@ -132,10 +132,10 @@ class Verbose:
         return res + end
 
     @staticmethod
-    def strA_(arr:Iterable, start:str="", sep:str="|", end:str="") -> None: print(__class__.strA(arr, start, sep, end))
+    def strA(arr:Iterable, start:str="", sep:str="|", end:str="") -> None: print(__class__.strA(arr, start, sep, end))
     
     @staticmethod
-    def strD(arr:Iterable, sep:str="\n", cep:str=":\n", caption:str="") -> str:
+    def strD_(arr:Iterable, sep:str="\n", cep:str=":\n", caption:str="") -> str:
         r"""
         String Dict - returns a string representation of a dict object for printing.
         
@@ -149,7 +149,7 @@ class Verbose:
         return f"{res}{__class__.DASHED_LINE}{sep}"
 
     @staticmethod
-    def strD_(arr:Iterable, sep:str="\n", cep:str=":\n", caption:str="") -> None: __class__.strD(arr, sep, cep, caption)
+    def strD(arr:Iterable, sep:str="\n", cep:str=":\n", caption:str="") -> None: print(__class__.strD(arr, sep, cep, caption))
 
     @staticmethod
     def strU(form:Union[None, Iterable[str]], start:str='', sep:str='', end:str='') -> str:
@@ -191,7 +191,20 @@ class Verbose:
         return (start + datetime.datetime.strftime(datetime.datetime.now(), sep.join(form)) + end)
 
     @staticmethod
-    def show(x:Any, cep:str='\t\t:', sw:str='__', ew:str='__') -> None:
+    def show_(x:Any, cep:str='\t\t:', sep="\n", sw:str='__', ew:str='__') -> None:
+        res = ""
+        for d in dir(x):
+            if not (d.startswith(sw) or d.endswith(ew)):
+                v = ""
+                try:
+                    v = getattr(x, d)
+                except:
+                    v='?'
+                res+=f'({d} {cep} {v}{sep}'
+        return res
+
+    @staticmethod
+    def show(x:Any, cep:str='\t\t:', sep="\n", sw:str='__', ew:str='__') -> None:
         r"""
         Show Object - describes members of an object using the ``dir`` call.
 
@@ -206,14 +219,7 @@ class Verbose:
         .. seealso::
             :func:`~known.basic.Verbose.showX`
         """
-        for d in dir(x):
-            if not (d.startswith(sw) or d.endswith(ew)):
-                v = ""
-                try:
-                    v = getattr(x, d)
-                except:
-                    v='?'
-                print(d, cep, v)
+        print(__class__.show_(x, cep=cep, sw=sw, ew=ew))
 
     @staticmethod
     def showX(x:Any, cep:str='\t\t:') -> None:

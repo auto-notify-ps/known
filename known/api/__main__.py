@@ -1,80 +1,5 @@
 __doc__="""
 HTTP API Request-Response model
-
-Client applications will use only the 'POST' method which can be called with 3 types of data
-
-response = requests.post(
-    url=server,
-    data={key: value}, # A dictionary, list of tuples, bytes or a file object to send to the specified url
-    json={key: value}, # A JSON object to send to the specified url
-    files={key: value}, # File handles (opened)
-    timeout=0.0,
-    )
-
-The 'GET' method will be used as 
-
-response = requests.get(
-    url=server,
-    params={key: value}, # A dictionary of string params in a get url like scheme
-    timeout=0.0,
-    )
-
-
-How to design User Module to handle api events
-
-# ----------------------------------------------------------------------
-# as global function 
-# python -m known.api --user=user.py 
-# ----------------------------------------------------------------------
-def handle_json(host, data):
-    f = f'↪ [Module handle json]\n{host=}\n{data=}\n'
-    print(f)
-    return f
-
-
-def handle_file(host, files):
-    f = f'↪ [Module handle file]\n{host=}\n{files=}\n'
-    print(f)
-    return f
-
-
-# ----------------------------------------------------------------------
-# as a global object 
-# python -m known.api --user=user.py --object=StaticChan
-# ----------------------------------------------------------------------
-class StaticChan:
-
-    @staticmethod
-    def handle_json(host, data):
-        f = f'↪ [{__class__} Module handle json]\n{host=}\n{data=}\n'
-        print(f)
-        return f
-    
-    @staticmethod
-    def handle_file(host, files):
-        f = f'↪ [{__class__} Module handle file]\n{host=}\n{files=}\n'
-        print(f)
-        return f
-
-
-# ----------------------------------------------------------------------
-# as a global Module (callable - requires initialization) 
-# python -m known.api --user=user.py --object=InitChan --callable=1
-# ----------------------------------------------------------------------
-class InitChan:
-
-    def __init__(self): pass
-
-    def handle_json(self, host, data):
-        f = f'↪ [{self.__class__} Module handle json]\n{host=}\n{data=}\n'
-        print(f)
-        return f
-    
-    
-    def handle_file(self, host, files):
-        f = f'↪ [{self.__class__} Module handle file]\n{host=}\n{files=}\n'
-        print(f)
-        return f
 """
 
 #-----------------------------------------------------------------------------------------
@@ -82,129 +7,248 @@ from sys import exit
 if __name__!='__main__': exit(f'[!] can not import {__name__}.{__file__}')
 #-----------------------------------------------------------------------------------------
 
-# ------------------------------------------------------------------------------------------
-# imports ----------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------------------
-import os, argparse, datetime, importlib, importlib.util
 
+
+#-----------------------------------------------------------------------------------------
+# imports 
+#-----------------------------------------------------------------------------------------
+import os, argparse, datetime, importlib, importlib.util
+from enum import IntEnum
 #PYDIR = os.path.dirname(__file__) # script directory of __main__.py
 try:
-    from flask import Flask, request
+
+    from flask import Flask, request, send_file, abort
     from waitress import serve
     from http import HTTPStatus
-except: exit(f'[!] The required packages missing:\tFlask>=3.0.2, waitress>=3.0.0\n  ⇒ pip install Flask waitress')
+    from shutil import rmtree
+except: exit(f'[!] The required packages missing:⇒ pip install Flask waitress')
+#-----------------------------------------------------------------------------------------
 
 
-class DefaultUserModule:
-    def handle_args(self, host, args):        return f"handle_args({host}, {args})"
-    def handle_json(self, host, data):        return f"handle_json({host}, {data})"    
-    def handle_file(self, host, files):       return f"handle_file({host}, {files})"
+
+# ==============================================================================================================
+# Common Functions 
+# NOTE: common functions are repeated in all modular servers so that they can act as stand alone
+# ==============================================================================================================
 
 
+class HRsizes: # human readable size like  000.000?B
+    mapper = dict(KB=2**10, MB=2**20, GB=2**30, TB=2**40)
+    def tobytes(size): return int(float(size[:-2])*__class__.mapper.get(size[-2:].upper(), 0))
+
+class EveryThing: # use as a set that contains everything (use the 'in' keyword)
+    def __contains__(self, x): return True
+
+def ImportCustomModule(python_file:str, python_object:str, do_initialize:bool):
+    r""" Import a custom module from a python file and optionally initialize it """
+    cpath = os.path.abspath(python_file)
+    failed=""
+    if os.path.isfile(cpath): 
+        try: 
+            # from https://stackoverflow.com/questions/67631/how-can-i-import-a-module-dynamically-given-the-full-path
+            cspec = importlib.util.spec_from_file_location("", cpath)
+            cmodule = importlib.util.module_from_spec(cspec)
+            cspec.loader.exec_module(cmodule)
+            success=True
+        except: success=False #exit(f'[!] Could import user-module "{module_path}"')
+        if success: 
+            if python_object:
+                try:
+                    cmodule = getattr(cmodule, python_object)
+                    if do_initialize:  cmodule = cmodule()
+                except:         cmodule, failed = None, f'[!] Could not import object {python_object} from module "{module_path}"'
+        else:                   cmodule, failed = None, f'[!] Could not import module "{module_path}"'
+    else:                       cmodule, failed = None, f"[!] File Not found @ {cpath}"
+    return cmodule, failed
+
+# def show(x, cep:str='\t\t:', sep="\n", sw:str='__', ew:str='__') -> str:
+#     res = ""
+#     for d in dir(x):
+#         if not (d.startswith(sw) or d.endswith(ew)):
+#             v = ""
+#             try:
+#                 v = getattr(x, d)
+#             except:
+#                 v='?'
+#             res+=f'(👉{d}👈 {cep} 🔹{v}🔸{sep}'
+#     return res
+    
+# ==============================================================================================================
+
+
+#-----------------------------------------------------------------------------------------
+# Parse arguments 
+#-----------------------------------------------------------------------------------------
 parser = argparse.ArgumentParser()
-parser.add_argument('--user', type=str, default='', help="path of main user module file")
-parser.add_argument('--object', type=str, default='', help="path of main user module")
-parser.add_argument('--callable', type=int, default=0, help="if true, calls the class to create a new instance (with no args)")
-parser.add_argument('--handle_json', type=str, default='handle_json', help="path of main user module file")
-parser.add_argument('--handle_file', type=str, default='handle_file', help="path of main user module file")
-parser.add_argument('--handle_args', type=str, default='handle_args', help="path of main user module file")
-parser.add_argument('--host', type=str, default='0.0.0.0', help="host ip-address")
-parser.add_argument('--port', type=str, default='8080', help="host port")
-parser.add_argument('--max', type=str, default='1GB', help="max_request_body_size")
-parser.add_argument('--limit', type=int, default=10, help="connection limit")
+#-----------------------------------------------------------------------------------------
+# user module related
+# s/d/f/s.py:sd43_:ioi:klj:m:
+parser.add_argument('--user', type=str, default='', help="path of python script")
+parser.add_argument('--object', type=str, default='', help="the python object inside python script")
+parser.add_argument('--callable', type=int, default=0, help="if true, calls the python object (to initialize) - works with object only")
+parser.add_argument('--handle', type=str, default='handle', help="name of the function that handles the api calls")
+
+# server hosting related
+parser.add_argument('--host', type=str, default='0.0.0.0', help="IP-Addresses of interfaces to start the server on, keep default for all interfaces")
+parser.add_argument('--port', type=str, default='8080', help="server's port")
+parser.add_argument('--maxH', type=str, default='100MB', help="max_request_body_size in the HTTP request")
+parser.add_argument('--maxB', type=str, default='100MB', help="max_request_body_size in the HTTP request")
+parser.add_argument('--limit', type=int, default=10, help="maximum number of connections allowed with the server")
+parser.add_argument('--threads', type=int, default=1, help="maximum number of threads used by server")
+parser.add_argument('--allow', type=str, default='', help="the remote address that match this CSV list will be allowed to access API, keep blank to allow all")
+parser.add_argument('--storage', type=str, default='', help="the path on server where files will be sent for download")
+#-----------------------------------------------------------------------------------------
 parsed = parser.parse_args()
+#-----------------------------------------------------------------------------------------
 
+
+#-----------------------------------------------------------------------------------------
+# Import and Initialize user module (handler)
+def default_handle(request_content, request_type, request_tag): return f"HANDLER\n{request_type=}\t{request_tag=}\n{request_content=}", "MESG", "Handle-Tag"
+#-----------------------------------------------------------------------------------------
+user_handle = default_handle # ---> global variable
 if parsed.user:
-    # user-module
-    USER_MODULE_FILE_PATH = os.path.abspath(parsed.user)
-    print(f'↪ Loading user-module from {USER_MODULE_FILE_PATH}')
-    if not os.path.isfile(USER_MODULE_FILE_PATH): exit(f'Invalid user-module file @ {USER_MODULE_FILE_PATH}')
-    try: 
-        # from https://stackoverflow.com/questions/67631/how-can-i-import-a-module-dynamically-given-the-full-path
-        user_module_spec = importlib.util.spec_from_file_location("", USER_MODULE_FILE_PATH)
-        user_module = importlib.util.module_from_spec(user_module_spec)
-        user_module_spec.loader.exec_module(user_module)
-        print(f'↪ Imported user-module from {user_module.__file__}')
-    except: exit(f'[!] Could import user-module "{USER_MODULE_FILE_PATH}"')
-    if parsed.object:
-        try:
-            user_module = getattr(user_module, parsed.object)
-            if bool(parsed.callable): user_module = user_module()
-        except:
-            exit(f'Could not load object {parsed.object}')
-    USER_HANDLE_JSON = parsed.handle_json
-    USER_HANDLE_FILE = parsed.handle_file
-    USER_HANDLE_ARGS = parsed.handle_args
-else:
-    print(f'↪ [!] user-module not defined, using default.')
-    USER_HANDLE_JSON = 'handle_json'
-    USER_HANDLE_FILE = 'handle_file'
-    USER_HANDLE_ARGS = 'handle_args'
-    user_module = DefaultUserModule()
+    user_module, reason = ImportCustomModule(os.path.abspath(parsed.user), parsed.object, bool(parsed.callable))
+    if user_module is None:                         exit(f'[!] FAILED importing user module :: {reason}')
+    if not hasattr(user_module, parsed.handle):     exit(f'[!] Handler Method not found "{parsed.handle}"')
+    user_handle = getattr(user_module, parsed.handle)
+    
+#-----------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------
 
-if not hasattr(user_module, USER_HANDLE_ARGS): exit(f'[!] ARGS Handler Method not found {user_module}.{USER_HANDLE_ARGS}')
-if not hasattr(user_module, USER_HANDLE_JSON): exit(f'[!] JSON Handler Method not found {user_module}.{USER_HANDLE_JSON}')
-if not hasattr(user_module, USER_HANDLE_FILE): exit(f'[!] FILE Handler Method not found {user_module}.{USER_HANDLE_FILE}')
-#from known.basic import Verbose as vb
+
 # ------------------------------------------------------------------------------------------
 # application setting and instance
 # ------------------------------------------------------------------------------------------
 app = Flask(__name__)
-#app.secret_key =         'api_test'
-#app.config['key'] =      'value'
+if parsed.allow:
+    allowed = set(parsed.allow.split(','))
+    if '' in allowed: allowed.remove('')
+else: allowed = EveryThing()
+if parsed.storage:
+    storage_path = os.path.abspath(parsed.storage)
+    os.makedirs(storage_path, exist_ok=True)
+else: storage_path = os.getcwd()
 
-# NOTE: "return_object" must be a string, dict, list, tuple with headers or status, Response instance, or WSGI callable
+app.config['allow'] =      allowed
+app.config['storage'] =    storage_path
+#-----------------------------------------------------------------------------------------
 
-def is_valid_return_object(x): return isinstance(x, (str, dict, list))
 
+#-----------------------------------------------------------------------------------------
+# NOTE on return type
+# ... type must be a string, dict, list, 
+# ... type can be this but ignored: tuple with headers or status, Response instance, or WSGI callable
+#-----------------------------------------------------------------------------------------
 @app.route('/', methods =['GET', 'POST'])
 def home():
-    #vb.show(request)
+    global user_handle
+    
     if request.method == 'POST':
-        #print('FILENAME:', request.files.filename())
-        if request.is_json:  
-            return_object = getattr(user_module, USER_HANDLE_JSON)(request.host, request.get_json())           
-            if is_valid_return_object(return_object): return_code = HTTPStatus.OK
-            else: return_object, return_code = f"[!] [Handle-POST-JSON] The Return Type {type(return_object)} is Invalid", HTTPStatus.NOT_FOUND
-        else:
-            if request.args or request.form: 
-                return_object = getattr(user_module, USER_HANDLE_ARGS)(request.host, request.form)   
-                if is_valid_return_object(return_object): return_code = HTTPStatus.OK
-                else: return_object, return_code = f"[!] [Handle-POST-ARGS] The Return Type {type(return_object)} is Invalid", HTTPStatus.NOT_FOUND
+        request_from = request.environ['REMOTE_HOST'] 
+        if request_from in app.config['allow']:
+            xtype, xtag = request.headers.get('User-Agent'), request.headers.get('Warning')
+            
+            if   xtype=='MESG': xcontent = request.get_data().decode('utf-8')
+            elif xtype=='BYTE': xcontent = request.get_data()
+            elif xtype=='FORM': xcontent = request.form, request.files
+            elif xtype=='JSON': xcontent = request.get_json()
+            else:               xcontent = None               
+            
+            if xcontent is None: return_object, return_code, return_headers = f'Type "{xtype}" is not a valid content type', HTTPStatus.NOT_ACCEPTABLE, {}
             else:
-                if request.files: 
-                    return_object = getattr(user_module, USER_HANDLE_FILE)(request.host, request.files) 
-                    if is_valid_return_object(return_object): return_code = HTTPStatus.OK
-                    else: return_object, return_code = f"[!] [Handle-POST-FILE] The Return Type {type(return_object)} is Invalid", HTTPStatus.NOT_FOUND
-                else: return_object, return_code = f"[!] Invalid [POST] Request - Must be json or have files", HTTPStatus.BAD_REQUEST
-    elif request.method == 'GET':       
+                return_object, return_hint, return_tag = user_handle(xcontent, xtype, xtag)
+                return_headers = {'User-Agent':f"{return_hint}", 'Warning':f"{return_tag}"}
+                if isinstance(return_object, (str, dict, list, bytes)): return_code = HTTPStatus.OK
+                else: return_object, return_code, return_headers = f"[!] Invalid Return type from handler [{type(return_object)}]", HTTPStatus.NOT_FOUND, {}
+        else: return_object, return_code, return_headers = f"[!] You are not allowed to POST", HTTPStatus.NOT_ACCEPTABLE, {}
+
+    elif request.method == 'GET':     
         return_object = f'<pre>[Known.api]@{__file__}\n'
         for k,v in parsed._get_kwargs(): return_object+=f'\n\t{k}\t{v}\n'
         return_object+='</pre>'
         return_code = HTTPStatus.OK
-    else:                               return_object, return_code = f"[!] Invalid Request Type {request.method}", HTTPStatus.BAD_REQUEST
-    # only use either one of data or json in post request (not both)
-    return return_object, return_code
+        return_headers={}
 
-   
+    else: return_object, return_code, return_headers = f"[!] Invalid Request Type {request.method}", HTTPStatus.BAD_REQUEST, {}
+    # only use either one of data or json in post request (not both)
+    return return_object, return_code, return_headers
+
+
+    
+@app.route('/store', methods =['GET'])
+def storagelist(): # an overview of all storage paths and the files in them
+    basedir = app.config['storage']
+    return {os.path.relpath(root, basedir) : files for root, directories, files in os.walk(basedir)}, HTTPStatus.OK, {'User-Agent': f'{basedir}', 'Warning': 'LIST'}
+
+@app.route('/store/', methods =['GET'])
+def storageroot(): # an overview of all storage paths and the files in them
+    rw, dw, fw = next(iter(os.walk(app.config['storage'])))
+    rel_path = os.path.relpath(rw, app.config['storage'])
+    return dict(base=os.path.relpath(rw, app.config['storage']), folders=dw, files=fw), HTTPStatus.OK, {'User-Agent': f'{rel_path}', 'Warning': 'DIR'}
+
+
+@app.route('/store/<path:req_path>', methods =['GET', 'POST', 'PUT', 'DELETE'])
+def storage(req_path): # creates a FileNotFoundError
+    abs_path = os.path.join(app.config['storage'], req_path) # Joining the base and the requested path
+    rel_path = os.path.relpath(abs_path, app.config['storage'])
+    if request.method=='GET': # trying to download that file or view a directory
+        if os.path.exists(abs_path):
+            if os.path.isdir(abs_path):     
+                rw, dw, fw = next(iter(os.walk(abs_path)))
+                return dict(base=rel_path, folders=dw, files=fw), HTTPStatus.OK, {'User-Agent': f'{rel_path}', 'Warning': 'DIR'}
+            else: 
+                resx = send_file(abs_path) 
+                resx.headers['User-Agent'] = os.path.basename(abs_path) # 'asve_as'
+                resx.headers['Warning'] = 'FILE'
+                return resx
+        else: return f'Path not found: {abs_path}', HTTPStatus.NOT_FOUND
+    elif request.method=='POST': # trying to create new file or replace existing file
+        if os.path.isdir(abs_path):
+            return f'A directory already exists at {abs_path} - cannot create a file there', HTTPStatus.NOT_ACCEPTABLE
+        else:
+            try: 
+                with open(abs_path, 'wb') as f: f.write(request.get_data())
+                return      f"Created File @ {abs_path}", HTTPStatus.OK, {'User-Agent': f'{rel_path}', 'Warning': 'FILE'}
+            except: return  f"File cannot be created @ {abs_path}", HTTPStatus.NOT_ACCEPTABLE
+    elif request.method=='PUT': # trying to create new directory
+        if os.path.isfile(abs_path):
+            return f'A file already exists at {abs_path} - cannot create a filder there', HTTPStatus.NOT_ACCEPTABLE
+        else:
+            os.makedirs(abs_path, exist_ok=True)
+            return f"Created Folder @ {abs_path}", HTTPStatus.OK, {'User-Agent': f'{rel_path}', 'Warning': 'DIR'}
+    elif request.method=='DELETE': # trying to delete a file or folder
+        if os.path.isfile(abs_path):
+            os.remove(abs_path)
+            return f"Deleted File @ {abs_path}", HTTPStatus.OK, {'User-Agent': f'{rel_path}', 'Warning': 'FILE'}
+        elif os.path.isdir(abs_path):
+            rok = True
+            if int(request.headers.get('User-Agent')):
+                try: rmtree(abs_path)
+                except: rok=False
+            else:
+                try: os.rmdir(abs_path)
+                except: rok=False
+            if rok: return  f"Folder deleted @ {abs_path}", HTTPStatus.OK, {'User-Agent': f'{rel_path}', 'Warning': 'DIR'}
+            else:   return  f'Cannot delete folder at {abs_path}', HTTPStatus.NOT_ACCEPTABLE
+        else: return f'Cannot delete at {abs_path} - not a file or folder', HTTPStatus.NOT_ACCEPTABLE
+    else: return f"[!] Invalid Request Type {request.method}", HTTPStatus.BAD_REQUEST
 
 #%% @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#<-------------------DO NOT WRITE ANY CODE AFTER THIS
-
-HRsizes = dict(KB=2**10, MB=2**20, GB=2**30, TB=2**40)
-str2bytes = lambda size: int(float(size[:-2])*HRsizes.get(size[-2:].upper(), 0))
-
 start_time = datetime.datetime.now()
 print('◉ start server @ [{}]'.format(start_time))
 serve(app, # https://docs.pylonsproject.org/projects/waitress/en/stable/runner.html
     host = parsed.host,          
     port = parsed.port,          
     url_scheme = 'http',     
-    threads = 1,    
+    threads = parsed.threads,    
     connection_limit = parsed.limit,
-    max_request_body_size = str2bytes(parsed.max),
+    max_request_header_size = HRsizes.tobytes(parsed.maxH),
+    max_request_body_size = HRsizes.tobytes(parsed.maxB),
+    
 )
 #<-------------------DO NOT WRITE ANY CODE AFTER THIS
 end_time = datetime.datetime.now()
+print('')
 print('◉ stop server @ [{}]'.format(end_time))
 print('◉ server up-time was [{}]'.format(end_time - start_time))

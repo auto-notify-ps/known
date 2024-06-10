@@ -1,236 +1,214 @@
 
 
-import requests
+import requests, os
+from http import HTTPStatus
 
-class Client:
-    r""" Client class for making api calls (http reuqests)
+class ClientForm:
+    r""" Represents a form with fields and attachements that can sent to server using a POST request """
 
-    :param server: <str> the address of api server
-    :param port:   <str> the port of api server
-
-
-    To send json data, use: Client.send_json(json_object)
-    ---> The <json_object> can be a dict, list or string
-
-    To send buffers, use: Client.send_buffer(**buffers):
-    ---> The <buffers> are named buffers provided as keyword arguments like {buffer-name : buffer-object}
-    ---> If using buffer, make sure to buffer.seek(0) before sending 
-
-    To send files, use: Client.send_file(*handles):
-    ---> The <handles> is a list of file names
-
-
-    The response contains 3 things - msg, mtype, mcode
-    msg :   base object sent by server - a string, list or dict
-    mtype:  type of msg object - can be 'text', 'json', 'bytes' or 'error'  (error has text type msg)
-    mcode:  status code - can be True or False (true when HTTP response was recieved, false otherwise)
-    """
+    def __init__(self, **kwargs):
+        self.data = {f'{k}':f'{v}' for k,v in kwargs.items()}
+        self.attached={}
+        self.files={}
     
-    class MTypes:
-        ERROR = -1
-        NONE = 0
-        TEXT = 1
-        JSON = 2
-        BYTES = 3
-        _rev = {
-            -1 : 'ERROR',
-            0 : 'NONE',
-            1 : 'TEXT',
-            2 : 'JSON',
-            3 : 'BYTES',
+    def attach(self, alias, name, mime, handle): 
+        # handle can be either a file-path or a BytesIO object
+        self.attached[alias] = dict(name=name, handle=handle, mime=mime, htype=isinstance(handle, str))
+        return self
 
-        }
-        def code(c): return __class__._rev.get(int(c), None)
+    def clear(self, data=True, files=True):
+        if data: self.data.clear()
+        if files: self.files.clear()
 
-    def __init__(self, server='localhost', port='8080'): 
-        self.server = f'http://{server}:{port}/' # http://localhost:8080/
-    
-    def handle_response(self, response):
-        self.response = response
-        if self.response.ok:
-            ct = self.response.headers['Content-Type']
-            if ct.startswith('text'):                       msg, mtype = self.response.text, __class__.MTypes.TEXT
-            elif ct.startswith('application/json'):         msg, mtype = self.response.json(), __class__.MTypes.JSON
-            else:                                           msg, mtype = self.response.content, __class__.MTypes.BYTES
-        else:                                               msg, mtype = (f'[{self.response.status_code}]'), __class__.MTypes.NONE
-        return msg, mtype, True
-
-
-    def send_args(self, **kwargs): 
-        try:                    msg, mtype, mcode = self.handle_response(requests.post(url=self.server,data=kwargs))
-        except:                 msg, mtype, mcode = f"[SEND_ERROR:ARGS] cannot send ARGS to {self.server}", __class__.MTypes.ERROR, False
-        return                  msg, mtype, mcode
-
-    def send_json(self, json_object): 
-        try:                    msg, mtype, mcode = self.handle_response(requests.post(url=self.server,json=json_object))
-        except:                 msg, mtype, mcode = f"[SEND_ERROR:JSON] cannot send JSON to {self.server}", __class__.MTypes.ERROR, False
-        return                  msg, mtype, mcode
-
-    def send_buffers_by_name(self, seek0, buffers:dict):
-        try:
-            assert (len(buffers)>0) 
-            if seek0: 
-                for b in buffers.values(): b.seek(0)
-            msg, mtype, mcode = self.handle_response(requests.post(url=self.server,files=buffers))
-        except AssertionError:  msg, mtype, mcode = f"[SEND_ERROR:BUFFER] NO BUFFERS provided", __class__.MTypes.ERROR, False
-        except:                 msg, mtype, mcode = f"[SEND_ERROR:BUFFER] cannot send BUFFERS to {self.server}", __class__.MTypes.ERROR, False
-        return                  msg, mtype, mcode
-
-
-    def send_files_by_handles(self, handles:list): return self.send_buffers_by_name(False, {h.name:h for h in handles})
-
-    def send_files_by_named_handels(self, handles:dict): return self.send_buffers_by_name(False, handles)
-
-    def send_files_by_path(self, paths:list):
-        handles = []
-        try:
-            handles += [open(path, 'r') for path in paths]
-            msg, mtype, mcode = self.send_files_by_handles(handles)
-        except: msg, mtype, mcode = f"[SEND_ERROR:FILE] Files could not be read", __class__.MTypes.ERROR, False
-        finally:
-            for h in handles: 
-                try:h.close()
-                except:pass
-        return msg, mtype, mcode
-
-    def send_files_by_named_paths(self, paths:dict): 
-        handles = {}
-        try:
-            handles += {name:open(path, 'r') for name,path in paths.items()}
-            msg, mtype, mcode = self.send_files_by_named_handels(handles)
-        except: msg, mtype, mcode = f"[SEND_ERROR:FILE] Files could not be read", __class__.MTypes.ERROR, False
-        finally:
-            for hk, hv in handles.items():
-                try: hv.close()
-                except: pass
-        return   msg, mtype, mcode
-
+    def open(self):
+        self.files.clear()
+        for alias,info in self.attached.items():
+            try:
+                handle = open(info['handle'], 'rb') if info['htype'] else info['handle']
+                handle.seek(0)
+                self.files[alias] = (info['name'], handle, info['mime'])
+            except: pass
 
     def close(self):
-        try: self.response.close()
-        except:pass
+        for _, h, _ in self.files.values(): h.close()
 
-HelpModule=\
-f"""
+class Client:
+    r""" HTTP Client Class - Represents a client that will access the API """
 
-# global scope functions
-# python -m known.api --user=user.py
-def handle_args(host, args): return ""
-def handle_json(host, data): return ""
-def handle_file(host, files): return ""
+    # ClientContentType = dict(
+    #     BYTE='use the data field - can put any binary data here as bytes',
+    #     FORM='use the data field for key-value pairs',
+    #     JSON='use the get_json() method, puts a json-serializable object',
+    # ) # with every request, the client this in the xtype (Warning) header
+
+    def __init__(self, server='localhost:8080'):
+        self.server = server
+        self.url = f'http://{self.server}/'
+        self.store = f'http://{self.server}/store/'
+        self.timeout = None # # (float or tuple) – How many seconds to wait for the server to send data - can be (connect timeout, read timeout) tuple.
+        self.allow_redirects = False # we keep this False, only server will respond
+        self.params = None  # this is added to url, so make sure to pass strings only - both keys and values
+
+    def check(self): # verify connection 
+        # make a simple get request - the api should respond with ok
+        try:        is_ok = requests.get(self.url).ok 
+        except:     is_ok = False
+        return      is_ok
+
+    def send(self, xcontent, xtype,  xtag='', xstream=False):
+        # xtype is <str> 'MESG' 'BYTE', 'FORM', 'JSON'
+        if xtype=='MESG': 
+            xjson, xdata, xfiles = None, f'{xcontent}'.format('utf-8'), None
+        elif xtype=='BYTE': 
+            assert type(xcontent) is bytes, f'Expecting bytes but got {type(xcontent)}'
+            xjson, xdata, xfiles = None, xcontent, None
+        elif xtype=='FORM': 
+            assert type(xcontent) is ClientForm
+            xjson, xdata, xfiles = None, xcontent.data, xcontent.files
+            xcontent.open()
+        elif xtype=='JSON': xjson, xdata, xfiles = xcontent, None, None
+        else:               raise TypeError(f'Type "{xtype}" is not a valid content type') # xtype must be in ClientContentType
+
+        # make a request to server
+        #print(f'\n[SENDING]\n{xtype=}\t{xtag=}\n{xjson=}\n{xdata=}\n{xfiles=}')
+
+        response = requests.post(
+            url=            self.url, allow_redirects=self.allow_redirects,  timeout=self.timeout,  params=self.params,
+            headers=        {'User-Agent':xtype, 'Warning':xtag}, # https://en.wikipedia.org/wiki/List_of_HTTP_header_fields
+            stream=         xstream,      # (optional) if False, the response content will be immediately downloaded
+
+            json=           xjson,         # (optional) A JSON serializable Python object to send in the body of the Request - works only when no form data and files
+            # OR                        # either use (json) or (data + files)
+            data=           xdata,         # (optional) Dictionary, list of tuples, bytes, or file-like object to send in the body of the Request.
+            files=          xfiles,         # (optional) Dictionary of 'name': file-like-objects (or {'name': file-tuple}) for multipart encoding upload. 
+                                        #   file-tuple can be a 
+                                        #       2-tuple ('filename', fileobj), 
+                                        #       3-tuple ('filename', fileobj, 'content_type')
+                                        #       4-tuple ('filename', fileobj, 'content_type', custom_headers), 
+                                        # ... where 'content_type' is a string defining the content type of the given file and 
+                                        # ... custom_headers a dict-like object containing additional headers to add for the file.
+        )
+        if xtype=='FORM': xcontent.close()
+        return self.handle_response(response, xstream)
+
+    def handle_response(self, response, streamed):
+        # handle the response
+        
+        # NOTE: the `response` object contains the `request` object that we sent,
+        # response.request
+
+        # If we want to access the headers the server sent back to us, we do this:
+        # response.headers 
+        # headers are sent always (independent of stream=True/False)
+
+        status_code = response.status_code
+        status_ok = response.ok
+        xhint = response.headers.get('User-Agent')
+        xtag = response.headers.get('Warning')
+
+        if   status_code == HTTPStatus.OK: 
+            if   xhint=='MESG': xresponse = response.content.decode('utf-8')
+            elif xhint=='BYTE': xresponse = response.content
+            elif xhint=='FORM': xresponse = None # this should not be used
+            elif xhint=='JSON': xresponse = response.json()
+            else:               xresponse = None      
+        elif status_code == HTTPStatus.NOT_ACCEPTABLE:  xresponse = None  
+        elif status_code == HTTPStatus.NOT_FOUND:       xresponse = None  
+        else:                                           xresponse = None   # this should not happen
+
+        #if streamed: pass
+        #else:        pass
+        
+        response.close()
+        #f'[{"✳️" if status_ok else "❌"}]::{status_code}::{xtag=}::{xhint=}\n👉\n{res}\n👈\n{content}'
+        return status_ok, xhint, xtag, xresponse
+
+    def store_get(self, path=None, save_as=None):
+        r""" Query the store to get files and folders 
+        
+        `path`:         <str> the path on the server to get from. 
+                        If path is a file, it will download the file and save it at the path provided in header `User-Agent` (it provides a filename)
+                        If path is a folder, it will return a dict of listing dict(root=?, files=?, folders=?) `localhost:8080/store/path/to/folder`
+                        if path is empty string "", gets the listing from root folder `localhost:8080/store/`
+                        If path is None, does a directory listing at top level `localhost:8080/store`
+                        
+        `save_as`:      <str> (optional) the local path to save an incoming file, 
+                        If None, uses the header `User-Agent` (not required for listing directory - only for file get)
+
+        """
+        if path is None:
+            #print(f'listing store')
+            response = requests.get(url=self.store[:-1], timeout=10.0)
+        else:
+            p = os.path.join(self.store, path)
+            #print(f'getting from store : {p}')
+            response = requests.get(url=p, timeout=10.0)
+        res = None
+        if response.ok:
+            uname = response.headers.get('User-Agent')
+            utype = response.headers.get('Warning')
+            if  utype == 'DIR' or utype == 'LIST':  res = response.json()
+            elif utype =='FILE': 
+                try:
+                    if not save_as: save_as = uname
+                    with open(save_as, 'wb') as j: j.write(response.content)
+                    res = f'{save_as}'
+                except:  pass#print(f"[:] Error Saving at {save_as}")
+            else: pass #print(f"[:] Invalid Response type {utype}")
+        else:  pass #print(f"[:] Cannot obtain {path}")
+        response.close()
+        return res #self.handle_response(response, False)
+
+    def store_set(self, path, item=None):
+        r""" Put files and folders on the server
+        
+        `path`:         <str> the path on the server to set at. 
+        `item`:         the local path of a file to send (only when sending files not folders)
+                        If item is a file, it will create a file on the server at `path` (stream file to server)
+                        If item is None, it will create a folder at `path`
+                        if item is anything else, error will be thrown
+
+        """
+        p = os.path.join(self.store, path)
+        #print(f'getting from store : {p}')
+        if item is None:
+            response = requests.put(url=p, timeout=10.0)
+        elif os.path.isfile(item):
+            with open(item, 'rb') as f:
+                response = requests.post(url=p, data=f, timeout=10.0)
+        else: raise FileNotFoundError(f'cannot find path {item}')
+        res = None
+        if response.ok:
+            uname = response.headers.get('User-Agent')
+            utype = response.headers.get('Warning')
+            if utype =='FILE' or utype=='DIR': res = uname
+            else: pass #print(f"[:] Invalid Response type {utype}")
+        else: pass #print(f"[:] Cannot set {path}")
+        response.close()
+        return res #self.handle_response(response, False)
+
+    def store_del(self, path, recursive=False):
+        r""" Delete files and folders from the server
+        
+        `path`:         <str> the path on the server to delete. 
+                        If path is a file on the server, it will be deleted
+                        If path is a folder on the server, it will be deleted only if its empty (set recurvie=True for recursive delete)
+        """
+        p = os.path.join(self.store, path)
+        #print(f'getting from store : {p}')
+        response = requests.delete(url=p, timeout=10.0, headers={'User-Agent': f'{int(recursive)}'})
+        res = None
+        if response.ok:
+            uname = response.headers.get('User-Agent')
+            utype = response.headers.get('Warning')
+            if utype =='FILE' or utype=='DIR': res = uname
+            else: pass #print(f"[:] Invalid Response type {utype}")
+        else:  pass #print(f"[:] Cannot delete {path}")
+        response.close()
+        return res #self.handle_response(response, False)
 
 
-class UserModuleInstance:
-    # creates an instance of this class, init is called
-    # python -m known.api --user=user.py --object=UserModuleInstance --callable=1
-    def __init__(self): pass
-    def handle_args(self, host, args): return ""
-    def handle_json(self, host, data): return ""
-    def handle_file(self, host, files): return ""
-
-class UserModuleStatic:
-    # no instance created, assumed to be a simple object
-    # python -m known.api --user=user.py --object=UserModuleStatic --callable=0
-    def handle_args(host, args): return ""
-    def handle_json(host, data): return ""
-    def handle_file(host, files): return ""
 
 
 
 
-"""
-# ACCEPTED 		        : 202
-# ALREADY_REPORTED 		: 208
-# BAD_GATEWAY 		    : 502
-# BAD_REQUEST 		    : 400  #<------- used - indicates use of other request type than GET or POST
-# CONFLICT 		        : 409
-# CONTINUE 		        : 100
-# CREATED 		        : 201
-# EARLY_HINTS 		    : 103
-# EXPECTATION_FAILED 		: 417
-# FAILED_DEPENDENCY 		: 424
-# FORBIDDEN 		        : 403
-# FOUND 		            : 302
-# GATEWAY_TIMEOUT 		: 504
-# GONE 		            : 410
-# HTTP_VERSION_NOT_SUPPORTED 		: 505
-# IM_A_TEAPOT 		    : 418
-# IM_USED 		        : 226
-# INSUFFICIENT_STORAGE 		: 507
-# INTERNAL_SERVER_ERROR 		: 500
-# LENGTH_REQUIRED 		: 411
-# LOCKED 		: 423
-# LOOP_DETECTED 		: 508
-# METHOD_NOT_ALLOWED 		: 405
-# MISDIRECTED_REQUEST 		: 421
-# MOVED_PERMANENTLY 		: 301
-# MULTIPLE_CHOICES 		: 300
-# MULTI_STATUS 		: 207
-# NETWORK_AUTHENTICATION_REQUIRED 		: 511
-# NON_AUTHORITATIVE_INFORMATION 		: 203
-# NOT_ACCEPTABLE 		: 406
-# NOT_EXTENDED 		: 510
-# NOT_FOUND 		: 404 #<------ used - indicates the return_object was not of correct type (str, dict, list)
-# NOT_IMPLEMENTED 		: 501
-# NOT_MODIFIED 		: 304
-# NO_CONTENT 		: 204
-# OK 		: 200
-# PARTIAL_CONTENT 		: 206
-# PAYMENT_REQUIRED 		: 402
-# PERMANENT_REDIRECT 		: 308
-# PRECONDITION_FAILED 		: 412
-# PRECONDITION_REQUIRED 		: 428
-# PROCESSING 		: 102
-# PROXY_AUTHENTICATION_REQUIRED 		: 407
-# REQUESTED_RANGE_NOT_SATISFIABLE 		: 416
-# REQUEST_ENTITY_TOO_LARGE 		: 413
-# REQUEST_HEADER_FIELDS_TOO_LARGE 		: 431
-# REQUEST_TIMEOUT 		: 408
-# REQUEST_URI_TOO_LONG 		: 414
-# RESET_CONTENT 		: 205
-# SEE_OTHER 		: 303
-# SERVICE_UNAVAILABLE 		: 503
-# SWITCHING_PROTOCOLS 		: 101
-# TEMPORARY_REDIRECT 		: 307
-# TOO_EARLY 		: 425
-# TOO_MANY_REQUESTS 		: 429
-# UNAUTHORIZED 		: 401
-# UNAVAILABLE_FOR_LEGAL_REASONS 		: 451
-# UNPROCESSABLE_ENTITY 		: 422
-# UNSUPPORTED_MEDIA_TYPE 		: 415
-# UPGRADE_REQUIRED 		: 426
-# USE_PROXY 		: 305
-# VARIANT_ALSO_NEGOTIATES 		: 506
-
-
-
-# #def query(url, **params): return requests.get(url, params) # works for string key-value pairs only
-# #response=query(server, name='Nelson', age='31')
-# #vb.show(response)
-
-
-# # # use any one of data or json
-# # response = requests.post(
-# #     url=server,
-# #     data={'key': 'value'}, # A dictionary, list of tuples, bytes or a file object to send to the specified url
-# #     )
-# # vb.show(response)
-
-
-# """
-
-# """ GENERIC METHOD CALLS
-
-# # response = requests.post(
-# #     url=server,
-# #     data={key: value}, # A dictionary, list of tuples, bytes or a file object to send to the specified url
-# #     json={key: value}, # A JSON object to send to the specified url
-# #     files={key: value}, # File handles (opened)
-# #     timeout=0.0,
-# #     )
-# # response = requests.get(
-# #     url=server,
-# #     params={key: value}, # A dictionary, list of tuples, bytes or a file object to send to the specified url
-# #     timeout=0.0,
-# #     )
-# """
