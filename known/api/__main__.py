@@ -4,7 +4,7 @@ HTTP API Request-Response model
 
 #-----------------------------------------------------------------------------------------
 from sys import exit
-if __name__!='__main__': exit(f'[!] can not import {__name__}.{__file__}')
+if __name__!='__main__': exit(f'[!] Can not import {__name__}:{__file__}')
 #-----------------------------------------------------------------------------------------
 
 
@@ -13,7 +13,7 @@ if __name__!='__main__': exit(f'[!] can not import {__name__}.{__file__}')
 # imports 
 #-----------------------------------------------------------------------------------------
 import os, argparse, datetime, importlib, importlib.util
-from enum import IntEnum
+from .client import HeaderType, ContentType, StoreType
 #PYDIR = os.path.dirname(__file__) # script directory of __main__.py
 try:
 
@@ -21,7 +21,7 @@ try:
     from waitress import serve
     from http import HTTPStatus
     from shutil import rmtree
-except: exit(f'[!] The required packages missing:⇒ pip install Flask waitress')
+except: exit(f'[!] Required packages missing')
 #-----------------------------------------------------------------------------------------
 
 
@@ -61,18 +61,6 @@ def ImportCustomModule(python_file:str, python_object:str, do_initialize:bool):
     else:                       cmodule, failed = None, f"[!] File Not found @ {cpath}"
     return cmodule, failed
 
-# def show(x, cep:str='\t\t:', sep="\n", sw:str='__', ew:str='__') -> str:
-#     res = ""
-#     for d in dir(x):
-#         if not (d.startswith(sw) or d.endswith(ew)):
-#             v = ""
-#             try:
-#                 v = getattr(x, d)
-#             except:
-#                 v='?'
-#             res+=f'(👉{d}👈 {cep} 🔹{v}🔸{sep}'
-#     return res
-    
 # ==============================================================================================================
 
 
@@ -83,28 +71,36 @@ parser = argparse.ArgumentParser()
 #-----------------------------------------------------------------------------------------
 # user module related
 # s/d/f/s.py:sd43_:ioi:klj:m:
-parser.add_argument('--user', type=str, default='', help="path of python script")
-parser.add_argument('--object', type=str, default='', help="the python object inside python script")
-parser.add_argument('--callable', type=int, default=0, help="if true, calls the python object (to initialize) - works with object only")
+parser.add_argument('--user', type=str, default='', help="path of python script that contains the user handler module")
+parser.add_argument('--object', type=str, default='', help="the python object inside python script that will be the user handler")
+parser.add_argument('--callable', type=int, default=0, help="if true, calls the python object (to initialize user-handler) - works with object only")
 parser.add_argument('--handle', type=str, default='handle', help="name of the function that handles the api calls")
 
 # server hosting related
 parser.add_argument('--host', type=str, default='0.0.0.0', help="IP-Addresses of interfaces to start the server on, keep default for all interfaces")
-parser.add_argument('--port', type=str, default='8080', help="server's port")
-parser.add_argument('--maxH', type=str, default='100MB', help="max_request_body_size in the HTTP request")
-parser.add_argument('--maxB', type=str, default='100MB', help="max_request_body_size in the HTTP request")
-parser.add_argument('--limit', type=int, default=10, help="maximum number of connections allowed with the server")
+parser.add_argument('--port', type=str, default='8080', help="Associated server's port")
+parser.add_argument('--maxH', type=str, default='0.25GB', help="max_request_header_size in the HTTP request")
+parser.add_argument('--maxB', type=str, default='1.0GB', help="max_request_body_size in the HTTP request")
+parser.add_argument('--limit', type=int, default=2, help="maximum number of connections allowed with the server")
 parser.add_argument('--threads', type=int, default=1, help="maximum number of threads used by server")
 parser.add_argument('--allow', type=str, default='', help="the remote address that match this CSV list will be allowed to access API, keep blank to allow all")
-parser.add_argument('--storage', type=str, default='', help="the path on server where files will be sent for download")
+parser.add_argument('--storage', type=str, default='', help="the path of store on the server - a folder used by clients to send and recieve files")
 #-----------------------------------------------------------------------------------------
 parsed = parser.parse_args()
 #-----------------------------------------------------------------------------------------
 
 
+
 #-----------------------------------------------------------------------------------------
 # Import and Initialize user module (handler)
-def default_handle(request_content, request_type, request_tag): return f"HANDLER\n{request_type=}\t{request_tag=}\n{request_content=}", "MESG", "Handle-Tag"
+
+def default_handle(request_content:object, request_type:str, request_tag:str) -> (object, str, str):
+    
+    response_content = f"\n========================\n{request_type=}\t{request_tag=}\n{request_content=}\n========================\n"
+    response_type = ContentType.MESG
+    response_tag = "default_handle"
+    return response_content, response_type, response_tag
+
 #-----------------------------------------------------------------------------------------
 user_handle = default_handle # ---> global variable
 if parsed.user:
@@ -147,92 +143,121 @@ def home():
     if request.method == 'POST':
         request_from = request.environ['REMOTE_HOST'] 
         if request_from in app.config['allow']:
-            xtype, xtag = request.headers.get('User-Agent'), request.headers.get('Warning')
-            
-            if   xtype=='MESG': xcontent = request.get_data().decode('utf-8')
-            elif xtype=='BYTE': xcontent = request.get_data()
-            elif xtype=='FORM': xcontent = request.form, request.files
-            elif xtype=='JSON': xcontent = request.get_json()
-            else:               xcontent = None               
-            
-            if xcontent is None: return_object, return_code, return_headers = f'Type "{xtype}" is not a valid content type', HTTPStatus.NOT_ACCEPTABLE, {}
-            else:
-                return_object, return_hint, return_tag = user_handle(xcontent, xtype, xtag)
-                return_headers = {'User-Agent':f"{return_hint}", 'Warning':f"{return_tag}"}
-                if isinstance(return_object, (str, dict, list, bytes)): return_code = HTTPStatus.OK
-                else: return_object, return_code, return_headers = f"[!] Invalid Return type from handler [{type(return_object)}]", HTTPStatus.NOT_FOUND, {}
-        else: return_object, return_code, return_headers = f"[!] You are not allowed to POST", HTTPStatus.NOT_ACCEPTABLE, {}
 
+            # The clients making post request will have to provide these two headers
+            # headers are only read for post requests from allowed users
+            xtag, xtype = request.headers.get(HeaderType.XTAG), request.headers.get(HeaderType.XTYPE)
+            if xtype is None:             xcontent = None
+            #------------------------------------------------------------------------------- Read from the reuest made by client
+            elif xtype==ContentType.MESG: xcontent = request.get_data().decode('utf-8')
+            elif xtype==ContentType.BYTE: xcontent = request.get_data()
+            elif xtype==ContentType.FORM: xcontent = request.form, request.files
+            elif xtype==ContentType.JSON: xcontent = request.get_json()
+            #-------------------------------------------------------------------------------
+            else:                         xcontent = None               
+            
+            if xcontent is not None:
+                return_object, return_type, return_tag = user_handle(xcontent, xtype, xtag)
+                if isinstance(return_object, (str, dict, list, bytes)) and (return_type in ContentType.ALL): 
+                    return_code = HTTPStatus.OK
+                    return_headers = {HeaderType.XTAG :return_tag, HeaderType.XTYPE:return_type} #<-- headers are only sent when content and types are valid
+                else:   return_object, return_code, return_headers = f"[!] Invalid response from handler [{type(return_object)}::{return_type}:{return_tag}]", HTTPStatus.NOT_FOUND, {}
+            else:       return_object, return_code, return_headers = f'[!] Type "{xtype}" is not a valid content type', HTTPStatus.NOT_ACCEPTABLE, {}
+        else:           return_object, return_code, return_headers = f"[!] You are not allowed to POST", HTTPStatus.NOT_ACCEPTABLE, {}
     elif request.method == 'GET':     
         return_object = f'<pre>[Known.api]@{__file__}\n'
         for k,v in parsed._get_kwargs(): return_object+=f'\n\t{k}\t{v}\n'
         return_object+='</pre>'
-        return_code = HTTPStatus.OK
-        return_headers={}
-
+        return_code, return_headers = HTTPStatus.OK, {}
     else: return_object, return_code, return_headers = f"[!] Invalid Request Type {request.method}", HTTPStatus.BAD_REQUEST, {}
-    # only use either one of data or json in post request (not both)
+    
     return return_object, return_code, return_headers
 
 
-    
+# Storage urls for file-storage api
+# tag specifies a name of file, type specifies if its a overall-view, a directory listing or a file
+
+
 @app.route('/store', methods =['GET'])
-def storagelist(): # an overview of all storage paths and the files in them
+def storageview(): # an overview of all storage paths and the files in them
     basedir = app.config['storage']
-    return {os.path.relpath(root, basedir) : files for root, directories, files in os.walk(basedir)}, HTTPStatus.OK, {'User-Agent': f'{basedir}', 'Warning': 'LIST'}
+    return_object = {os.path.relpath(root, basedir) : files for root, directories, files in os.walk(basedir)}
+    return_code = HTTPStatus.OK
+    return_headers = {HeaderType.XTAG: f'{basedir}', HeaderType.XTYPE: StoreType.VIEW}
+    return return_object, return_code, return_headers
 
 @app.route('/store/', methods =['GET'])
-def storageroot(): # an overview of all storage paths and the files in them
+def storageroot(): # root dir
     rw, dw, fw = next(iter(os.walk(app.config['storage'])))
     rel_path = os.path.relpath(rw, app.config['storage'])
-    return dict(base=os.path.relpath(rw, app.config['storage']), folders=dw, files=fw), HTTPStatus.OK, {'User-Agent': f'{rel_path}', 'Warning': 'DIR'}
-
+    return_object = dict(base=os.path.relpath(rw, app.config['storage']), folders=dw, files=fw)
+    return_code = HTTPStatus.OK
+    return_headers = {HeaderType.XTAG: f'{rel_path}', HeaderType.XTYPE: StoreType.DIR}
+    return return_object, return_code, return_headers
 
 @app.route('/store/<path:req_path>', methods =['GET', 'POST', 'PUT', 'DELETE'])
 def storage(req_path): # creates a FileNotFoundError
     abs_path = os.path.join(app.config['storage'], req_path) # Joining the base and the requested path
     rel_path = os.path.relpath(abs_path, app.config['storage'])
+
+
     if request.method=='GET': # trying to download that file or view a directory
         if os.path.exists(abs_path):
             if os.path.isdir(abs_path):     
-                rw, dw, fw = next(iter(os.walk(abs_path)))
-                return dict(base=rel_path, folders=dw, files=fw), HTTPStatus.OK, {'User-Agent': f'{rel_path}', 'Warning': 'DIR'}
+                _, dw, fw = next(iter(os.walk(abs_path)))
+                return_object = dict(base=rel_path, folders=dw, files=fw)
+                return_code = HTTPStatus.OK
+                return_headers = {HeaderType.XTAG: f'{rel_path}', HeaderType.XTYPE: StoreType.DIR}
             else: 
                 resx = send_file(abs_path) 
-                resx.headers['User-Agent'] = os.path.basename(abs_path) # 'asve_as'
-                resx.headers['Warning'] = 'FILE'
-                return resx
-        else: return f'Path not found: {abs_path}', HTTPStatus.NOT_FOUND
+                resx.headers[HeaderType.XTAG] = os.path.basename(abs_path) # 'save_as'
+                resx.headers[HeaderType.XTYPE] = StoreType.FILE
+                return resx #<-----RETURNING HERE
+        else: return_object, return_code, return_headers = f'Path not found: {abs_path}', HTTPStatus.NOT_FOUND, {}
+
+
     elif request.method=='POST': # trying to create new file or replace existing file
         if os.path.isdir(abs_path):
-            return f'A directory already exists at {abs_path} - cannot create a file there', HTTPStatus.NOT_ACCEPTABLE
+            return_object, return_code, return_headers = f'Cannot create file # {abs_path} - folder already exists', HTTPStatus.NOT_ACCEPTABLE, {}
         else:
             try: 
                 with open(abs_path, 'wb') as f: f.write(request.get_data())
-                return      f"Created File @ {abs_path}", HTTPStatus.OK, {'User-Agent': f'{rel_path}', 'Warning': 'FILE'}
-            except: return  f"File cannot be created @ {abs_path}", HTTPStatus.NOT_ACCEPTABLE
+                return_object, return_code, return_headers =  f"File created @ {abs_path}", HTTPStatus.OK, {HeaderType.XTAG: f'{rel_path}', HeaderType.XTYPE: StoreType.MSG}
+            except: return_object, return_code, return_headers =   f"Cannot create file @ {abs_path}", HTTPStatus.NOT_ACCEPTABLE, {}
+
+
     elif request.method=='PUT': # trying to create new directory
         if os.path.isfile(abs_path):
-            return f'A file already exists at {abs_path} - cannot create a filder there', HTTPStatus.NOT_ACCEPTABLE
+            return_object, return_code, return_headers = f'Cannot create folder at {abs_path} - file already exists', HTTPStatus.NOT_ACCEPTABLE, {}
         else:
             os.makedirs(abs_path, exist_ok=True)
-            return f"Created Folder @ {abs_path}", HTTPStatus.OK, {'User-Agent': f'{rel_path}', 'Warning': 'DIR'}
+            return_object, return_code, return_headers =  f"Folder created @ {abs_path}", HTTPStatus.OK, {HeaderType.XTAG: f'{rel_path}', HeaderType.XTYPE: StoreType.MSG}
+
+
     elif request.method=='DELETE': # trying to delete a file or folder
         if os.path.isfile(abs_path):
-            os.remove(abs_path)
-            return f"Deleted File @ {abs_path}", HTTPStatus.OK, {'User-Agent': f'{rel_path}', 'Warning': 'FILE'}
+            try: 
+                os.remove(abs_path)
+                return_object, return_code, return_headers =     f"File deleted @ {abs_path}", HTTPStatus.OK, {HeaderType.XTAG: f'{rel_path}', HeaderType.XTYPE: StoreType.MSG}
+            except: return_object, return_code, return_headers = f"Cannot delete file @ {abs_path}", HTTPStatus.NOT_ACCEPTABLE, {}
         elif os.path.isdir(abs_path):
             rok = True
-            if int(request.headers.get('User-Agent')):
+            if int(request.headers.get(HeaderType.XTYPE)):
                 try: rmtree(abs_path)
                 except: rok=False
             else:
                 try: os.rmdir(abs_path)
                 except: rok=False
-            if rok: return  f"Folder deleted @ {abs_path}", HTTPStatus.OK, {'User-Agent': f'{rel_path}', 'Warning': 'DIR'}
-            else:   return  f'Cannot delete folder at {abs_path}', HTTPStatus.NOT_ACCEPTABLE
-        else: return f'Cannot delete at {abs_path} - not a file or folder', HTTPStatus.NOT_ACCEPTABLE
-    else: return f"[!] Invalid Request Type {request.method}", HTTPStatus.BAD_REQUEST
+            if rok: return_object, return_code, return_headers =   f"Folder deleted @ {abs_path}", HTTPStatus.OK, {HeaderType.XTAG: f'{rel_path}', HeaderType.XTYPE: StoreType.MSG}
+            else:   return_object, return_code, return_headers =   f'Cannot delete folder at {abs_path}', HTTPStatus.NOT_ACCEPTABLE, {}
+        else: return_object, return_code, return_headers =         f'Cannot delete at {abs_path} - not a file or folder', HTTPStatus.NOT_ACCEPTABLE, {}
+
+    else: return_object, return_code, return_headers =  f"[!] Invalid Request Type {request.method}", HTTPStatus.BAD_REQUEST, {}
+
+    return return_object, return_code, return_headers
+
+
+
 
 #%% @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 start_time = datetime.datetime.now()

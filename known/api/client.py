@@ -3,6 +3,28 @@
 import requests, os
 from http import HTTPStatus
 
+
+
+class HeaderType:
+    XTAG =      'User-Agent' # "Used to specify a Tag"
+    XTYPE =     'Warning'  # "Used to specify a ContentType"
+
+class ContentType:
+    MESG = "MESG" # represents a string
+    BYTE = "BYTE" # a stream of bytes
+    JSON = "JSON" # a json serializable object
+    FORM = "FORM" # a ClientForm with fields and attachements
+    ALL = set([MESG, BYTE, JSON, FORM])
+
+    # only use either one of data or json in post request (not both)
+    # form can only be sent from client to server but not other way
+
+class StoreType:
+    VIEW = "V"
+    DIR =  "D"
+    FILE = "F"
+    MSG = "M"
+
 class ClientForm:
     r""" Represents a form with fields and attachements that can sent to server using a POST request """
 
@@ -45,28 +67,30 @@ class Client:
         self.server = server
         self.url = f'http://{self.server}/'
         self.store = f'http://{self.server}/store/'
-        self.timeout = None # # (float or tuple) – How many seconds to wait for the server to send data - can be (connect timeout, read timeout) tuple.
+        self.timeout = 10.0 # # (float or tuple) – How many seconds to wait for the server to send data - can be (connect timeout, read timeout) tuple.
         self.allow_redirects = False # we keep this False, only server will respond
         self.params = None  # this is added to url, so make sure to pass strings only - both keys and values
 
     def check(self): # verify connection 
         # make a simple get request - the api should respond with ok
-        try:        is_ok = requests.get(self.url).ok 
+        try:        is_ok = requests.get(self.url, timeout=self.timeout).ok 
         except:     is_ok = False
         return      is_ok
 
+
+
     def send(self, xcontent, xtype,  xtag='', xstream=False):
         # xtype is <str> 'MESG' 'BYTE', 'FORM', 'JSON'
-        if xtype=='MESG': 
+        if xtype==ContentType.MESG: 
             xjson, xdata, xfiles = None, f'{xcontent}'.format('utf-8'), None
-        elif xtype=='BYTE': 
+        elif xtype==ContentType.BYTE: 
             assert type(xcontent) is bytes, f'Expecting bytes but got {type(xcontent)}'
             xjson, xdata, xfiles = None, xcontent, None
-        elif xtype=='FORM': 
+        elif xtype==ContentType.FORM: 
             assert type(xcontent) is ClientForm
             xjson, xdata, xfiles = None, xcontent.data, xcontent.files
             xcontent.open()
-        elif xtype=='JSON': xjson, xdata, xfiles = xcontent, None, None
+        elif xtype==ContentType.JSON: xjson, xdata, xfiles = xcontent, None, None
         else:               raise TypeError(f'Type "{xtype}" is not a valid content type') # xtype must be in ClientContentType
 
         # make a request to server
@@ -88,7 +112,7 @@ class Client:
                                         # ... where 'content_type' is a string defining the content type of the given file and 
                                         # ... custom_headers a dict-like object containing additional headers to add for the file.
         )
-        if xtype=='FORM': xcontent.close()
+        if xtype==ContentType.FORM: xcontent.close()
         return self.handle_response(response, xstream)
 
     def handle_response(self, response, streamed):
@@ -103,14 +127,14 @@ class Client:
 
         status_code = response.status_code
         status_ok = response.ok
-        xhint = response.headers.get('User-Agent')
-        xtag = response.headers.get('Warning')
+        xtag = response.headers.get(HeaderType.XTAG)
+        xtype = response.headers.get(HeaderType.XTYPE)
 
         if   status_code == HTTPStatus.OK: 
-            if   xhint=='MESG': xresponse = response.content.decode('utf-8')
-            elif xhint=='BYTE': xresponse = response.content
-            elif xhint=='FORM': xresponse = None # this should not be used
-            elif xhint=='JSON': xresponse = response.json()
+            if   xtype==ContentType.MESG: xresponse = response.content.decode('utf-8')
+            elif xtype==ContentType.BYTE: xresponse = response.content
+            elif xtype==ContentType.FORM: xresponse = None # this should not be used
+            elif xtype==ContentType.JSON: xresponse = response.json()
             else:               xresponse = None      
         elif status_code == HTTPStatus.NOT_ACCEPTABLE:  xresponse = None  
         elif status_code == HTTPStatus.NOT_FOUND:       xresponse = None  
@@ -121,9 +145,10 @@ class Client:
         
         response.close()
         #f'[{"✳️" if status_ok else "❌"}]::{status_code}::{xtag=}::{xhint=}\n👉\n{res}\n👈\n{content}'
-        return status_ok, xhint, xtag, xresponse
+        return status_ok, xtype, xtag, xresponse
 
-    def store_get(self, path=None, save_as=None):
+
+    def store_get(self, path=None, save=None):
         r""" Query the store to get files and folders 
         
         `path`:         <str> the path on the server to get from. 
@@ -132,32 +157,26 @@ class Client:
                         if path is empty string "", gets the listing from root folder `localhost:8080/store/`
                         If path is None, does a directory listing at top level `localhost:8080/store`
                         
-        `save_as`:      <str> (optional) the local path to save an incoming file, 
+        `save`:        <str> (optional) the local path to save an incoming file, 
                         If None, uses the header `User-Agent` (not required for listing directory - only for file get)
 
-        """
-        if path is None:
-            #print(f'listing store')
-            response = requests.get(url=self.store[:-1], timeout=10.0)
-        else:
-            p = os.path.join(self.store, path)
-            #print(f'getting from store : {p}')
-            response = requests.get(url=p, timeout=10.0)
-        res = None
-        if response.ok:
-            uname = response.headers.get('User-Agent')
-            utype = response.headers.get('Warning')
-            if  utype == 'DIR' or utype == 'LIST':  res = response.json()
-            elif utype =='FILE': 
+        """        
+        response = requests.get( url = ( self.store[:-1] if path is None else os.path.join(self.store, path) ), timeout = self.timeout)
+        uok = response.ok
+        utype = response.headers.get(HeaderType.XTYPE)
+        utag = response.headers.get(HeaderType.XTAG)
+        ureason = ""
+        if uok:
+            if  utype ==  StoreType.VIEW or utype == StoreType.DIR: res = response.json()
+            elif utype == StoreType.FILE: 
+                if not save: save = utag
                 try:
-                    if not save_as: save_as = uname
-                    with open(save_as, 'wb') as j: j.write(response.content)
-                    res = f'{save_as}'
-                except:  pass#print(f"[:] Error Saving at {save_as}")
-            else: pass #print(f"[:] Invalid Response type {utype}")
-        else:  pass #print(f"[:] Cannot obtain {path}")
+                    with open(save, 'wb') as f: f.write(response.content)
+                except: ureason = f"Error Saving incoming file at {save}"
+            else:       ureason = f"Response type {utype} is unexpected for this request"
+        else:           ureason = f"Response not ok"  
         response.close()
-        return res #self.handle_response(response, False)
+        return uok, ureason
 
     def store_set(self, path, item=None):
         r""" Put files and folders on the server
@@ -169,23 +188,21 @@ class Client:
                         if item is anything else, error will be thrown
 
         """
-        p = os.path.join(self.store, path)
-        #print(f'getting from store : {p}')
-        if item is None:
-            response = requests.put(url=p, timeout=10.0)
+        if item is None: response = requests.put(url=os.path.join(self.store, path), timeout=self.timeout)
         elif os.path.isfile(item):
             with open(item, 'rb') as f:
-                response = requests.post(url=p, data=f, timeout=10.0)
+                response = requests.post(url=os.path.join(self.store, path), data=f, timeout=self.timeout)
         else: raise FileNotFoundError(f'cannot find path {item}')
-        res = None
-        if response.ok:
-            uname = response.headers.get('User-Agent')
-            utype = response.headers.get('Warning')
-            if utype =='FILE' or utype=='DIR': res = uname
-            else: pass #print(f"[:] Invalid Response type {utype}")
-        else: pass #print(f"[:] Cannot set {path}")
+        uok = response.ok
+        utype = response.headers.get(HeaderType.XTYPE)
+        utag = response.headers.get(HeaderType.XTAG)
+        ureason = ""
+        if uok:
+            if utype ==  StoreType.MSG: ureason = f'{response.text}'
+            else:                       ureason = f"Response type {utype} is unexpected for this request"
+        else:                           ureason = f"Response not ok"  
         response.close()
-        return res #self.handle_response(response, False)
+        return uok, ureason
 
     def store_del(self, path, recursive=False):
         r""" Delete files and folders from the server
@@ -194,18 +211,18 @@ class Client:
                         If path is a file on the server, it will be deleted
                         If path is a folder on the server, it will be deleted only if its empty (set recurvie=True for recursive delete)
         """
-        p = os.path.join(self.store, path)
-        #print(f'getting from store : {p}')
-        response = requests.delete(url=p, timeout=10.0, headers={'User-Agent': f'{int(recursive)}'})
-        res = None
-        if response.ok:
-            uname = response.headers.get('User-Agent')
-            utype = response.headers.get('Warning')
-            if utype =='FILE' or utype=='DIR': res = uname
-            else: pass #print(f"[:] Invalid Response type {utype}")
-        else:  pass #print(f"[:] Cannot delete {path}")
+        # only this request uses the XTYPE header to indicate if directory has to be recurviely deleted or not
+        response = requests.delete(url= os.path.join(self.store, path), timeout=self.timeout, headers={HeaderType.XTYPE: f'{int(recursive)}'})
+        uok = response.ok
+        utype = response.headers.get(HeaderType.XTYPE)
+        utag = response.headers.get(HeaderType.XTAG)
+        ureason = ""
+        if uok:
+            if utype ==  StoreType.MSG: ureason = f'{response.text}'
+            else:                       ureason = f"Response type {utype} is unexpected for this request"
+        else:                           ureason = f"Response not ok"  
         response.close()
-        return res #self.handle_response(response, False)
+        return uok, ureason
 
 
 

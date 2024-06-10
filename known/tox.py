@@ -1,6 +1,7 @@
+__doc__="""
+Generic functions for pytorch modules
+"""
 
-# -----------------------------------------------------------------------------------------------------
-# generic functions, tools and utils
 # -----------------------------------------------------------------------------------------------------
 import torch as tt
 from torch import Tensor

@@ -1,21 +1,34 @@
+__doc__="""
+Topics Server - a flask-based web app for sharing files.
+
+This file can be run as stand alone as well. 
+The only package dependencies are Flask, Flask-WTF, waitress (and optionally nbconvert)
+
+The --dir represents the `WORKSPACE` directory
+Run using the `--dir` option like 
+    python __main__.py --dir=path/to/workspace
+Here `workspace` folder will contain a `configs.py` file (will be created if not found)
+
+The app will create 2 temporary folder - `templates` and `static`
+These will be created in the same path where this script is placed (not the workspace folder)
+The arguments --cos (create on start) abd --coe (clean on exit) can be used to manage these filess
+"""
+
 #-----------------------------------------------------------------------------------------
 from sys import exit
 if __name__!='__main__': exit(f'[!] can not import {__name__}.{__file__}')
 #-----------------------------------------------------------------------------------------
 
-#-----------------------------------------------------------------------------------------
-# Basic imports
-#-----------------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------------------
+# imports
+# ------------------------------------------------------------------------------------------
 import os, sys, re, argparse, getpass, random
 import re, importlib
 from math import inf
 import datetime
 fnow = datetime.datetime.strftime
 dnow = datetime.datetime.now
-now = lambda: fnow(dnow(),"%Y-%m-%d %H:%M:%S")
-# ------------------------------------------------------------------------------------------
-# imports ----------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------------------
 try:
     from flask import Flask, render_template, request, redirect, url_for, session, abort, send_file
     from flask_wtf import FlaskForm
@@ -23,46 +36,44 @@ try:
     from werkzeug.utils import secure_filename
     from wtforms.validators import InputRequired
 except: exit(f'[!] The required Flask packages missing:\tFlask>=3.0.2, Flask-WTF>=1.2.1\n  ⇒ pip install Flask==3.0.2 Flask-WTF==1.2.1')
-
 try: from waitress import serve
 except: exit(f'[!] The required waitress package missing:\twaitress>=3.0.0\n  ⇒ pip install waitress==3.0.0')
 # ------------------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-g_break="+ - + - + - + - + - + - + - + - + - + - + - + - + - + - +"
-print(f'{g_break}\nStarting...\n{g_break}')
-#-----------------------------------------------------------------------------------------
-# ==> Need to define working directories
-#-----------------------------------------------------------------------------------------
-PYDIR = os.path.dirname(__file__) # script directory of __main__.py
 
-# this is for creating temporary html+css templates
-# try parsing args
+
+
+
+
+# ------------------------------------------------------------------------------------------
+# args parsing
+# ------------------------------------------------------------------------------------------
 parser = argparse.ArgumentParser()
 parser.add_argument('--dir', type=str, default='', help="path of workspace directory")
 parser.add_argument('--cos', type=int, default=0, help="use 1 to create-on-start - create (overwrites) pages")
 parser.add_argument('--coe', type=int, default=0, help="use 1 to clean-on-exit - deletes pages")
 parsed = parser.parse_args()
+# args parsing
+# ------------------------------------------------------------------------------------------
 
-# define working dir - contains all bases
-WORKDIR = f'{parsed.dir}'
-# if still not specified, set as default
-if not WORKDIR: WORKDIR = os.path.join(os.getcwd()) 
+
+
+
+g_break = "+ - + - + - + - + - + - + - + - + - + - + - + - + - + - +"
+print(f'{g_break}\nStarting...\n{g_break}')
+#-----------------------------------------------------------------------------------------
+# ==> define working directories
+#-----------------------------------------------------------------------------------------
+WORKDIR = f'{parsed.dir}'                               # define working dir - contains all bases
+if not WORKDIR: WORKDIR = os.path.join(os.getcwd())     # if still not specified, set as default
 print(f'↪ Workspace directory is {WORKDIR}')
 try: os.makedirs(WORKDIR, exist_ok=True)
 except: exit(f'[!] Workspace directory was not found and could not be created')
 sys.path.append(WORKDIR)  # otherwise append to sys.path
 
 
-
-
-
-
-
-
-
-
-
+#-----------------------------------------------------------------------------------------
+# ==> read configurations
+#-----------------------------------------------------------------------------------------
 CONFIG = 'current' # the config-dict to read from
 CONFIG_MODULE = 'configs'  # the name of configs module
 CONFIGS_FILE = f'{CONFIG_MODULE}.py' # the name of configs file
@@ -293,7 +304,7 @@ if not len(args): exit(f'[!] Empty or Invalid config provided')
 # dprints for user level logs
 # sprint  for sever level logs
 # ------------------------------------------------------------------------------------------
-
+now = lambda: fnow(dnow(),"%Y-%m-%d %H:%M:%S")
 if args.verbose==0: # no log
     def sprint(msg): pass
     def dprint(msg): pass
@@ -934,8 +945,7 @@ style = """
 )
 # ******************************************************************************************
 
-#try:
-    
+PYDIR = os.path.dirname(__file__) # script directory of __main__.py
 TEMPLATES_DIR, STATIC_DIR = os.path.join(PYDIR, "templates"), os.path.join(PYDIR, "static")
 
 os.makedirs(TEMPLATES_DIR, exist_ok=True)

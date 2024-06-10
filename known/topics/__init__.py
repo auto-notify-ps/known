@@ -3,12 +3,9 @@ __doc__=f"""
 -------------------------------------------------------------
 topics - Flask-based web app for sharing files 
 -------------------------------------------------------------
-Usage:
-python -m venv .venv
-source .venv/bin/activate
 python -m pip install Flask Flask-WTF waitress nbconvert
 python -m pip install Flask==3.0.2 Flask-WTF==1.2.1 waitress==3.0.0 nbconvert==7.16.2
-python topics.py 
+python topics.py
 -------------------------------------------------------------
 Configs:
 default `configs.py` file will be created
@@ -22,8 +19,6 @@ special string "::::" is used for replacing javascript on `repass` - uid and url
 special username 'None' is not allowed however words like 'none' will work
 rename argument means (0 = not allowed) (1 = only rename) (2 = rename and remoji)
 -------------------------------------------------------------
-
-
 Note:
 we use waitress for serving - which uses threads
 threads in python are not really concurrent
