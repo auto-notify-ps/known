@@ -1,26 +1,26 @@
-
-
 import requests, os
 from http import HTTPStatus
 
-
-
 class HeaderType:
-    XTAG =      'User-Agent' # "Used to specify a Tag"
-    XTYPE =     'Warning'  # "Used to specify a ContentType"
+    XTAG =      'User-Agent'    # "Used to specify a Tag"
+    XTYPE =     'Warning'       # "Used to specify a ContentType"
 
-class ContentType:
+class RequestContentType:
     MESG = "MESG" # represents a string
     BYTE = "BYTE" # a stream of bytes
     JSON = "JSON" # a json serializable object
     FORM = "FORM" # a ClientForm with fields and attachements
-    ALL = set([MESG, BYTE, JSON, FORM])
-
     # only use either one of data or json in post request (not both)
     # form can only be sent from client to server but not other way
 
+class ResponseContentType:
+    MESG = "MESG" # represents a string
+    BYTE = "BYTE" # a stream of bytes
+    JSON = "JSON" # a json serializable object
+    ALL = set([MESG, BYTE, JSON])
+
 class StoreType:
-    VIEW = "V"
+    HOME = "H"
     DIR =  "D"
     FILE = "F"
     MSG = "M"
@@ -57,19 +57,13 @@ class ClientForm:
 class Client:
     r""" HTTP Client Class - Represents a client that will access the API """
 
-    # ClientContentType = dict(
-    #     BYTE='use the data field - can put any binary data here as bytes',
-    #     FORM='use the data field for key-value pairs',
-    #     JSON='use the get_json() method, puts a json-serializable object',
-    # ) # with every request, the client this in the xtype (Warning) header
-
     def __init__(self, server='localhost:8080'):
         self.server = server
         self.url = f'http://{self.server}/'
         self.store = f'http://{self.server}/store/'
-        self.timeout = 10.0 # # (float or tuple) – How many seconds to wait for the server to send data - can be (connect timeout, read timeout) tuple.
+        self.timeout = None # (float or tuple) – How many seconds to wait for the server to send data - can be (connect timeout, read timeout) tuple.
         self.allow_redirects = False # we keep this False, only server will respond
-        self.params = None  # this is added to url, so make sure to pass strings only - both keys and values
+        #self.params = None  # this is added to url, so make sure to pass strings only - both keys and values
 
     def check(self): # verify connection 
         # make a simple get request - the api should respond with ok
@@ -77,76 +71,56 @@ class Client:
         except:     is_ok = False
         return      is_ok
 
-
-
     def send(self, xcontent, xtype,  xtag='', xstream=False):
-        # xtype is <str> 'MESG' 'BYTE', 'FORM', 'JSON'
-        if xtype==ContentType.MESG: 
+        # xtype is RequestContentType
+        if xtype==RequestContentType.MESG: 
             xjson, xdata, xfiles = None, f'{xcontent}'.format('utf-8'), None
-        elif xtype==ContentType.BYTE: 
+        elif xtype==RequestContentType.BYTE: 
             assert type(xcontent) is bytes, f'Expecting bytes but got {type(xcontent)}'
             xjson, xdata, xfiles = None, xcontent, None
-        elif xtype==ContentType.FORM: 
+        elif xtype==RequestContentType.FORM: 
             assert type(xcontent) is ClientForm
             xjson, xdata, xfiles = None, xcontent.data, xcontent.files
             xcontent.open()
-        elif xtype==ContentType.JSON: xjson, xdata, xfiles = xcontent, None, None
-        else:               raise TypeError(f'Type "{xtype}" is not a valid content type') # xtype must be in ClientContentType
+        elif xtype==RequestContentType.JSON: 
+            xjson, xdata, xfiles = xcontent, None, None
+        else:               
+            raise TypeError(f'Type "{xtype}" is not a valid content type') # xtype must be in ClientContentType
 
         # make a request to server
-        #print(f'\n[SENDING]\n{xtype=}\t{xtag=}\n{xjson=}\n{xdata=}\n{xfiles=}')
-
         response = requests.post(
-            url=            self.url, allow_redirects=self.allow_redirects,  timeout=self.timeout,  params=self.params,
-            headers=        {'User-Agent':xtype, 'Warning':xtag}, # https://en.wikipedia.org/wiki/List_of_HTTP_header_fields
-            stream=         xstream,      # (optional) if False, the response content will be immediately downloaded
-
-            json=           xjson,         # (optional) A JSON serializable Python object to send in the body of the Request - works only when no form data and files
-            # OR                        # either use (json) or (data + files)
-            data=           xdata,         # (optional) Dictionary, list of tuples, bytes, or file-like object to send in the body of the Request.
-            files=          xfiles,         # (optional) Dictionary of 'name': file-like-objects (or {'name': file-tuple}) for multipart encoding upload. 
-                                        #   file-tuple can be a 
-                                        #       2-tuple ('filename', fileobj), 
-                                        #       3-tuple ('filename', fileobj, 'content_type')
-                                        #       4-tuple ('filename', fileobj, 'content_type', custom_headers), 
-                                        # ... where 'content_type' is a string defining the content type of the given file and 
-                                        # ... custom_headers a dict-like object containing additional headers to add for the file.
+            url=            self.url, allow_redirects=self.allow_redirects,  timeout=self.timeout,  #params=self.params,
+            headers=        {HeaderType.XTYPE:xtype, HeaderType.XTAG:xtag},
+            stream=         xstream,
+            json=           xjson,
+            data=           xdata,
+            files=          xfiles,
         )
-        if xtype==ContentType.FORM: xcontent.close()
+        if xtype==RequestContentType.FORM: xcontent.close()
         return self.handle_response(response, xstream)
 
-    def handle_response(self, response, streamed):
+    def handle_response(self, response, xstream):
         # handle the response
-        
-        # NOTE: the `response` object contains the `request` object that we sent,
-        # response.request
-
-        # If we want to access the headers the server sent back to us, we do this:
-        # response.headers 
+        # NOTE: the `response` object contains the `request` object that we sent in response.request 
         # headers are sent always (independent of stream=True/False)
 
-        status_code = response.status_code
-        status_ok = response.ok
-        xtag = response.headers.get(HeaderType.XTAG)
-        xtype = response.headers.get(HeaderType.XTYPE)
+        status_code =   response.status_code
+        status_ok =     response.ok
+        xtag =          response.headers.get(HeaderType.XTAG)
+        xtype =         response.headers.get(HeaderType.XTYPE) # response content type
 
         if   status_code == HTTPStatus.OK: 
-            if   xtype==ContentType.MESG: xresponse = response.content.decode('utf-8')
-            elif xtype==ContentType.BYTE: xresponse = response.content
-            elif xtype==ContentType.FORM: xresponse = None # this should not be used
-            elif xtype==ContentType.JSON: xresponse = response.json()
-            else:               xresponse = None      
+            if   xtype==ResponseContentType.MESG:       xresponse = response.content.decode('utf-8')
+            elif xtype==ResponseContentType.BYTE:       xresponse = response.content
+            elif xtype==ResponseContentType.JSON:       xresponse = response.json()
+            else:                                       xresponse = None      
         elif status_code == HTTPStatus.NOT_ACCEPTABLE:  xresponse = None  
         elif status_code == HTTPStatus.NOT_FOUND:       xresponse = None  
         else:                                           xresponse = None   # this should not happen
-
-        #if streamed: pass
+        #if xstream: pass
         #else:        pass
-        
         response.close()
-        #f'[{"✳️" if status_ok else "❌"}]::{status_code}::{xtag=}::{xhint=}\n👉\n{res}\n👈\n{content}'
         return status_ok, xtype, xtag, xresponse
-
 
     def store_get(self, path=None, save=None):
         r""" Query the store to get files and folders 
@@ -167,7 +141,7 @@ class Client:
         utag = response.headers.get(HeaderType.XTAG)
         ureason = ""
         if uok:
-            if  utype ==  StoreType.VIEW or utype == StoreType.DIR: res = response.json()
+            if  utype ==  StoreType.HOME or utype == StoreType.DIR: res = response.json()
             elif utype == StoreType.FILE: 
                 if not save: save = utag
                 try:
@@ -223,9 +197,4 @@ class Client:
         else:                           ureason = f"Response not ok"  
         response.close()
         return uok, ureason
-
-
-
-
-
 

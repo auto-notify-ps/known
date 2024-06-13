@@ -13,7 +13,7 @@ if __name__!='__main__': exit(f'[!] Can not import {__name__}:{__file__}')
 # imports 
 #-----------------------------------------------------------------------------------------
 import os, argparse, datetime, importlib, importlib.util
-from .client import HeaderType, ContentType, StoreType
+from .client import HeaderType, RequestContentType, ResponseContentType, StoreType
 #PYDIR = os.path.dirname(__file__) # script directory of __main__.py
 try:
 
@@ -97,7 +97,7 @@ parsed = parser.parse_args()
 def default_handle(request_content:object, request_type:str, request_tag:str) -> (object, str, str):
     
     response_content = f"\n========================\n{request_type=}\t{request_tag=}\n{request_content=}\n========================\n"
-    response_type = ContentType.MESG
+    response_type = ResponseContentType.MESG
     response_tag = "default_handle"
     return response_content, response_type, response_tag
 
@@ -149,16 +149,16 @@ def home():
             xtag, xtype = request.headers.get(HeaderType.XTAG), request.headers.get(HeaderType.XTYPE)
             if xtype is None:             xcontent = None
             #------------------------------------------------------------------------------- Read from the reuest made by client
-            elif xtype==ContentType.MESG: xcontent = request.get_data().decode('utf-8')
-            elif xtype==ContentType.BYTE: xcontent = request.get_data()
-            elif xtype==ContentType.FORM: xcontent = request.form, request.files
-            elif xtype==ContentType.JSON: xcontent = request.get_json()
+            elif xtype==RequestContentType.MESG: xcontent = request.get_data().decode('utf-8')
+            elif xtype==RequestContentType.BYTE: xcontent = request.get_data()
+            elif xtype==RequestContentType.FORM: xcontent = request.form, request.files
+            elif xtype==RequestContentType.JSON: xcontent = request.get_json()
             #-------------------------------------------------------------------------------
             else:                         xcontent = None               
             
             if xcontent is not None:
                 return_object, return_type, return_tag = user_handle(xcontent, xtype, xtag)
-                if isinstance(return_object, (str, dict, list, bytes)) and (return_type in ContentType.ALL): 
+                if isinstance(return_object, (str, dict, list, bytes)) and (return_type in ResponseContentType.ALL): 
                     return_code = HTTPStatus.OK
                     return_headers = {HeaderType.XTAG :return_tag, HeaderType.XTYPE:return_type} #<-- headers are only sent when content and types are valid
                 else:   return_object, return_code, return_headers = f"[!] Invalid response from handler [{type(return_object)}::{return_type}:{return_tag}]", HTTPStatus.NOT_FOUND, {}
@@ -183,7 +183,7 @@ def storageview(): # an overview of all storage paths and the files in them
     basedir = app.config['storage']
     return_object = {os.path.relpath(root, basedir) : files for root, directories, files in os.walk(basedir)}
     return_code = HTTPStatus.OK
-    return_headers = {HeaderType.XTAG: f'{basedir}', HeaderType.XTYPE: StoreType.VIEW}
+    return_headers = {HeaderType.XTAG: f'{basedir}', HeaderType.XTYPE: StoreType.HOME}
     return return_object, return_code, return_headers
 
 @app.route('/store/', methods =['GET'])
