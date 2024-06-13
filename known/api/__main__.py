@@ -50,14 +50,14 @@ def ImportCustomModule(python_file:str, python_object:str, do_initialize:bool):
             cmodule = importlib.util.module_from_spec(cspec)
             cspec.loader.exec_module(cmodule)
             success=True
-        except: success=False #exit(f'[!] Could import user-module "{module_path}"')
+        except: success=False #exit(f'[!] Could import user-module "{cpath}"')
         if success: 
             if python_object:
                 try:
                     cmodule = getattr(cmodule, python_object)
                     if do_initialize:  cmodule = cmodule()
-                except:         cmodule, failed = None, f'[!] Could not import object {python_object} from module "{module_path}"'
-        else:                   cmodule, failed = None, f'[!] Could not import module "{module_path}"'
+                except:         cmodule, failed = None, f'[!] Could not import object {python_object} from module "{cpath}"'
+        else:                   cmodule, failed = None, f'[!] Could not import module "{cpath}"'
     else:                       cmodule, failed = None, f"[!] File Not found @ {cpath}"
     return cmodule, failed
 
