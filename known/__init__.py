@@ -1,21 +1,7 @@
 # known
 __doc__=r"""
-**known** is a collection of reusable python code. Use pip to install **known**
-
-.. code-block:: console
-
-   $ pip install known
-   
-The package is frequently updated by adding new functionality, make sure to have the latest version. To check version use
-
-.. code-block:: console
-
-   >>> import known
-   >>> known.__version___
-
+**known** is a collection of reusable python code. Use pip to install **known** $ pip install known
 :py:mod:`known/__init__.py`
 """
-__version__ = '0.0.19'
-#print(f'known.{__version__}\n{__file__}')
 
 from .basic import *

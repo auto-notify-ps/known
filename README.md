@@ -110,19 +110,22 @@ The package is frequently updated by adding new functionality, make sure to have
 
 ## [ 3 ] API Server using `known.api`
 
-* Implements a python+Flask based API that allow applications to send and recieve data as json and bytes (buffers)
-* Requires definig handlers in `api.py`
+* Implements a python+Flask based API that allow applications to send and recieve data as strings, json-objects, bytes and files/buffers from a central server.
+
 * refer to an [example notebook](examples/api-demo.ipynb)
 
 
 ## [ 4 ] Topics Server using `known.topics`
 
 * Implements a python+Flask based web-app that allow users to share files on a local network
-* Requires definig configuration and users `configs.py` and `__login__.csv`
+
 * To start a topics sever, use the following command
 ```bash
 python -m known.topics --dir=/path/to/workspace
 ```
+
+* Requires definig configuration and users `configs.py` and `__login__.csv`
+
 * NOTE: the `--dir` arguments specifies a path to a workspace folder where the `configs.py` and `__login__.csv` files are supposed to be. Only the files inside the directory can be shared. All the uploaded files will also be stored inside this directory.
 
 * Refer to file `known.topics.__init__.py` to setup server.
