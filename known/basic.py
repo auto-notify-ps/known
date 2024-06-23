@@ -3,7 +3,7 @@ __doc__=r"""
 :py:mod:`known/basic.py`
 """
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-__all__ = [  'Kio', 'Verbose', 'Remap',  'IndexedDict', 'Zipper', 'Mailer', 'BaseConvert' ]
+__all__ = [ 'HRsizes', 'EveryThing', 'Kio', 'Verbose', 'Remap',  'BaseConvert', 'IndexedDict', 'Zipper', 'Mailer' ]
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 from typing import Any, Union, Iterable, Callable #, BinaryIO, cast, Dict, Optional, Type, Tuple, IO
 import os, platform, datetime, smtplib, mimetypes, json, pickle
@@ -12,6 +12,27 @@ from zipfile import ZipFile
 from email.message import EmailMessage
 from collections import UserDict
 from io import BytesIO
+
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+class HRsizes: # covert human readable size (like  "12.5MB") to bytes and visa versa
+    mapper = dict(BB=1, KB=2**10, MB=2**20, GB=2**30, TB=2**40) # 2 chars for keys
+    @staticmethod
+    def tobytes(size:str): return round(float(size[:-2])*__class__.mapper.get(size[-2:].upper(), 0))
+    @staticmethod
+    def tostr(size:int, roundoff=2):
+        if      size<__class__.mapper["KB"]: return f"{size}BB"
+        elif    size<__class__.mapper["MB"]: return f"{round(size/(__class__.mapper['KB']),roundoff)}KB"
+        elif    size<__class__.mapper["GB"]: return f"{round(size/(__class__.mapper['MB']),roundoff)}MB"
+        elif    size<__class__.mapper["TB"]: return f"{round(size/(__class__.mapper['GB']),roundoff)}GB"
+        else                               : return f"{round(size/(__class__.mapper['TB']),roundoff)}TB"
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+class EveryThing: # use as a set that contains everything (use with 'in' keyword)
+    def __contains__(self, x): return True
+
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 class Kio:
@@ -50,7 +71,6 @@ class Kio:
         return o
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
 
 class Verbose:
     r""" Contains shorthand helper functions for printing outputs and representing objects as strings.
@@ -132,7 +152,7 @@ class Verbose:
         return res + end
 
     @staticmethod
-    def strA(arr:Iterable, start:str="", sep:str="|", end:str="") -> None: print(__class__.strA(arr, start, sep, end))
+    def strA(arr:Iterable, start:str="", sep:str="|", end:str="") -> None: print(__class__.strA_(arr, start, sep, end))
     
     @staticmethod
     def strD_(arr:Iterable, sep:str="\n", cep:str=":\n", caption:str="") -> str:
@@ -149,7 +169,7 @@ class Verbose:
         return f"{res}{__class__.DASHED_LINE}{sep}"
 
     @staticmethod
-    def strD(arr:Iterable, sep:str="\n", cep:str=":\n", caption:str="") -> None: print(__class__.strD(arr, sep, cep, caption))
+    def strD(arr:Iterable, sep:str="\n", cep:str=":\n", caption:str="") -> None: print(__class__.strD_(arr, sep, cep, caption))
 
     @staticmethod
     def strU(form:Union[None, Iterable[str]], start:str='', sep:str='', end:str='') -> str:
@@ -715,6 +735,4 @@ class Mailer:
         else:   pass # assume callable
         __class__.send_mail(login,  __class__.compose_mail(subject, rx, cc, bcc, content, signature, attached, verbose), verbose)
 
-        
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-

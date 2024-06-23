@@ -3,10 +3,10 @@ Generic functions for pytorch modules
 """
 
 # -----------------------------------------------------------------------------------------------------
+from typing import Any as Tensor # just for type hinting
+from typing import Any as Module # just for type hinting
 import torch as tt
-from torch import Tensor
 import torch.nn as nn
-from torch.nn import Module, ModuleList
 from io import BytesIO
 # -----------------------------------------------------------------------------------------------------
 
@@ -123,7 +123,7 @@ def clones(module:Module, n_copies:int):
 
 def clone(module:Module): return clones(module, 1).pop()
 
-def duplicate(module:Module, n_copies): return ModuleList(clones(module, n_copies))
+def duplicate(module:Module, n_copies): return nn.ModuleList(clones(module, n_copies))
 
 def requires_grad_(module:Module, requires:bool, *names):
     r""" Sets requires_grad attribute on tensors in params

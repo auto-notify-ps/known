@@ -64,7 +64,7 @@ print(f'{g_break}\nStarting...\n{g_break}')
 # ==> define working directories
 #-----------------------------------------------------------------------------------------
 WORKDIR = f'{parsed.dir}'                               # define working dir - contains all bases
-if not WORKDIR: WORKDIR = os.path.join(os.getcwd())     # if still not specified, set as default
+if not WORKDIR: WORKDIR = os.getcwd()     # if still not specified, set as default
 print(f'↪ Workspace directory is {WORKDIR}')
 try: os.makedirs(WORKDIR, exist_ok=True)
 except: exit(f'[!] Workspace directory was not found and could not be created')
@@ -86,7 +86,7 @@ CSV_DTYPE=f'U{MAX_STR_LEN*2}'
 LOGIN_ORD = ['ADMIN','UID','NAME','PASS']
 
 DEFAULT_USER = 'admin'
-DEFAULT_ACCESS = f'DABU+'
+DEFAULT_ACCESS = f'DABUS+'
 
 #-----------------------------------------------------------------------------------------
 
@@ -191,7 +191,6 @@ def WRITE_DB_TO_DISK(login_xl_path, db_frame): # will change the order
 
 def GET_FILE_LIST (d): 
     dlist = []
-    #d = DOWNLOAD_FOLDER_PATH, ARCHIVE_FOLDER_PATH
     for f in os.listdir(d):
         p = os.path.join(d, f)
         if os.path.isfile(p): dlist.append(f)
@@ -391,9 +390,9 @@ admin = """
         <div class="topic_mid">{{ config.topic }}</div>
         <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
         <br>
-        <a href="{{ url_for('logout') }}" class="btn_logout">Logout</a>
-        <a href="{{ url_for('upload') }}" class="btn_back">Back</a>
-        <a href="{{ url_for('adminpage') }}" class="btn_refresh">Refresh</a>
+        <a href="{{ url_for('route_logout') }}" class="btn_logout">Logout</a>
+        <a href="{{ url_for('route_home') }}" class="btn_back">Back</a>
+        <a href="{{ url_for('route_adminpage') }}" class="btn_refresh">Refresh</a>
         <br>
         <br>
 
@@ -405,19 +404,19 @@ admin = """
         <br>
         <br>
         {% if '+' in session.admind %}
-        <a href="{{ url_for('adminpage',req_cmd='dbw') }}" class="btn_admin">⚙ Persist login-db ↷</a>
+        <a href="{{ url_for('route_adminpage',req_cmd='dbw') }}" class="btn_admin">⚙ Persist login-db ↷</a>
         <br>
         <br>
-        <a href="{{ url_for('adminpage',req_cmd='dbr') }}" class="btn_admin">⚙ Reload login-db ↺</a>
+        <a href="{{ url_for('route_adminpage',req_cmd='dbr') }}" class="btn_admin">⚙ Reload login-db ↺</a>
         <br>
         <br>
-        <a href="{{ url_for('adminpage',req_cmd='upd') }}" class="btn_admin">⚙ Update download-list ▤</a>
+        <a href="{{ url_for('route_adminpage',req_cmd='upd') }}" class="btn_admin">⚙ Update download-list ▤</a>
         <br>
         <br>
-        <a href="{{ url_for('adminpage',req_cmd='upa') }}" class="btn_admin">⚙ Update archive-list ⊞</a>
+        <a href="{{ url_for('route_adminpage',req_cmd='upa') }}" class="btn_admin">⚙ Update archive-list ⊞</a>
         <br>
         <br>
-        <a href="{{ url_for('adminpage',req_cmd='ref') }}" class="btn_admin">⚙ Refresh board ▣</a>
+        <a href="{{ url_for('route_adminpage',req_cmd='ref') }}" class="btn_admin">⚙ Refresh board ▣</a>
         <br>
         <br>
         <button class="btn_admin" onclick="confirm_repass()">⚙ Reset Password ⨝</button>
@@ -425,7 +424,7 @@ admin = """
                 function confirm_repass() {
                 let res = prompt("Enter UID", ""); 
                 if (res != null) {
-                    location.href = "{{ url_for('repass',req_uid='::::') }}".replace("::::", res);
+                    location.href = "{{ url_for('route_repass',req_uid='::::') }}".replace("::::", res);
                     }
                 }
             </script>
@@ -458,7 +457,7 @@ login = """
         <div class="topic">{{ config.topic }}</div>
         <br>
         <br>
-        <form action="{{ url_for('login') }}" method="post">
+        <form action="{{ url_for('route_login') }}" method="post">
             <br>
             <div style="font-size: x-large;">{{ warn }}</div>
             <br>
@@ -501,11 +500,11 @@ login = """
 </html>
 """,
 # ******************************************************************************************
-download = """
+downloads = """
 <html>
     <head>
         <meta charset="UTF-8">
-        <title> 🔻 {{ config.topic }} | {{ session.uid }} </title>
+        <title> 📥 {{ config.topic }} | {{ session.uid }} </title>
         <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">           
     </head>
     <body>
@@ -517,9 +516,8 @@ download = """
         <div class="topic_mid">{{ config.topic }}</div>
         <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
         <br>
-        <a href="{{ url_for('logout') }}" class="btn_logout">Logout</a>
-        <a href="{{ url_for('upload') }}" class="btn_back">Back</a>
-        <a href="{{ url_for('download') }}" class="btn_refresh">Refresh</a>
+        <a href="{{ url_for('route_logout') }}" class="btn_logout">Logout</a>
+        <a href="{{ url_for('route_home') }}" class="btn_back">Back</a>
         <br>
         <br>
         <div class="files_status">Downloads</div>
@@ -543,11 +541,11 @@ download = """
 </html>
 """,
 # ******************************************************************************************
-archive = """
+archives = """
 <html>
     <head>
         <meta charset="UTF-8">
-        <title> 🔶 {{ config.topic }} | {{ session.uid }} </title>
+        <title> 📦 {{ config.topic }} | {{ session.uid }} </title>
         <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">           
     </head>
     <body>
@@ -559,9 +557,8 @@ archive = """
         <div class="topic_mid">{{ config.topic }}</div>
         <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
         <br>
-        <a href="{{ url_for('logout') }}" class="btn_logout">Logout</a>
-        <a href="{{ url_for('upload') }}" class="btn_back">Back</a>
-        <a href="{{ url_for('archive') }}" class="btn_refresh">Refresh</a>
+        <a href="{{ url_for('route_logout') }}" class="btn_logout">Logout</a>
+        <a href="{{ url_for('route_home') }}" class="btn_back">Back</a>
         <br>
         <br>
         <div class="files_status">Archives</div>
@@ -585,11 +582,52 @@ archive = """
 </html>
 """,
 # ******************************************************************************************
-upload="""
+uploads = """
 <html>
     <head>
         <meta charset="UTF-8">
-        <title> 🔺 {{ config.topic }} | {{ session.uid }} </title>
+        <title> 📤 {{ config.topic }} | {{ session.uid }} </title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">           
+    </head>
+    <body>
+    <!-- ---------------------------------------------------------->
+    </br>
+    <!-- ---------------------------------------------------------->
+    
+    <div align="left" style="padding: 20px;">
+        <div class="topic_mid">{{ config.topic }}</div>
+        <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
+        <br>
+        <a href="{{ url_for('route_logout') }}" class="btn_logout">Logout</a>
+        <a href="{{ url_for('route_home') }}" class="btn_back">Back</a>
+        <br>
+        <br>
+        <div class="files_status">Uploads</div>
+        <br>
+        <div class="files_list_down">
+            <ol>
+            {% for file in session.filed %}
+            <li><a href="{{ (request.path + '/' if request.path != '/' else '') + file }}" style="text-decoration: none; color: rgb(20, 20, 20);" >{{ file }}</a></li>
+            <br>
+            {% endfor %}
+            </ol>
+        </div>
+        <br>
+        <br>
+    </div>
+
+    <!-- ---------------------------------------------------------->
+    </br>
+    <!-- ---------------------------------------------------------->
+    </body>
+</html>
+""",
+# ******************************************************************************************
+home="""
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title> 🔘 {{ config.topic }} | {{ session.uid }} </title>
         <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">					 
     </head>
     <body>
@@ -601,21 +639,21 @@ upload="""
         <div class="topic_mid">{{ config.topic }}</div>
         <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
         <br>
-        <a href="{{ url_for('logout') }}" class="btn_logout">Logout</a>
+        <a href="{{ url_for('route_logout') }}" class="btn_logout">Logout</a>
         {% if "D" in session.admind %}
-        <a href="{{ url_for('download') }}" class="btn_download">Downloads</a>
+        <a href="{{ url_for('route_downloads') }}" class="btn_download">Downloads</a>
+        {% endif %}
+        {% if "S" in session.admind %}
+        <a href="{{ url_for('route_uploads') }}" class="btn_upload">Uploads</a>
         {% endif %}
         {% if "A" in session.admind %}
-        <a href="{{ url_for('archive') }}" class="btn_archive">Archives</a>
-        {% endif %}
-        {% if "U" in session.admind %}
-        <a href="{{ url_for('uploadf') }}" class="btn_refresh">Refresh</a>
+        <a href="{{ url_for('route_archives') }}" class="btn_archive">Archives</a>
         {% endif %}
         {% if "B" in session.admind and config.board %}
-        <a href="{{ url_for('board') }}" class="btn_board" target="_blank">Board</a>
+        <a href="{{ url_for('route_board') }}" class="btn_board" target="_blank">Board</a>
         {% endif %}
         {% if '+' in session.admind %}
-        <a href="{{ url_for('adminpage') }}" class="btn_admin">⚙</a>
+        <a href="{{ url_for('route_adminpage') }}" class="btn_admin">⚙</a>
         {% endif %}
         <br>
         <br>
@@ -643,12 +681,15 @@ upload="""
         </form>
         <br>
         <div class="files_status">Uploads
+        {% if "U" in session.admind %}
+        <a href="{{ url_for('route_uploadf') }}" class="btn_refresh">Refresh</a>
+        {% endif %}
         <button class="btn_purge" onclick="confirm_purge()">Purge</button>
             <script>
                 function confirm_purge() {
                 let res = confirm("Purge all the uploaded files now?");
                 if (res == true) {
-                    location.href = "{{ url_for('purge') }}";
+                    location.href = "{{ url_for('route_purge') }}";
                     }
                 }
             </script>
@@ -840,7 +881,7 @@ style = """
 
 .btn_refresh {
     padding: 2px 10px 2px;
-    background-color: #a19636; 
+    background-color: #6daa43; 
     color: #FFFFFF;
     font-weight: bold;
     font-size: large;
@@ -920,9 +961,20 @@ style = """
     text-decoration: none;
 }
 
+.btn_upload {
+    padding: 2px 10px 2px;
+    background-color: #0b7daa; 
+    color: #FFFFFF;
+    font-weight: bold;
+    font-size: large;
+    border-radius: 10px;
+    font-family:monospace;
+    text-decoration: none;
+}
+
 .btn_back {
     padding: 2px 10px 2px;
-    background-color: #48952d; 
+    background-color: #a19636; 
     color: #FFFFFF;
     font-weight: bold;
     font-size: large;
@@ -1194,13 +1246,54 @@ class UploadFileForm(FlaskForm): # The upload form using FlaskForm
     submit = SubmitField("Upload File")
 # ------------------------------------------------------------------------------------------
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #%% [4]
 # app.route  > all app.route implemented here 
 # ------------------------------------------------------------------------------------------
 # login
 # ------------------------------------------------------------------------------------------
 @app.route('/', methods =['GET', 'POST'])
-def login():
+def route_login():
     LOGIN_NEED_TEXT =       '🔒'
     LOGIN_FAIL_TEXT =       '❌'     
     LOGIN_NEW_TEXT =        '🔥'
@@ -1271,7 +1364,7 @@ def login():
                             session['uid'] = uid
                             session['named'] = named
                             session['emojid'] = ''
-                            return redirect(url_for('logout'))
+                            return redirect(url_for('route_logout'))
                     
                         session['has_login'] = True
                         session['uid'] = uid
@@ -1293,7 +1386,7 @@ def login():
                         #print(f'◦ login success {uid}|{named}')
                         dprint(f'● {session["uid"]} {session["emojid"]} {session["named"]} has logged in') 
                         #print(f"filed @ login= {session['filed']}")
-                        return redirect(url_for('upload'))
+                        return redirect(url_for('route_home'))
                     else:  
                         #print(f"[.....] password does not match")  
                         warn = LOGIN_FAIL_TEXT
@@ -1308,7 +1401,7 @@ def login():
             msg = f'[{in_uid}] Not a valid user' 
 
     else:
-        if session.get('has_login', False):  return redirect(url_for('upload'))
+        if session.get('has_login', False):  return redirect(url_for('route_home'))
         #print(f"+ page hit")
         msg = args.welcome
         warn = LOGIN_NEED_TEXT 
@@ -1316,10 +1409,10 @@ def login():
     return render_template('login.html', msg = msg,  warn = warn)
 
 @app.route('/logout')
-def logout():
+def route_logout():
     r""" logout a user and redirect to login page """
-    if not session.get('has_login', False):  return redirect(url_for('login'))
-    if not session.get('uid', False): return redirect(url_for('login'))
+    if not session.get('has_login', False):  return redirect(url_for('route_login'))
+    if not session.get('uid', False): return redirect(url_for('route_login'))
     #print(f"◦ log out user {session['uid']}")
     if session['has_login']:  dprint(f'● {session["uid"]} {session["emojid"]} {session["named"]} has logged out') 
     else: dprint(f'✗ {session["uid"]} ◦ {session["named"]} was removed due to invalid uid ({session["uid"]})') 
@@ -1329,16 +1422,16 @@ def logout():
     session['emojid'] = ""
     session['admind'] = ''
     session['filed'] = []
-    return redirect(url_for('login'))
+    return redirect(url_for('route_login'))
 # ------------------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------------------
 # board
 # ------------------------------------------------------------------------------------------
 @app.route('/board', methods =['GET'])
-def board():
-    if not session.get('has_login', False): return redirect(url_for('login'))
-    if 'B' not in session['admind']:  return redirect(url_for('upload'))
+def route_board():
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    if 'B' not in session['admind']:  return redirect(url_for('route_home'))
     return BOARD_PAGE
 
 # ------------------------------------------------------------------------------------------
@@ -1346,11 +1439,11 @@ def board():
 # ------------------------------------------------------------------------------------------
 # archive
 # ------------------------------------------------------------------------------------------
-@app.route('/archive', methods =['GET'], defaults={'req_path': ''})
-@app.route('/archive/<path:req_path>')
-def archive(req_path):
-    if not session.get('has_login', False): return redirect(url_for('login'))
-    if not 'A' in session['admind']: return redirect(url_for('upload'))
+@app.route('/archives', methods =['GET'], defaults={'req_path': ''})
+@app.route('/archives/<path:req_path>')
+def route_archives(req_path):
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    if not 'A' in session['admind']: return redirect(url_for('route_home'))
     abs_path = os.path.join(app.config['archives'], req_path) # Joining the base and the requested path
     #if req_path:print(f"◦ {session['uid']} trying to download {req_path}")
     if not os.path.exists(abs_path): 
@@ -1359,17 +1452,17 @@ def archive(req_path):
     if os.path.isfile(abs_path):  #print(f"◦ sending file ")
         dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path}')
         return send_file(abs_path) # Check if path is a file and serve
-    return render_template('archive.html')
+    return render_template('archives.html')
 # ------------------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------------------
 # download
 # ------------------------------------------------------------------------------------------
-@app.route('/download', methods =['GET'], defaults={'req_path': ''})
-@app.route('/download/<path:req_path>')
-def download(req_path):
-    if not session.get('has_login', False): return redirect(url_for('login'))
-    if 'D' not in session['admind']:  return redirect(url_for('upload'))
+@app.route('/downloads', methods =['GET'], defaults={'req_path': ''})
+@app.route('/downloads/<path:req_path>')
+def route_downloads(req_path):
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    if 'D' not in session['admind']:  return redirect(url_for('route_home'))
     abs_path = os.path.join(app.config['downloads'], req_path) # Joining the base and the requested path
     #if req_path:print(f"◦ {session['uid']} trying to download {req_path}")
     if not os.path.exists(abs_path): 
@@ -1378,15 +1471,34 @@ def download(req_path):
     if os.path.isfile(abs_path):  #print(f"◦ sending file ")
         dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path}')
         return send_file(abs_path) # Check if path is a file and serve
-    return render_template('download.html')
+    return render_template('downloads.html')
 # ------------------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------------------
-# upload
+# uploads
 # ------------------------------------------------------------------------------------------
-@app.route('/upload', methods =['GET', 'POST'])
-def upload():
-    if not session.get('has_login', False): return redirect(url_for('login'))
+@app.route('/uploads', methods =['GET'], defaults={'req_path': ''})
+@app.route('/uploads/<path:req_path>')
+def route_uploads(req_path):
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    if 'S' not in session['admind']:  return redirect(url_for('route_home'))
+    abs_path = os.path.join(os.path.join( app.config['uploads'], session['uid']) , req_path)# Joining the base and the requested path
+    #if req_path:print(f"◦ {session['uid']} trying to download {req_path}")
+    if not os.path.exists(abs_path): 
+        dprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
+        return abort(404) # print(f"◦ requested file was not found") #Return 404 if path doesn't exist
+    if os.path.isfile(abs_path):  #print(f"◦ sending file ")
+        dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path}')
+        return send_file(abs_path) # Check if path is a file and serve
+    return render_template('uploads.html')
+# ------------------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------------------
+# home - upload
+# ------------------------------------------------------------------------------------------
+@app.route('/home', methods =['GET', 'POST'])
+def route_home():
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
     #print( session['admind'])
     form = UploadFileForm()
     folder_name = os.path.join( app.config['uploads'], session['uid']) 
@@ -1396,7 +1508,7 @@ def upload():
     if form.validate_on_submit() and ('U' in session['admind']):
         dprint(f"⇒ user {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items.")
         if app.config['muc']==0: 
-            return render_template('upload.html', form=form, status=[(0, f'✗ Uploads are disabled')])
+            return render_template('home.html', form=form, status=[(0, f'✗ Uploads are disabled')])
         else:
             result = []
             n_success = 0
@@ -1430,19 +1542,19 @@ def upload():
             #print(f"◦ upload results: \n{result}")
             result_show = ''.join([f'\t{r[-1]}\n' for r in result])
             dprint(f'✓ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s)\n\n{result_show}') 
-            return render_template('upload.html', form=form, status=result)
+            return render_template('home.html', form=form, status=result)
         
     #file_list = session['filed'] #os.listdir(folder_name)
-    return render_template('upload.html', form=form, status=(INITIAL_UPLOAD_STATUS if app.config['muc']!=0 else [(-1, f'Uploads are disabled')]))
+    return render_template('home.html', form=form, status=(INITIAL_UPLOAD_STATUS if app.config['muc']!=0 else [(-1, f'Uploads are disabled')]))
 # ------------------------------------------------------------------------------------------
 
 @app.route('/uploadf', methods =['GET'])
-def uploadf():
+def route_uploadf():
     r""" force upload - i.e., refresh by using os.list dir """
-    if not session.get('has_login', False): return redirect(url_for('login'))
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
     folder_name = os.path.join( app.config['uploads'], session['uid']) 
     session['filed'] = os.listdir(folder_name)
-    return redirect(url_for('upload'))
+    return redirect(url_for('route_home'))
 
 # ------------------------------------------------------------------------------------------
 
@@ -1450,12 +1562,12 @@ def uploadf():
 # purge
 # ------------------------------------------------------------------------------------------
 @app.route('/purge', methods =['GET'])
-def purge():
+def route_purge():
     r""" purges all files that a user has uploaded in their respective uplaod directory
     NOTE: each user will have its won directory, so choose usernames such that a corresponding folder name is a valid one
     """
-    if not session.get('has_login', False): return redirect(url_for('login'))
-    if 'U' not in session['admind']:  return redirect(url_for('upload'))
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    if 'U' not in session['admind']:  return redirect(url_for('route_home'))
     folder_name = os.path.join( app.config['uploads'], session['uid']) 
     if os.path.exists(folder_name):
         file_list = os.listdir(folder_name)
@@ -1464,7 +1576,7 @@ def purge():
         dprint(f'● {session["uid"]} ◦ {session["named"]} used purge')
         session['filed']=[]
         #dprint(f"filed @ purge= {session['filed']}")
-    return redirect(url_for('upload'))
+    return redirect(url_for('route_home'))
 # ------------------------------------------------------------------------------------------
 
  
@@ -1474,9 +1586,9 @@ def purge():
 # ------------------------------------------------------------------------------------------
 @app.route('/admin/', methods =['GET'], defaults={'req_cmd': ''})
 @app.route('/admin/<req_cmd>')
-def adminpage(req_cmd):
+def route_adminpage(req_cmd):
     r""" opens admin page """ 
-    if not session.get('has_login', False): return redirect(url_for('login')) # "Not Allowed - Requires Login"
+    if not session.get('has_login', False): return redirect(url_for('route_login')) # "Not Allowed - Requires Login"
     if '+' in session['admind']: 
         in_cmd = f'{req_cmd}'
         if in_cmd: 
@@ -1532,9 +1644,9 @@ def refresh_board():
 # ------------------------------------------------------------------------------------------
 @app.route('/x/', methods =['GET'], defaults={'req_uid': ''})
 @app.route('/x/<req_uid>')
-def repass(req_uid):
+def route_repass(req_uid):
     r""" reset user password"""
-    if not session.get('has_login', False): return redirect(url_for('login')) # "Not Allowed - Requires Login"
+    if not session.get('has_login', False): return redirect(url_for('route_login')) # "Not Allowed - Requires Login"
     if '+' in session['admind']: 
         in_uid = f'{req_uid}'
         if in_uid: 
@@ -1545,7 +1657,7 @@ def repass(req_uid):
             if record is not None: 
                 admind, uid, named, _ = record
                 admind = f'{admind}'.upper()
-                if '+' not in admind:
+                if ('+' not in admind) or session['uid']==uid:
                     db[uid][3]='' ## 3 for PASS  record['PASS'].values[0]=''
                     #HAS_PENDING+=1
                     dprint(f"▶ {session['uid']} ◦ {session['named']} just reset the password for {uid} ◦ {named}")

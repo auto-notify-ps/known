@@ -15,7 +15,7 @@ The package is frequently updated by adding new functionality, make sure to have
 
 :py:mod:`known/__init__.py`
 """
-__version__ = '0.0.16'
-#print(f'known.{__version__}')
+__version__ = '0.0.19'
+#print(f'known.{__version__}\n{__file__}')
 
 from .basic import *
