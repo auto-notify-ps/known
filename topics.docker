@@ -1,0 +1,5 @@
+FROM python:3.9.19-slim-bullseye
+RUN python -m pip install Flask Flask-WTF waitress nbconvert
+WORKDIR /
+COPY known/topics/__main__.py /run.py
+CMD ["python", "run.py", "--dir=/mount"]
