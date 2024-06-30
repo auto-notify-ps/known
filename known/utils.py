@@ -1,5 +1,13 @@
 __doc__=""" Helper Functions and Utils """
 
+import os 
+
+def ParseLinuxFiles(F, check=False): # parses --files="%F"
+    Fl = [fi.strip() for fi in F.split("'/")]
+    Fr = [os.path.abspath(f'/{fl[:-1]}'.replace("'\\''","'")) for fl in Fl if fl] 
+    if check: Fr = [fr for fr in Fr if os.path.exists(fr)]
+    return Fr
+
 def ConfigParser(dict_to_object=True):
     r""" A replacement for usual argparse method of passing arguments to python scripts
 
@@ -208,5 +216,3 @@ def GraphFromImage(img_path:str, pixel_choice:str='first', dtype=None):
     if dtype is None: dtype=np.float_
     return np.array([ imgmax-px(np.where(j[:,i]==1)[0]) for i in range(j.shape[1]) ], dtype=dtype)
 
-
-    
