@@ -49,8 +49,8 @@ except: exit(f'[!] The required waitress package missing:\twaitress>=3.0.0\n  â‡
 # ------------------------------------------------------------------------------------------
 parser = argparse.ArgumentParser()
 parser.add_argument('--dir', type=str, default='', help="path of workspace directory")
-parser.add_argument('--cos', type=int, default=0, help="use 1 to create-on-start - create (overwrites) pages")
-parser.add_argument('--coe', type=int, default=0, help="use 1 to clean-on-exit - deletes pages")
+parser.add_argument('--cos', type=int, default=1, help="use 1 to create-on-start - create (overwrites) pages")
+parser.add_argument('--coe', type=int, default=1, help="use 1 to clean-on-exit - deletes pages")
 parsed = parser.parse_args()
 # args parsing
 # ------------------------------------------------------------------------------------------
@@ -640,11 +640,11 @@ home="""
         <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
         <br>
         <a href="{{ url_for('route_logout') }}" class="btn_logout">Logout</a>
-        {% if "D" in session.admind %}
-        <a href="{{ url_for('route_downloads') }}" class="btn_download">Downloads</a>
-        {% endif %}
         {% if "S" in session.admind %}
         <a href="{{ url_for('route_uploads') }}" class="btn_upload">Uploads</a>
+        {% endif %}
+        {% if "D" in session.admind %}
+        <a href="{{ url_for('route_downloads') }}" class="btn_download">Downloads</a>
         {% endif %}
         {% if "A" in session.admind %}
         <a href="{{ url_for('route_archives') }}" class="btn_archive">Archives</a>

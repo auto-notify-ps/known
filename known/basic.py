@@ -591,6 +591,23 @@ class Zipper:
         return file_paths   
 
     @staticmethod
+    def get_all_file_infos(directory):
+        r""" recursively list all files in a folder along with size and extension 
+        returns (file-name, file-name-without-extension, file-extension, file-base, file-path, file-abs-path, file-size, ) """
+        file_paths = []
+        # crawling through directory and subdirectories
+        for root, directories, files in os.walk(directory):
+            for file_name in files:
+                # join the two strings in order to form the full filepath.
+                i = file_name.rfind('.')
+                if i<0:     file_name_we, file_ext = file_name, file_name
+                else:       file_name_we, file_ext = file_name[0:i], file_name[i:]
+                file_path = os.path.join(root, file_name)
+                file_abs = os.path.abspath(file_path)
+                file_paths.append((file_name, file_name_we, file_ext, root, file_path, file_abs, os.stat(file_path).st_size))
+        return file_paths 
+    
+    @staticmethod
     def zip_folders(zip_path:str, folders, **kwargs):  
         r""" zip multiple folders into a single zip file """    
         if isinstance(folders, str): folders= [f'{folders}']
