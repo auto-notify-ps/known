@@ -35,9 +35,9 @@ try:
     from wtforms import SubmitField, MultipleFileField
     from werkzeug.utils import secure_filename
     from wtforms.validators import InputRequired
-except: exit(f'[!] The required Flask packages missing:\tFlask>=3.0.2, Flask-WTF>=1.2.1\n  ⇒ pip install Flask==3.0.2 Flask-WTF==1.2.1')
-try: from waitress import serve
-except: exit(f'[!] The required waitress package missing:\twaitress>=3.0.0\n  ⇒ pip install waitress==3.0.0')
+    from waitress import serve
+except: exit(f'[!] The required Flask packages missing:\tFlask>=3.0.2, Flask-WTF>=1.2.1\twaitress>=3.0.0\n  ⇒ pip install Flask Flask-WTF waitress')
+
 # ------------------------------------------------------------------------------------------
 
 
@@ -87,6 +87,15 @@ LOGIN_ORD = ['ADMIN','UID','NAME','PASS']
 
 DEFAULT_USER = 'admin'
 DEFAULT_ACCESS = f'DABUS+'
+"""
+DEFAULT_ACCESS:
+D   Read from [D]ownloads
+A   Read from [A]rchives
+B   Access [B]oard
+U   Perform [U]pload
+S   Read from [S]elf Uploads
++   Admin access enabled
+"""
 
 #-----------------------------------------------------------------------------------------
 
@@ -1189,22 +1198,23 @@ if args.board:
         from nbconvert import HTMLExporter 
         has_nbconvert_package=True
     except:
-        sprint(f'⚙ Board File is specified but requires nbconvert>=7.16.2 which is missing\n  ⇒ pip install nbconvert==7.16.2')
+        print(f'[!] Board will not be enabled since it requires nbconvert>=7.16.2 which is missing\n  ⇒ pip install nbconvert')
         has_nbconvert_package = False
-    finally:
-        if has_nbconvert_package:
-            BOARD_FILE_MD = os.path.join(BASEDIR, f'{args.board}')
-            if  os.path.isfile(BOARD_FILE_MD): sprint(f'⚙ Board File:\t{BOARD_FILE_MD}')
-            else: 
-                sprint(f'⚙ Board File:\t{BOARD_FILE_MD} not found - trying to create...')
-                try:
-                    with open(BOARD_FILE_MD, 'w', encoding='utf-8') as f: f.write(NEW_NOTEBOOK_STR(f'# Board 🔰 {args.topic}'))
-                    sprint(f'⚙ Board File:\t{BOARD_FILE_MD} was created successfully!')
-                except: 
-                     BOARD_FILE_MD = None
-                     sprint(f'⚙ Board File:\t{BOARD_FILE_MD} could not be created - Board will not be available!')
-        else: BOARD_FILE_MD = None
-if not BOARD_FILE_MD:  sprint(f'⚙ Board File:\tNot Enabled')
+
+    if has_nbconvert_package:
+        BOARD_FILE_MD = os.path.join(BASEDIR, f'{args.board}')
+        if  os.path.isfile(BOARD_FILE_MD): sprint(f'⚙ Board File:\t{BOARD_FILE_MD}')
+        else: 
+            sprint(f'⚙ Board File:\t{BOARD_FILE_MD} not found - trying to create...')
+            try:
+                with open(BOARD_FILE_MD, 'w', encoding='utf-8') as f: f.write(NEW_NOTEBOOK_STR(f'# Board 🔰 {args.topic}'))
+                sprint(f'⚙ Board File:\t{BOARD_FILE_MD} was created successfully!')
+            except:
+                    BOARD_FILE_MD = None
+                    sprint(f'⚙ Board File:\t{BOARD_FILE_MD} could not be created - Board will not be available!')
+
+if not BOARD_FILE_MD:   sprint(f'⚙ Board:\tNot Available')
+else:                   sprint(f'⚙ Board:\tIs Available')
 def update_board(): 
     global BOARD_PAGE
     res = False

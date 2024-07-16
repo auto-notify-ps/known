@@ -49,7 +49,7 @@ try:
     from waitress import serve
     from http import HTTPStatus
     from shutil import rmtree
-except: exit(f'[!] Required packages missing')
+except: exit(f'[!] Required packages missing - pip install Flask waitress')
 #-----------------------------------------------------------------------------------------
 
 
@@ -82,11 +82,12 @@ def DEFAULT_CONFIG_GENERATE(env): return '\nconfig = {\n' + f"""
     'port'        : "{env.get('port', '8080')}", # server port
     'host'        : "{env.get('host', '0.0.0.0')}", # server address (keep 0.0.0.0 to run on all IPs)
     'allow'       : "{env.get('allow', '')}", # a comma-seperated list of host IP address that are allowed to POST (keep blank to allow all)
-    'uids'       : "{env.get('uids', '')}", # a comma-seperated list of client uids that are allowed to POST (keep blank to allow all)
+    'uids'        : "{env.get('uids', '')}", # a comma-seperated list of client uids that are allowed to POST (keep blank to allow all)
     'threads'     : {int(env.get('threads', 1))}, # no of threads on the server
     'storage'     : "{env.get('storage', '')}", # the path of storage folder (keep blank to use `os.getcwd()` or set as `None` to not use storage)
+    'xtop'        : {bool(env.get('xtop', False))}, # if True, xcludes the top-level files in storage dir
 """ +'\n}'+ """
-def handle(request_content:object, request_type:str) -> (object, str, str):
+def handle(request_content:object, request_type:str):
     # handle an incoming request from client 
     # NOTE: only handles `send_` type requests and not `path_` type requests
 
@@ -145,7 +146,7 @@ except: exit(f'[!] Could import configs module "{CONFIG_MODULE}" at "{CONFIGS_FI
 try:
     print(f'↪ Reading config from {CONFIG_MODULE}.{CONFIG}')
     config_dict = getattr(c_module, CONFIG)
-    print(f'  ↦ type:{type(config_dict)}')
+    #print(f'  ↦ type:{type(config_dict)}')
 except:
     exit(f'[!] Could not read config from {CONFIG_MODULE}.{CONFIG}')
 
@@ -163,7 +164,7 @@ if not len(args): exit(f'[!] Empty or Invalid config provided')
 try:
     print(f'↪ Getting handle from {CONFIG_MODULE}.{HANDLE}')
     user_handle = getattr(c_module, HANDLE)
-    print(f'  ↦ type:{type(user_handle)}')
+    #print(f'  ↦ type:{type(user_handle)}')
 except:
     exit(f'[!] Could not get handle from {CONFIG_MODULE}.{HANDLE}')
 
@@ -192,7 +193,9 @@ else: uid_allow = EveryThing()
 app.config['allow'] =      allowed
 app.config['storage'] =    storage_path
 app.config['uids'] =       uid_allow
+app.config['xtop'] =       bool(args.xtop)
 # tag is assigned to a uid after it makes a login request - tag is used by client in future requests
+print(f"↪ Storage @ {app.config['storage']} : exclude top-level files: [{app.config['xtop']}]")
 #-----------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------
@@ -241,6 +244,7 @@ def home():
 # Storage urls for file-storage api
 # tag specifies a name of file, type specifies if its a overall-view, a directory listing or a file
 
+def sprint(uid, method, path): print('↦ [{}] {} ({})\t{}'.format(datetime.datetime.now(), method, uid, path))
 
 @app.route('/store', methods =['GET'])
 def storageview(): # an overview of all storage paths and the files in them
@@ -286,10 +290,17 @@ def storage(req_path): # creates a FileNotFoundError
                     return_code = HTTPStatus.OK
                     return_headers = {HeaderType.XTAG: f'{rel_path}', HeaderType.XTYPE: StoreType.DIR}
                 else: 
+                    # make sure to exclude top level files
+                    if app.config['xtop']:
+                        if (basedir==os.path.dirname(abs_path)): 
+                            return f'Top-Level Path is excluded: {abs_path} - cannot read', HTTPStatus.NOT_ACCEPTABLE, {} #<-----RETURNING HERE
+
                     resx = send_file(abs_path) 
                     resx.headers[HeaderType.XTAG] = os.path.basename(abs_path) # 'save_as'
                     resx.headers[HeaderType.XTYPE] = StoreType.FILE
+                    sprint(uid, '🔽🗒️', abs_path) # downloading a file 
                     return resx #<-----RETURNING HERE
+                
             else: return_object, return_code, return_headers = f'Path not found: {abs_path}', HTTPStatus.NOT_FOUND, {}
 
 
@@ -297,9 +308,13 @@ def storage(req_path): # creates a FileNotFoundError
             if os.path.isdir(abs_path):
                 return_object, return_code, return_headers = f'Cannot create file # {abs_path} - folder already exists', HTTPStatus.NOT_ACCEPTABLE, {}
             else:
-                try: 
+                if app.config['xtop']:
+                    if (basedir==os.path.dirname(abs_path)): 
+                        return f'Top-Level Path is excluded: {abs_path} - cannot write', HTTPStatus.NOT_ACCEPTABLE, {} #<-----RETURNING HERE
+                try: # overwrite
                     with open(abs_path, 'wb') as f: f.write(request.get_data())
                     return_object, return_code, return_headers =  f"File created @ {abs_path}", HTTPStatus.OK, {HeaderType.XTAG: f'{rel_path}', HeaderType.XTYPE: StoreType.MSG}
+                    sprint(uid, '✅🗒️', abs_path) # uploading a file
                 except: return_object, return_code, return_headers =   f"Cannot create file @ {abs_path}", HTTPStatus.NOT_ACCEPTABLE, {}
 
 
@@ -309,23 +324,34 @@ def storage(req_path): # creates a FileNotFoundError
             else:
                 os.makedirs(abs_path, exist_ok=True)
                 return_object, return_code, return_headers =  f"Folder created @ {abs_path}", HTTPStatus.OK, {HeaderType.XTAG: f'{rel_path}', HeaderType.XTYPE: StoreType.MSG}
+                sprint(uid, '✅📁', abs_path) # creating a folder
 
 
         elif request.method=='DELETE': # trying to delete a file or folder
             if os.path.isfile(abs_path):
+                if app.config['xtop']:
+                    if (basedir==os.path.dirname(abs_path)): 
+                        return f'Top-Level Path is excluded: {abs_path} - cannot delete', HTTPStatus.NOT_ACCEPTABLE, {} #<-----RETURNING HERE
                 try: 
                     os.remove(abs_path)
                     return_object, return_code, return_headers =     f"File deleted @ {abs_path}", HTTPStatus.OK, {HeaderType.XTAG: f'{rel_path}', HeaderType.XTYPE: StoreType.MSG}
+                    sprint(uid, '❌🗒️', abs_path) # removing a file
                 except: return_object, return_code, return_headers = f"Cannot delete file @ {abs_path}", HTTPStatus.NOT_ACCEPTABLE, {}
             elif os.path.isdir(abs_path):
                 rok = True
                 if int(request.headers.get(HeaderType.XTYPE)):
-                    try: rmtree(abs_path)
+                    try: 
+                        rmtree(abs_path)
+                        sprint(uid, '❌🗂️', abs_path) # removing a directory (recursive)
                     except: rok=False
                 else:
-                    try: os.rmdir(abs_path)
+                    try: 
+                        os.rmdir(abs_path)
+                        sprint(uid, '❌📁', abs_path) # removing a directory (empty)
                     except: rok=False
-                if rok: return_object, return_code, return_headers =   f"Folder deleted @ {abs_path}", HTTPStatus.OK, {HeaderType.XTAG: f'{rel_path}', HeaderType.XTYPE: StoreType.MSG}
+                if rok: 
+                    return_object, return_code, return_headers =   f"Folder deleted @ {abs_path}", HTTPStatus.OK, {HeaderType.XTAG: f'{rel_path}', HeaderType.XTYPE: StoreType.MSG}
+                    
                 else:   return_object, return_code, return_headers =   f'Cannot delete folder at {abs_path}', HTTPStatus.NOT_ACCEPTABLE, {}
             else: return_object, return_code, return_headers =         f'Cannot delete at {abs_path} - not a file or folder', HTTPStatus.NOT_ACCEPTABLE, {}
 

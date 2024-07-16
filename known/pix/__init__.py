@@ -4,24 +4,6 @@ __doc__=r"""pix module"""
 import numpy as np
 import cv2
 
-__all__ = [
-    'DTYPE',
-    'VALID_CHANNELS',
-    'DEFAULT_FILL',
-
-    'create',
-    'save',
-    'load',
-    
-    'flip',
-    'rotate',
-    'fill',
-    'region_fill',
-    'region_copy',
-    'extend',
-
-]
-
 DTYPE =             np.uint8
 VALID_CHANNELS =    set([1, 3, 4])
 DEFAULT_FILL =      255

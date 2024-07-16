@@ -3,7 +3,7 @@ __*__/
 __pycache__/
 *.py[cod]
 *$py.class
-
+/__*__.*
 # C extensions
 *.so
 *.bat
