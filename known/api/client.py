@@ -1,29 +1,6 @@
 import requests, os, getpass
 from http import HTTPStatus
-
-class HeaderType: # lists the http headers used to carry special info
-    XTAG =      'User-Agent'    # "Used to specify a Tag"
-    XTYPE =     'Warning'       # "Used to specify a ContentType"
-
-class RequestContentType: # lists the valid type of requests that clients can send back (specified in HeaderType.XTYPE header field)
-    MESG = "MESG" # represents a string
-    BYTE = "BYTE" # a stream of bytes
-    JSON = "JSON" # a json serializable object
-    FORM = "FORM" # a ClientForm with fields and attachements
-    # only use either one of data or json in post request (not both)
-    # form can only be sent from client to server but not other way
-
-class ResponseContentType: # lists the valid type of response that server can send back to a `send` request (specified in HeaderType.XTYPE header field)
-    MESG = "MESG" # represents a string
-    BYTE = "BYTE" # a stream of bytes
-    JSON = "JSON" # a json serializable object
-    ALL = set([MESG, BYTE, JSON])
-
-class StoreType: # lists the valid type of response that server can send back to a `path` reuest (specified in HeaderType.XTYPE header field)
-    HOME = "H" # Home view which lists all possible paths in the root directory as a dict of {path:files}
-    DIR =  "D" # Directory view returns a json dict as dict(base=<base_path_of_dir>, files=<list_of_files>, folders=<list_of_folders>)
-    FILE = "F" # Indicates a files on the server, this must be saved to a location on client
-    MSG = "M"  # Indicates that this is a message
+from . import HeaderType, RequestContentType, ResponseContentType, StoreType
 
 class ClientForm:
     r""" Represents a form with fields and attachements that can sent to server using a POST request 
@@ -173,10 +150,10 @@ class Client:
 
     """ send_ methods """
 
-    def send_mesg(self, message:str): return self.send(f'{message}', RequestContentType.MESG, xstream=False )
-    def send_json(self, json_object:object): return self.send(json_object, RequestContentType.JSON, xstream=False )
-    def send_form(self, client_form:ClientForm): return self.send(client_form, RequestContentType.FORM, xstream=False )
-    def send_byte(self, byte_data:bytes): return self.send(byte_data, RequestContentType.BYTE, xstream=False )
+    def send_mesg(self, message:str):               return self.send(f'{message}',  RequestContentType.MESG, xstream=False )
+    def send_json(self, json_object:object):        return self.send(json_object,   RequestContentType.JSON, xstream=False )
+    def send_form(self, client_form:ClientForm):    return self.send(client_form,   RequestContentType.FORM, xstream=False )
+    def send_byte(self, byte_data:bytes):           return self.send(byte_data,     RequestContentType.BYTE, xstream=False )
 
     """ path_ methods """
 
@@ -184,13 +161,13 @@ class Client:
         r""" Query the store to get files and folders 
         
         `path`:         <str> the path on the server to get from. 
-                        If path is a file, it will download the file and save it at the path provided in header `User-Agent` (it provides a filename)
+                        If path is a file, it will download the file and save it at the path provided in header `XTAG` (it provides a filename)
                         If path is a folder, it will return a dict of listing dict(root=?, files=?, folders=?) `localhost:8080/store/path/to/folder`
                         if path is empty string "", gets the listing from root folder `localhost:8080/store/`
                         If path is None, does a directory listing at top level `localhost:8080/store`
                         
         `save`:        <str> (optional) the local path to save an incoming file, 
-                        If None, uses the header `User-Agent` (not required for listing directory - only for file get)
+                        If None, uses the header `XTAG` (not required for listing directory - only for file get)
 
         """
         try:    response = requests.get( url = ( self.store[:-1] if path is None else os.path.join(self.store, path) ), timeout = self.timeout, headers={HeaderType.XTAG: self.uid})

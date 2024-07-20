@@ -1,5 +1,0 @@
-FROM python:alpine3.20
-RUN python -m pip install Flask waitress requests
-WORKDIR /
-COPY known/api/__main__.py /run.py
-CMD ["python", "run.py", "--dir=/mount"]

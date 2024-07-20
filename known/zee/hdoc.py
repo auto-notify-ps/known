@@ -4,6 +4,25 @@ __doc__=r"""
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+
+
+class Mark:
+
+
+    @staticmethod
+    def Heading(T, n): return ''.join(['#' for _ in range(n)]) + f' {T}\n'
+
+    @staticmethod
+    def List(L, start=0, tab="  "):
+        t = "".join([f'{tab}' for _ in range(start)])
+        r = ""
+        for l in L:
+            if isinstance(l, (list, tuple)): r+=__class__.List(l, start+1)
+            else: r+=(f'{t}* {l}\n')
+        return r
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
 class Block:
     r""" Represents an HTML Block that has:
         -> tag              an HTML tag (string) 
