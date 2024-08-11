@@ -49,6 +49,7 @@ except: exit(f'[!] The required Flask packages missing:\tFlask>=3.0.2, Flask-WTF
 # ------------------------------------------------------------------------------------------
 parser = argparse.ArgumentParser()
 parser.add_argument('--dir', type=str, default='', help="path of workspace directory")
+parser.add_argument('--reg', type=str, default='', help="if specified, allow users to register with specified access string such as DABU or DABUS+")
 parser.add_argument('--cos', type=int, default=1, help="use 1 to create-on-start - create (overwrites) pages")
 parser.add_argument('--coe', type=int, default=1, help="use 1 to clean-on-exit - deletes pages")
 parsed = parser.parse_args()
@@ -128,6 +129,7 @@ def DEFAULT_CONFIG_GENERATE(env): return '\ndefault = {\n' + f"""
     'topic'       : "{env.get('topic', 'tOpIcS')}",
     'emoji'       : "{env.get('emoji', '◉')}",
     'welcome'     : "{env.get('welcome', 'Welcome!')}",
+    'register'    : "{env.get('register', 'Register!')}",
     'case'        : {int(env.get('case', 0))},
     'ext'         : "{env.get('ext', '')}",
     'required'    : "{env.get('required', '')}",
@@ -289,6 +291,9 @@ try:
     print(f'↪ Reading config from {CONFIG_MODULE}.{CONFIG}')
     config_dict = getattr(c_module, CONFIG)
     print(f'  ↦ type:{type(config_dict)}')
+    print(f'  ↦ data-begin')
+    for k,v in config_dict.items(): print(f'  {k} ↦ {v}')
+    print(f'  ↦ data-end')
 except:
     exit(f'[!] Could not read config from {CONFIG_MODULE}.{CONFIG}')
 
@@ -498,6 +503,66 @@ login = """
     <div>
     <span style="font-size: xx-large;">{{ config.emoji }}</span>
     <br>
+    {% if config.reg %}
+    <a href="{{ url_for('route_new') }}" class="btn_board">To-Register</a>
+    {% endif %}
+    
+    </div>
+    <!-- <a href="https://emojipicker.com/" target="_blank" class="btn_login">...</a> -->
+    <!--<div style="font-size:large"><a href="https://github.com/NelsonSharma/topics"  target="_blank"> 📤 📥 </a></div>-->
+    <br>
+    </div>
+    <!-- ---------------------------------------------------------->
+    </body>
+</html>
+""",
+# ******************************************************************************************
+new = """
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title> 👤 {{ config.topic }} </title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">  
+    </head>
+    <body>
+    <!-- ---------------------------------------------------------->
+    </br>
+    <!-- ---------------------------------------------------------->
+
+    <div align="center">
+        <br>
+        <div class="topic">{{ config.topic }}</div>
+        <br>
+        <br>
+        <form action="{{ url_for('route_new') }}" method="post">
+            <br>
+            <div style="font-size: x-large;">{{ warn }}</div>
+            <br>
+            <div class="msg_login">{{ msg }}</div>
+            <br>
+            <input id="uid" name="uid" type="text" placeholder="... user-id ..." class="txt_login"/>
+            <br>
+            <br>
+            <input id="passwd" name="passwd" type="password" placeholder="... password ..." class="txt_login"/>
+            <br>
+            <br>
+            <input id="named" name="named" type="text" placeholder="... name ..." class="txt_login"/>
+            <br>
+            <br>
+            <input type="submit" class="btn_board" value="Register"> 
+            <br>
+            <br>
+            
+        </form>
+    </div>
+
+    <!-- ---------------------------------------------------------->
+    
+    <div align="center">
+    <div>
+    <span style="font-size: xx-large;">{{ config.emoji }}</span>
+    <br>
+    <a href="{{ url_for('route_login') }}" class="btn_login">To-Login</a>
     
     </div>
     <!-- <a href="https://emojipicker.com/" target="_blank" class="btn_login">...</a> -->
@@ -1249,7 +1314,7 @@ app.config['afl'] =       GET_FILE_LIST(ARCHIVE_FOLDER_PATH)
 app.config['rename'] =    int(args.rename)
 app.config['muc'] =       MAX_UPLOAD_COUNT
 app.config['board'] =     (BOARD_FILE_MD is not None)
-
+app.config['reg'] =       (parsed.reg)
 # ------------------------------------------------------------------------------------------
 class UploadFileForm(FlaskForm): # The upload form using FlaskForm
     file = MultipleFileField("File", validators=[InputRequired()])
@@ -1335,7 +1400,7 @@ def route_login():
                         if in_name!=named and valid_name and (app.config['rename']>0) : 
                             db[uid][2]=in_name
                             #HAS_PENDING+=1
-                            dprint(f'⇒ {uid} ◦ {named} updated name to "{in_name}"') 
+                            dprint(f'⇒ {uid} ◦ {named} updated name to "{in_name}" via {request.remote_addr}') 
                             named = in_name
                         else:
                             if in_name: dprint(f'⇒ {uid} ◦ {named} provided invalid name "{in_name}" (will not update)') 
@@ -1344,7 +1409,7 @@ def route_login():
 
                         warn = LOGIN_CREATE_TEXT
                         msg = f'[{in_uid}] ({named}) New password was created successfully'
-                        dprint(f'● {in_uid} {in_emoji} {named} just joined')
+                        dprint(f'● {in_uid} {in_emoji} {named} just joined via {request.remote_addr}')
            
                     else: # new password is invalid valid
                         #print(f"[........] new password is invalid")  
@@ -1386,7 +1451,7 @@ def route_login():
                             session['named'] = in_name
                             db[uid][2] = in_name
                             #HAS_PENDING+=1
-                            dprint(f'⇒ {uid} ◦ {named} updated name to "{in_name}"') 
+                            dprint(f'⇒ {uid} ◦ {named} updated name to "{in_name}" via {request.remote_addr}') 
                             named = in_name
                             #print(f'◦ updated record') # \n{record}
                         else: 
@@ -1394,7 +1459,7 @@ def route_login():
                             if in_name: dprint(f'⇒ {uid} ◦ {named} provided invalid name "{in_name}" (will not update)')  
 
                         #print(f'◦ login success {uid}|{named}')
-                        dprint(f'● {session["uid"]} {session["emojid"]} {session["named"]} has logged in') 
+                        dprint(f'● {session["uid"]} {session["emojid"]} {session["named"]} has logged in via {request.remote_addr}') 
                         #print(f"filed @ login= {session['filed']}")
                         return redirect(url_for('route_home'))
                     else:  
@@ -1418,14 +1483,77 @@ def route_login():
         
     return render_template('login.html', msg = msg,  warn = warn)
 
+@app.route('/new', methods =['GET', 'POST'])
+def route_new():
+    if not app.config['reg']: return "registration is not allowed"
+    LOGIN_NEED_TEXT =       '👤'
+    LOGIN_FAIL_TEXT =       '❌'     
+    LOGIN_NEW_TEXT =        '🔥'
+    LOGIN_CREATE_TEXT =     '🔑'    
+    #NAME, PASS = 2, 3
+    global db#, HAS_PENDING#<--- only when writing to global wariables
+    if request.method == 'POST' and 'uid' in request.form and 'passwd' in request.form:
+        in_uid = f"{request.form['uid']}"
+        in_passwd = f"{request.form['passwd']}"
+        in_name = f'{request.form["named"]}' if 'named' in request.form else ''
+        in_emoji = f'{request.form["emojid"]}' if 'emojid' in request.form else app.config['emoji']
+        if ((not in_emoji) or (app.config['rename']<2)): in_emoji = app.config['emoji']
+        in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
+        valid_query, valid_name = VALIDATE_UID(in_query) , VALIDATE_NAME(in_name)
+        if not valid_query:
+            warn, msg = LOGIN_FAIL_TEXT, f'[{in_uid}] Not a valid user-id' 
+        elif not valid_name:
+            warn, msg = LOGIN_FAIL_TEXT, f'[{in_name}] Not a valid name' 
+        else:
+            record = db.get(in_query, None) #print(f"◦ login attempt by [{in_uid}] will case-query [{in_query}]")
+            #print(f"◦ record matched? [{record}]")
+            if record is None: 
+                if not app.config['reg']:
+                    warn, msg = LOGIN_FAIL_TEXT, f'[{in_uid}] not allowed to register' 
+                else:
+                    admind, uid, named = app.config['reg'], in_query, in_name
+                    admind = f'{admind}'.upper()
+                    #print(f"◦ matched record [{uid}|{named}] ")
+                    if in_passwd: # new password provided
+                        #print(f"[---------] new password provided [{in_passwd}]")
+                        if VALIDATE_PASS(in_passwd): # new password is valid
+                            db[uid] = [admind, uid, named, in_passwd]
+                            warn = LOGIN_CREATE_TEXT
+                            msg = f'[{in_uid}] ({named}) New password was created successfully'
+                            dprint(f'● {in_uid} {in_emoji} {named} just joined via {request.remote_addr}')
+            
+                        else: # new password is invalid valid
+                            #print(f"[........] new password is invalid")  
+                            warn = LOGIN_NEW_TEXT
+                            msg=f'[{in_uid}] New password is invalid - can use alpha-numeric, underscore and @-symbol'
+                            
+                                                
+                    else: #new password not provided       
+                        #print(f"[.....] new password was not provided")             
+                        warn = LOGIN_NEW_TEXT
+                        msg = f'[{in_uid}] New password required - can use alpha-numeric, underscore and @-symbol'
+                                            
+
+            else:
+                #print(f"◦ unmatched record {in_uid}")
+                warn, msg = LOGIN_FAIL_TEXT, f'[{in_uid}] is already registered' 
+
+    else:
+        if session.get('has_login', False):  return redirect(url_for('route_home'))
+        #print(f"+ page hit")
+        msg = args.register
+        warn = LOGIN_NEED_TEXT 
+        
+    return render_template('new.html', msg = msg,  warn = warn)
+
 @app.route('/logout')
 def route_logout():
     r""" logout a user and redirect to login page """
     if not session.get('has_login', False):  return redirect(url_for('route_login'))
     if not session.get('uid', False): return redirect(url_for('route_login'))
     #print(f"◦ log out user {session['uid']}")
-    if session['has_login']:  dprint(f'● {session["uid"]} {session["emojid"]} {session["named"]} has logged out') 
-    else: dprint(f'✗ {session["uid"]} ◦ {session["named"]} was removed due to invalid uid ({session["uid"]})') 
+    if session['has_login']:  dprint(f'● {session["uid"]} {session["emojid"]} {session["named"]} has logged out via {request.remote_addr}') 
+    else: dprint(f'✗ {session["uid"]} ◦ {session["named"]} was removed due to invalid uid ({session["uid"]}) via {request.remote_addr}') 
     session['has_login'] = False
     session['uid'] = ""
     session['named'] = ""
@@ -1460,7 +1588,7 @@ def route_archives(req_path):
         dprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
         return abort(404) 
     if os.path.isfile(abs_path):  #print(f"◦ sending file ")
-        dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path}')
+        dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
         return send_file(abs_path) # Check if path is a file and serve
     return render_template('archives.html')
 # ------------------------------------------------------------------------------------------
@@ -1479,7 +1607,7 @@ def route_downloads(req_path):
         dprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
         return abort(404) # print(f"◦ requested file was not found") #Return 404 if path doesn't exist
     if os.path.isfile(abs_path):  #print(f"◦ sending file ")
-        dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path}')
+        dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
         return send_file(abs_path) # Check if path is a file and serve
     return render_template('downloads.html')
 # ------------------------------------------------------------------------------------------
@@ -1498,7 +1626,7 @@ def route_uploads(req_path):
         dprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
         return abort(404) # print(f"◦ requested file was not found") #Return 404 if path doesn't exist
     if os.path.isfile(abs_path):  #print(f"◦ sending file ")
-        dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path}')
+        dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
         return send_file(abs_path) # Check if path is a file and serve
     return render_template('uploads.html')
 # ------------------------------------------------------------------------------------------
@@ -1516,7 +1644,7 @@ def route_home():
     #print(f"..... has uploaded {len(file_list)} items")
     
     if form.validate_on_submit() and ('U' in session['admind']):
-        dprint(f"⇒ user {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items.")
+        dprint(f"⇒ user {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
         if app.config['muc']==0: 
             return render_template('home.html', form=form, status=[(0, f'✗ Uploads are disabled')])
         else:
@@ -1583,7 +1711,7 @@ def route_purge():
         file_list = os.listdir(folder_name)
         for f in file_list: os.remove(os.path.join(folder_name, f))
         #print(f"◦ {session['uid']} has purged their files.")
-        dprint(f'● {session["uid"]} ◦ {session["named"]} used purge')
+        dprint(f'● {session["uid"]} ◦ {session["named"]} used purge via {request.remote_addr}')
         session['filed']=[]
         #dprint(f"filed @ purge= {session['filed']}")
     return redirect(url_for('route_home'))
@@ -1615,20 +1743,20 @@ def route_adminpage(req_cmd):
 def update_dl():
     r""" refreshes the  downloads"""
     app.config['dfl'] = GET_FILE_LIST(DOWNLOAD_FOLDER_PATH)
-    dprint(f"▶ {session['uid']} ◦ {session['named']} just refreshed the download list.")
+    dprint(f"▶ {session['uid']} ◦ {session['named']} just refreshed the download list via {request.remote_addr}")
     return "Updated download-list", True #  STATUS, SUCCESS
 
 def update_al():
     r""" refreshes the  downloads"""
     app.config['afl'] = GET_FILE_LIST(ARCHIVE_FOLDER_PATH)
-    dprint(f"▶ {session['uid']} ◦ {session['named']} just refreshed the archive list.")
+    dprint(f"▶ {session['uid']} ◦ {session['named']} just refreshed the archive list via {request.remote_addr}")
     return "Updated archive-list", True #  STATUS, SUCCESS
 
 def persist_db():
     r""" writes db to disk """
     global db
     if write_db_to_disk(db):
-        dprint(f"▶ {session['uid']} ◦ {session['named']} just persisted the db to disk.")
+        dprint(f"▶ {session['uid']} ◦ {session['named']} just persisted the db to disk via {request.remote_addr}")
         STATUS, SUCCESS = "Persisted db to disk", True
     else: STATUS, SUCCESS =  f"Write error '{args.login}' might be open", False
     return STATUS, SUCCESS 
@@ -1638,13 +1766,13 @@ def reload_db():
     global db#, HAS_PENDING
     db = read_db_from_disk()
     #HAS_PENDING=0
-    dprint(f"▶ {session['uid']} ◦ {session['named']} just reloaded the db from disk.")
+    dprint(f"▶ {session['uid']} ◦ {session['named']} just reloaded the db from disk via {request.remote_addr}")
     return "Reloaded db from disk", True #  STATUS, SUCCESS
 
 def refresh_board():
     r""" refreshes the  board"""
     if update_board():
-        dprint(f"▶ {session['uid']} ◦ {session['named']} just refreshed the board.")
+        dprint(f"▶ {session['uid']} ◦ {session['named']} just refreshed the board via {request.remote_addr}")
         return "Board was refreshed", True
     else: return "Board not enabled", False
 
@@ -1670,7 +1798,7 @@ def route_repass(req_uid):
                 if ('+' not in admind) or session['uid']==uid:
                     db[uid][3]='' ## 3 for PASS  record['PASS'].values[0]=''
                     #HAS_PENDING+=1
-                    dprint(f"▶ {session['uid']} ◦ {session['named']} just reset the password for {uid} ◦ {named}")
+                    dprint(f"▶ {session['uid']} ◦ {session['named']} just reset the password for {uid} ◦ {named} via {request.remote_addr}")
                     STATUS, SUCCESS =  f"Password was reset for {uid} {named}", True
                 else: STATUS, SUCCESS =  f"Cannot reset password for admin account '{in_query}'", False
             else: STATUS, SUCCESS =  f"User '{in_query}' not found - cannot reset password", False

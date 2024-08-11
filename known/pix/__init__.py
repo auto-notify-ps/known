@@ -79,7 +79,7 @@ def extend(pix, north, south, east, west, filler=None):
 class Actions:
 
     @staticmethod
-    def new(inputs, outputs, args):
+    def new(inputs, outputs, args, verbose=0):
         
         """ creates new images of given size and color """
         # --args=<int:height>,<int:width>,<int:channel>,<int:blue>,<int:green>,<int:red>,<int:alpha> 
@@ -87,60 +87,98 @@ class Actions:
         # --args=<int:height>,<int:width>,4            ,<int:blue>,<int:green>,<int:red>,<int:alpha> 
         # --args=<int:height>,<int:width>,3            ,<int:blue>,<int:green>,<int:red>             
         # --args=<int:height>,<int:width>,1            ,<int:intensity>                              
+        if verbose: print(f'⚙ [NEW] {len(outputs)}')
+        try:
+            args = [int(s) for s in args]
+            if verbose: print(f'● Dimension {args[0:3]} with fill-color {args[3:]}')
+            ip='new'
+            for op in outputs:
+                if verbose: print(f'\t● {ip} ⇒ {op}')
+                img = create(*args[0:3])
+                fill(img, 0, 0, ..., ..., color=args[3:], channel=None)
+                save(img, op)
+            if verbose: print(f'✓ Success!')
+        except:
+            if verbose: print(f'✗ Failed!')
         
-        args = [int(s) for s in args]
-        for op in outputs:
-            img = create(*args[0:3])
-            fill(img, 0, 0, ..., ..., color=args[3:], channel=None)
-            save(img, op)
 
     @staticmethod
-    def crop(inputs, outputs, args):
+    def crop(inputs, outputs, args, verbose=0):
         """ crops an image using bounding box (y, x, h, w) """
         # --args=<int:y-coord>,<int:x-coord>,<int:height>,<int:width>
-    
-        y, x, h, w = [int(s) for s in args]
-        for ip,op in zip(inputs,outputs):
-            org = load(ip)
-            img = create(h, w, org.shape[-1])
-            region_copy(org, y, x, h, w, img, 0, 0)
-            save(img, op)
+        if verbose: print(f'⚙ [CROP] {len(outputs)}')
+        try:
+            y, x, h, w = [int(s) for s in args]
+            if verbose: print(f'● Bounding-Box {y=} {x=} {h=} {w=}')
+            for ip,op in zip(inputs,outputs):
+                if verbose: print(f'\t● {ip} ⇒ {op}')
+                org = load(ip)
+                img = create(h, w, org.shape[-1])
+                region_copy(org, y, x, h, w, img, 0, 0)
+                save(img, op)
+            if verbose: print(f'✓ Success!')
+        except:
+            if verbose: print(f'✗ Failed!')
 
     @staticmethod
-    def extend(inputs, outputs, args):
+    def extend(inputs, outputs, args, verbose=0):
         """ extends an image using boundary distance """
         # --args=<int:north>,<int:south>,<int:east>,<int:west>,<int:blue>,<int:green>,<int:red>,<int:alpha>
-
-        args = [int(s) for s in args]
-        north, south, east, west = args[0:4]
-        for ip,op in zip(inputs,outputs):
-            save(extend(load(ip), north, south, east, west, filler=args[4:]), op)
+        if verbose: print(f'⚙ [EXTEND] {len(outputs)}')
+        try:
+            args = [int(s) for s in args]
+            north, south, east, west = args[0:4]
+            if verbose: print(f'● Directions {north=} {south=} {east=} {west=}')
+            for ip,op in zip(inputs,outputs):
+                if verbose: print(f'\t● {ip} ⇒ {op}')
+                save(extend(load(ip), north, south, east, west, filler=args[4:]), op)
+            if verbose: print(f'✓ Success!')
+        except:
+            if verbose: print(f'✗ Failed!')
 
     @staticmethod
-    def flip(inputs, outputs, args):
+    def flip(inputs, outputs, args, verbose=0):
         """ flip an image (horizontally, vertically)"""
         # --args=<bool:horizontally>,<bool:vertically>
-        
-        h, v = [bool(int(s)) for s in args]
-        for ip,op in zip(inputs,outputs):
-            org = load(ip)
-            img = flip(org, horizontal=h, vertical=v)
-            save(img, op)
+        if verbose: print(f'⚙ [FLIP] {len(outputs)}')
+        try:
+            h, v = [bool(int(s)) for s in args]
+            if verbose: print(f'● Directions {h=} {v=}')
+            for ip,op in zip(inputs,outputs):
+                if verbose: print(f'\t● {ip} ⇒ {op}')
+                org = load(ip)
+                img = flip(org, horizontal=h, vertical=v)
+                save(img, op)
+            if verbose: print(f'✓ Success!')
+        except:
+            if verbose: print(f'✗ Failed!')
 
     @staticmethod
-    def rotate(inputs, outputs, args):
+    def rotate(inputs, outputs, args, verbose=0):
         """ rotate an image (clockwise or couter-clockwise)"""
         # --args=<bool:clockwise>
-
-        c = [bool(int(s)) for s in args][0]
-        for ip,op in zip(inputs,outputs):
-            org = load(ip)
-            img = rotate(org, clockwise=c)
-            save(img, op)
-
+        if verbose: print(f'⚙ [ROTATE] {len(outputs)}')
+        try:
+            c = [bool(int(s)) for s in args][0]
+            if verbose: print(f'● Direction clockwise - {c}')
+            for ip,op in zip(inputs,outputs):
+                if verbose: print(f'\t● {ip} ⇒ {op}')
+                org = load(ip)
+                img = rotate(org, clockwise=c)
+                save(img, op)
+            if verbose: print(f'✓ Success!')
+        except:
+            if verbose: print(f'✗ Failed!')
     @staticmethod
-    def convert(inputs, outputs, args):
+    def convert(inputs, outputs, args, verbose=0):
         """ converts an image (as per output)"""
         # --input=<str:input-file.png> --output=<str:output-file.jpg>
-        for ip,op in zip(inputs,outputs): save(load(ip), op)
+        if verbose: print(f'⚙ [CONVERT] {len(outputs)}')
+        try:
+            for ip,op in zip(inputs,outputs): 
+                if verbose: print(f'\t● {ip} ⇒ {op}')
+                save(load(ip), op)
+            if verbose: print(f'✓ Success!')
+        except:
+            if verbose: print(f'✗ Failed!')
 
