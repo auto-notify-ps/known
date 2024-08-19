@@ -264,7 +264,7 @@ def DICT2CSV(path, d, ord):
         f.write(CSV_DELIM.join(ord)+SSV_DELIM)
         for v in d.values(): f.write(CSV_DELIM.join(v)+SSV_DELIM)
 
-def CSV2DICT(path):
+def CSV2DICT(path, key_at):
     with open(path, 'r', encoding='utf-8') as f: 
         s = f.read()
         lines = s.split(SSV_DELIM)
@@ -272,7 +272,7 @@ def CSV2DICT(path):
         for line in lines[1:]:
             if line:
                 cells = line.split(CSV_DELIM)
-                d[f'{cells[1]}'] = cells
+                d[f'{cells[key_at]}'] = cells
         return d
 
 def GET_SECRET_KEY(postfix):
@@ -293,8 +293,8 @@ def CREATE_LOGIN_FILE(login_xl_path):
     return this_user
 
 
-def READ_DB_FROM_DISK(path):
-    try: return CSV2DICT(path), True
+def READ_DB_FROM_DISK(path, key_at):
+    try: return CSV2DICT(path, key_at), True
     except: return dict(), False
 # ------------------------------------------------------------------------------------------
 def WRITE_DB_TO_DISK(path, db_frame, ord): # will change the order
@@ -1023,19 +1023,21 @@ home="""
                     </ol>
                 </div>
                 <br>
-                
+                {% if submitted<1 %}
                 <form method='POST' enctype='multipart/form-data'>
                     {{form.hidden_tag()}}
                     {{form.file()}}
                     {{form.submit()}}
                 </form>
+                {% else %}
+                <div class="upword">Your Score is <span style="color:seagreen;">{{ score }}</span>  </div>
+                {% endif %}
                 <br>
+                
                 <div> <span class="upword">Uploads</span> 
                 
-                {% if "U" in session.admind %}
+                {% if "U" in session.admind and submitted<1 %}
                 <a href="{{ url_for('route_uploadf') }}" class="btn_refresh_small">Refresh</a>
-                {% endif %}
-                
                 <button class="btn_purge" onclick="confirm_purge()">Purge</button>
                 <script>
                     function confirm_purge() {
@@ -1045,6 +1047,7 @@ home="""
                         }
                     }
                 </script>
+                {% endif %}
                 </div>
                 <br>
 
@@ -1608,12 +1611,12 @@ _ = update_board()
 # ------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------
 def read_db_from_disk():
-    db_frame, res = READ_DB_FROM_DISK(LOGIN_XL_PATH)
+    db_frame, res = READ_DB_FROM_DISK(LOGIN_XL_PATH, 1)
     if res: sprint(f'⇒ Loaded login file: {LOGIN_XL_PATH}')
     else: sprint(f'⇒ Failed reading login file: {LOGIN_XL_PATH}')
     dbsub_frame = None
     if SUBMIT_XL_PATH: 
-        dbsub_frame, ressub = READ_DB_FROM_DISK(SUBMIT_XL_PATH)
+        dbsub_frame, ressub = READ_DB_FROM_DISK(SUBMIT_XL_PATH, 0)
         if ressub: sprint(f'⇒ Loaded submission file: {SUBMIT_XL_PATH}')
         else: sprint(f'⇒ Did not load submission file: [{SUBMIT_XL_PATH}] exists={os.path.exists(SUBMIT_XL_PATH)} isfile={os.path.isfile(SUBMIT_XL_PATH)}')
     return db_frame, dbsub_frame
@@ -1633,7 +1636,7 @@ def write_db_to_disk(db_frame, dbsub_frame): # will change the order
 db, dbsub = read_db_from_disk()  #<----------- Created database here 
 # = { k : [vu,  vn, 0.0, ''] for k,(va,vu,vn,_) in db.items() if '-' not in va} 
 # -----------------------------------------------------------------------------------------
-
+#print(dbsub)
 
 
 # ------------------------------------------------------------------------------------------
@@ -1985,7 +1988,7 @@ def route_submit():
                             if ('-' in admind):
                                 status, success = f'[{in_uid}] {named} is not in evaluation list.', False
                             else:
-                                scored = dbsub.get(in_query, None)
+                                scored = dbsub.get(in_query, None)                               
                                 if scored is None: # not found
                                     if not in_score:
                                         status, success = f'Require numeric value for score since [{in_uid}] {named}, is evaluated first time', False
@@ -2023,15 +2026,18 @@ def route_home():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     form = UploadFileForm()
     folder_name = os.path.join( app.config['uploads'], session['uid']) 
-    
+    if SUBMIT_XL_PATH:
+        submitted = int(session['uid'] in dbsub)
+        score = dbsub[session['uid']][2] if submitted>0 else -1
+    else: submitted, score = -1, -1
+
     if form.validate_on_submit() and ('U' in session['admind']):
         dprint(f"⇒ user {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
         if app.config['muc']==0: 
-            return render_template('home.html', form=form, status=[(0, f'✗ Uploads are disabled')])
+            return render_template('home.html', submitted=submitted, score=score, form=form, status=[(0, f'✗ Uploads are disabled')])
         
         if SUBMIT_XL_PATH:
-            global dbsub
-            if session['uid'] in dbsub: return render_template('home.html', form=form, status=[(0, f'✗ You have been evaluated - cannot upload new files for this session.')])
+            if submitted>0: return render_template('home.html', submitted=submitted, score=score, form=form, status=[(0, f'✗ You have been evaluated - cannot upload new files for this session.')])
 
         result = []
         n_success = 0
@@ -2063,10 +2069,10 @@ def route_home():
             
         result_show = ''.join([f'\t{r[-1]}\n' for r in result])
         dprint(f'✓ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s)\n\n{result_show}') 
-        return render_template('home.html', form=form, status=result)
+        return render_template('home.html', submitted=submitted, score=score, form=form, status=result)
     
     #file_list = session['filed'] #os.listdir(folder_name)
-    return render_template('home.html', form=form, status=(INITIAL_UPLOAD_STATUS if app.config['muc']!=0 else [(-1, f'Uploads are disabled')]))
+    return render_template('home.html', submitted=submitted, score=score, form=form, status=(INITIAL_UPLOAD_STATUS if app.config['muc']!=0 else [(-1, f'Uploads are disabled')]))
 # ------------------------------------------------------------------------------------------
 
 @app.route('/uploadf', methods =['GET'])
@@ -2092,6 +2098,10 @@ def route_purge():
     """
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if 'U' not in session['admind']:  return redirect(url_for('route_home'))
+    if SUBMIT_XL_PATH:
+        global dbsub
+        if session['uid'] in dbsub: return redirect(url_for('route_home'))
+
     folder_name = os.path.join( app.config['uploads'], session['uid']) 
     if os.path.exists(folder_name):
         file_list = os.listdir(folder_name)
