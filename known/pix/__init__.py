@@ -1,6 +1,6 @@
 
 __doc__=r"""pix module"""
-
+import os
 import numpy as np
 import cv2
 
@@ -77,16 +77,31 @@ def extend(pix, north, south, east, west, filler=None):
 
 
 class Actions:
+    r"""
 
+    Defins the available actions to this module (refer __main__.py)
+
+        python -m known.pix --action=<member-function>
+
+    Note: 
+        (blue, green, red, alpha) can take values from 0 to 255
+        (channels) can be 4, 3 or 1 - the color tuple depends on the channels in the image
+    """
     @staticmethod
     def new(inputs, outputs, args, verbose=0):
         
-        """ creates new images of given size and color """
-        # --args=<int:height>,<int:width>,<int:channel>,<int:blue>,<int:green>,<int:red>,<int:alpha> 
+        """ creates new images of given size and color 
+        
+        args is (int) 7-tuple (height, width, channels, blue, green, red, alpha)
 
-        # --args=<int:height>,<int:width>,4            ,<int:blue>,<int:green>,<int:red>,<int:alpha> 
-        # --args=<int:height>,<int:width>,3            ,<int:blue>,<int:green>,<int:red>             
-        # --args=<int:height>,<int:width>,1            ,<int:intensity>                              
+            --args=h,w,c,b,g,r,a
+        
+        fill-color (blue, green, red, alpha) depends on the specified number of channels
+
+            --args=h,w,4,b,g,r,a
+            --args=h,w,3,b,g,r            
+            --args=h,w,1,i                    
+        """
         if verbose: print(f'⚙ [NEW] {len(outputs)}')
         try:
             args = [int(s) for s in args]
@@ -101,12 +116,15 @@ class Actions:
         except:
             if verbose: print(f'✗ Failed!')
         
-
     @staticmethod
     def crop(inputs, outputs, args, verbose=0):
-        """ crops an image using bounding box (y, x, h, w) """
-        # --args=<int:y-coord>,<int:x-coord>,<int:height>,<int:width>
-        if verbose: print(f'⚙ [CROP] {len(outputs)}')
+        """ crops an image using bounding box (y, x, h, w) 
+
+        args is (int) 4-tuple (y-cord, x-coord, height, width) indicating a bounding box
+            
+            --args=y,x,h,w
+        """
+        if verbose: print(f'⚙ [CROP] {len(inputs)}')
         try:
             y, x, h, w = [int(s) for s in args]
             if verbose: print(f'● Bounding-Box {y=} {x=} {h=} {w=}')
@@ -122,9 +140,19 @@ class Actions:
 
     @staticmethod
     def extend(inputs, outputs, args, verbose=0):
-        """ extends an image using boundary distance """
-        # --args=<int:north>,<int:south>,<int:east>,<int:west>,<int:blue>,<int:green>,<int:red>,<int:alpha>
-        if verbose: print(f'⚙ [EXTEND] {len(outputs)}')
+        """ extends an image using boundary distance 
+
+        args is (int) 8-tuple (north, south, east, west, blue, green, red, alpha)
+            
+            --args=n,s,e,w,b,g,r,a
+
+        fill-color (blue, green, red, alpha) depends on the specified number of channels
+
+            --args=n,s,e,w,b,g,r,a
+            --args=n,s,e,w,b,g,r    
+            --args=n,s,e,w,i
+        """
+        if verbose: print(f'⚙ [EXTEND] {len(inputs)}')
         try:
             args = [int(s) for s in args]
             north, south, east, west = args[0:4]
@@ -138,9 +166,16 @@ class Actions:
 
     @staticmethod
     def flip(inputs, outputs, args, verbose=0):
-        """ flip an image (horizontally, vertically)"""
-        # --args=<bool:horizontally>,<bool:vertically>
-        if verbose: print(f'⚙ [FLIP] {len(outputs)}')
+        """ flip an image (horizontally, vertically)
+
+        args is (int) 2-tuple (horizontally, vertically) 
+        
+            Flip horizontally          --args=1,0
+            Flip vertically            --args=0,1
+            Flip corners               --args=1,1
+            Flip nothing               --args=0,0
+        """
+        if verbose: print(f'⚙ [FLIP] {len(inputs)}')
         try:
             h, v = [bool(int(s)) for s in args]
             if verbose: print(f'● Directions {h=} {v=}')
@@ -155,9 +190,14 @@ class Actions:
 
     @staticmethod
     def rotate(inputs, outputs, args, verbose=0):
-        """ rotate an image (clockwise or couter-clockwise)"""
-        # --args=<bool:clockwise>
-        if verbose: print(f'⚙ [ROTATE] {len(outputs)}')
+        """ rotate an image (clockwise or couter-clockwise)
+
+        args is (int) 1-tuple (clockwise) 
+            
+            Rotate clockwise               --args=1
+            Rotate counter-clockwise       --args=0
+        """
+        if verbose: print(f'⚙ [ROTATE] {len(inputs)}')
         try:
             c = [bool(int(s)) for s in args][0]
             if verbose: print(f'● Direction clockwise - {c}')
@@ -169,15 +209,47 @@ class Actions:
             if verbose: print(f'✓ Success!')
         except:
             if verbose: print(f'✗ Failed!')
+    
     @staticmethod
     def convert(inputs, outputs, args, verbose=0):
-        """ converts an image (as per output)"""
-        # --input=<str:input-file.png> --output=<str:output-file.jpg>
-        if verbose: print(f'⚙ [CONVERT] {len(outputs)}')
+        """ converts an image (as per output)
+        
+        args is not used, target file type is infered from the output file-name (extension)
+            
+        e.g., Convert png to jpg      --input=input.png --output=output.jpg
+        """
+        
+        if verbose: print(f'⚙ [CONVERT] {len(inputs)}')
         try:
             for ip,op in zip(inputs,outputs): 
                 if verbose: print(f'\t● {ip} ⇒ {op}')
                 save(load(ip), op)
+            if verbose: print(f'✓ Success!')
+        except:
+            if verbose: print(f'✗ Failed!')
+
+    @staticmethod
+    def autoconvert(inputs, outputs, args, verbose=0):
+        """ converts an image (as per args)
+        
+        args is (str) n-tuple specifying the extensions to be converted to
+        output filenames are not used, the file-names are taken from input files
+        the extensions are added as specified in args
+
+        e.g., Convert png to jpg and webp      --input=input.png --args=jpg,webp
+        the output files will be `input.png` and `input.webp`
+
+        """
+        if verbose: print(f'⚙ [AUTOCONVERT] {len(inputs)}')
+        try:
+            for ip in inputs: 
+                dirname, filename = os.path.dirname(ip), os.path.basename(ip)
+                i = filename.rfind('.')
+                name = filename if i<0 else filename[0:i]
+                for ext in args:
+                    op = os.path.join(dirname, f'{name}.{ext}')
+                    if verbose: print(f'\t● {ip} ⇒ {op}')
+                    save(load(ip), op)
             if verbose: print(f'✓ Success!')
         except:
             if verbose: print(f'✗ Failed!')

@@ -321,6 +321,59 @@ class Fuzz:
     r""" file system and zipping """
 
     @staticmethod
+    def SplitFileName(f:str):
+        r"""splits a file-name into name.ext 
+        Note: make sure to pass os.path.basename() to this function
+        Retutns: 2-tuple (name, ext)
+            `name` is always a string
+            `ext` can be None or a string (None means that there is no "." in file name)
+        """
+        i = f.rfind('.')
+        return (f, None) if i<0 else (f[0:i], f[i+1:])
+
+    @staticmethod
+    def ExistInfo(path):
+        """ returns 4-tuple (exists,isdir,isfile,islink) """
+        return os.path.exists(path), os.path.isdir(path), os.path.isfile(path), os.path.islink(path)
+
+    
+    @staticmethod
+    def PathInfo(path):
+        """ returns information about file-name, path and its types """
+        abspath = os.path.abspath(path)
+        dirname, filename = os.path.dirname(abspath), os.path.basename(abspath)
+        exists,isdir,isfile,islink = __class__.ExistInfo(abspath)
+        name, ext = __class__.SplitFileName(f'{filename}')
+        return dict(
+            abspath=abspath, 
+            filename=filename, 
+            dirname=dirname, 
+            exists=exists, 
+            isdir=isdir, 
+            isfile=isfile, 
+            islink=islink, 
+            name=name, ext=ext)
+    
+    @staticmethod
+    def RenameFile(path, new_name, keep_ext=False):
+        """ rename a file with or without changing its extension """
+        dirname, filename = os.path.dirname(path), os.path.basename(path)
+        _, ext = __class__.SplitFileName(f'{filename}')
+        if keep_ext and (ext is not None):  name_ = f'{new_name}.{ext}'
+        else:                               name_ = f'{new_name}'
+        return os.path.join(dirname, name_)
+    
+    @staticmethod
+    def RenameFileExt(path, new_ext):
+        """ change a file extension without renaming it """
+        dirname, filename = os.path.dirname(path), os.path.basename(path)
+        name, _ = __class__.SplitFileName(f'{filename}')
+        return os.path.join(dirname, f'{name}.{new_ext}')
+
+    
+
+
+    @staticmethod
     def ZipFiles(files:list, zip_path:str=None, **kwargs):
         r""" zips all (only files) in the list of file paths and saves at 'zip_path' """
         if isinstance(files, str): files= [f'{files}']
@@ -410,6 +463,7 @@ class Fuzz:
         """
         allfiles = __class__.GetAllFilesInfo(directory) # can del this later
         return [allfiles[i] for i,(fn, fnwe, fe, fd, fp, fs) in enumerate(allfiles) if policy(fn, fnwe, fe, fd, fp, fs)]
+
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
