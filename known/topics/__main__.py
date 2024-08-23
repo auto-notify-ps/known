@@ -36,6 +36,8 @@ try:
     from waitress import serve
 except: exit(f'[!] The required Flask packages missing:\tFlask>=3.0.2, Flask-WTF>=1.2.1\twaitress>=3.0.0\n  ⇒ pip install Flask Flask-WTF waitress')
 # ------------------------------------------------------------------------------------------
+
+
 # ------------------------------------------------------------------------------------------
 # args parsing
 # ------------------------------------------------------------------------------------------
@@ -79,10 +81,12 @@ if LOGDIR and parsed.verbose>0:
         logger = logging.getLogger()
         logger.addHandler(console_handler)
     except: exit(f'[!] Logging could not be setup at {LOGFILE}')
-    # ------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
 
 
-
+# ------------------------------------------------------------------------------------------
+# verbose level
+# ------------------------------------------------------------------------------------------
 if parsed.verbose==0: # no log
     def sprint(msg): pass
     def dprint(msg): pass
@@ -351,36 +355,6 @@ class Fake:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #-----------------------------------------------------------------------------------------
 # try to import configs
 # inside the WORKDIR there should be 'configs.py' file
@@ -527,46 +501,6 @@ if not (MAX_UPLOAD_COUNT is inf): INITIAL_UPLOAD_STATUS.append((-1, f'max upload
 sprint(f'⚙ Upload Settings ({len(INITIAL_UPLOAD_STATUS)})')
 for s in INITIAL_UPLOAD_STATUS: sprint(f' ⇒ {s[1]}')
 # ------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # ------------------------------------------------------------------------------------------
@@ -1553,59 +1487,6 @@ _ = update_board()
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # ------------------------------------------------------------------------------------------
 # validation
 # ------------------------------------------------------------------------------------------
@@ -1661,47 +1542,6 @@ class UploadFileForm(FlaskForm): # The upload form using FlaskForm
     file = MultipleFileField("File", validators=[InputRequired()])
     submit = SubmitField("Upload File")
 # ------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #%% [4]
 # app.route  > all app.route implemented here 
@@ -2203,18 +2043,8 @@ def route_repass(req_uid):
 
 
 
-
-
-
-
-
-
-
-
-
-
-#%% @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#<-------------------DO NOT WRITE ANY CODE AFTER THIS
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#<-------------------DO NOT WRITE ANY NEW CODE AFTER THIS
 endpoint = f'{args.host}:{args.port}' if args.host!='0.0.0.0' else f'localhost:{args.port}'
 sprint(f'◉ http://{endpoint}')
 start_time = datetime.datetime.now()
@@ -2251,3 +2081,4 @@ if bool(parsed.coe):
         sprint(f'↪ Could not remove html/css templates @ {PYDIR}')
 sprint('◉ server up-time was [{}]'.format(end_time - start_time))
 sprint(f'...Finished!')
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

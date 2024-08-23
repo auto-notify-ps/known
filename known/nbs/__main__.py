@@ -8,10 +8,11 @@ if __name__!='__main__': exit(f'[!] can not import {__name__}.{__file__}')
 import os, argparse, datetime
 parser = argparse.ArgumentParser()
 parser.add_argument('--base',           type=str, default='',               help="path to base dir"     )
+parser.add_argument('--title',          type=str, default='NBS',            help="html title for home page")
 parser.add_argument('--template',       type=str, default='lab',            help="classic/lab/reveal"   )
 parser.add_argument('--host',           type=str, default='0.0.0.0',                                    )
-parser.add_argument('--port',           type=str, default='8081',                                       )
-parser.add_argument('--threads',        type=int, default=20,                                           )
+parser.add_argument('--port',           type=str, default='8088',                                       )
+parser.add_argument('--threads',        type=int, default=50,                                           )
 parser.add_argument('--max_connect',    type=int, default=500,                                          )
 parser.add_argument('--max_size',       type=str, default='100MB',          help="size of http body"    )
 parsed = parser.parse_args()
@@ -41,6 +42,7 @@ def nb2html(source_notebook, template_name, html_title=None):
 
 app = Flask(__name__)
 app.config['base'] = BASE
+app.config['title'] = parsed.title
 app.config['ext'] = '.ipynb'
 app.config['query_refresh'] = '!' # refresh ?!
 app.config['query_download'] = '?' # download ??
@@ -56,16 +58,24 @@ def route_home(query):
     refresh = app.config['query_refresh'] in request.args
     download = app.config['query_download'] in request.args
     base, ext = app.config['base'], app.config['ext']
+    tosend=False
     
-    if not query.lower().endswith(ext): query += ext # allow only notebook files
+    if ('.' in os.path.basename(query)): 
+        if (not query.lower().endswith(ext)):
+            tosend=True #send_file(os.path.join(base, query))
+    else: query += ext #---> auto add extension
+    
+    
+    #if not query.lower().endswith(ext): query += ext # allow only notebook files
+
     requested = os.path.join(base, query) # Joining the base and the requested path
-    valid = not os.path.relpath(requested, base).startswith(base)
-    exists = os.path.isfile(requested)
-    if not (exists and valid): return abort(404)
+    if not ((os.path.isfile(requested)) and (not os.path.relpath(requested, base).startswith(base))): return abort(404)
     else:
-        global loaded_pages
-        if (requested not in loaded_pages) or refresh: loaded_pages[requested] = nb2html(requested, parsed.template,)
-        return redirect(url_for('route_home', query=query)) if refresh else ( send_file(requested) if download else loaded_pages[requested])
+        if tosend: return send_file(requested)
+        else:
+            global loaded_pages
+            if (requested not in loaded_pages) or refresh: loaded_pages[requested] = nb2html(requested, parsed.template, html_title=app.config['title'] if ((BASE==os.path.dirname(requested)) and (os.path.basename(requested)==ext)) else None)
+            return redirect(url_for('route_home', query=query)) if refresh else ( send_file(requested) if download else loaded_pages[requested])
 
 #%% Server Section
 
