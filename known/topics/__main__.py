@@ -1849,12 +1849,15 @@ def route_submit():
                 
                 else: status, success =  "You are not allow to evaluate.", False
             else: status, success =  "Evaluation is disabled.", False
-        else:
-            status, success = f"You posted nothing!", False
+        else: status, success = f"You posted nothing!", False
+        
+        if success: persist_db()
+        
     else:
         if ('+' in session['admind']) or ('X' in session['admind']):
             status, success = f"Eval Access is Enabled", True
         else: status, success = f"Eval Access is Disabled", False
+    
     return render_template('submit.html', success=success, status=status)
 
 
@@ -1939,7 +1942,7 @@ def route_purge():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if 'U' not in session['admind']:  return redirect(url_for('route_home'))
     if SUBMIT_XL_PATH:
-        global dbsub
+        #global dbsub
         if session['uid'] in dbsub: return redirect(url_for('route_home'))
 
     folder_name = os.path.join( app.config['uploads'], session['uid']) 
