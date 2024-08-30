@@ -280,7 +280,15 @@ def CSV2DICT(path, key_at):
         return d
 
 def GET_SECRET_KEY(postfix):
-    return '{}:{}'.format(random.randint(1111111111, 9999999999), postfix)
+    randx = lambda : random.randint(1111111111, 9999999999)
+    r1 = randx()
+    for _ in range(datetime.datetime.now().second): _ = randx()
+    r2 = randx()
+    for _ in range(datetime.datetime.now().second): _ = randx()
+    r3 = randx()
+    for _ in range(datetime.datetime.now().second): _ = randx()
+    r4 = randx()
+    return ':{}:{}:{}:{}:{}:'.format(r1,r2,r3,r4,postfix)
 
 
 def GET_VALID_RE_PATTERN(validext):
@@ -401,7 +409,7 @@ sprint(f'⚙ Base dicectiry: {BASEDIR}')
 if not args.secret: fexit(f'[!] secret key was not provided!')
 APP_SECRET_KEY_FILE = os.path.join(BASEDIR, args.secret)
 if not os.path.isfile(APP_SECRET_KEY_FILE): #< --- if key dont exist, create it
-    APP_SECRET_KEY =  GET_SECRET_KEY(fnow("%Y-%m-%d %H:%M:%S"))
+    APP_SECRET_KEY =  GET_SECRET_KEY(fnow("%Y%m%d%H%M%S"))
     try:
         with open(APP_SECRET_KEY_FILE, 'w') as f: f.write(APP_SECRET_KEY) #<---- auto-generated key
     except: fexit(f'[!] could not create secret key @ {APP_SECRET_KEY_FILE}')
@@ -1491,34 +1499,46 @@ _ = update_board()
 # validation
 # ------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------
-def read_db_from_disk():
+def read_logindb_from_disk():
     db_frame, res = READ_DB_FROM_DISK(LOGIN_XL_PATH, 1)
     if res: sprint(f'⇒ Loaded login file: {LOGIN_XL_PATH}')
     else: sprint(f'⇒ Failed reading login file: {LOGIN_XL_PATH}')
+    return db_frame
+def read_submitdb_from_disk():
     dbsub_frame = None
     if SUBMIT_XL_PATH: 
         dbsub_frame, ressub = READ_DB_FROM_DISK(SUBMIT_XL_PATH, 0)
         if ressub: sprint(f'⇒ Loaded submission file: {SUBMIT_XL_PATH}')
         else: sprint(f'⇒ Did not load submission file: [{SUBMIT_XL_PATH}] exists={os.path.exists(SUBMIT_XL_PATH)} isfile={os.path.isfile(SUBMIT_XL_PATH)}')
-    return db_frame, dbsub_frame
+    return dbsub_frame
 # ------------------------------------------------------------------------------------------
-def write_db_to_disk(db_frame, dbsub_frame): # will change the order
+def write_logindb_to_disk(db_frame): # will change the order
     res = WRITE_DB_TO_DISK(LOGIN_XL_PATH, db_frame, LOGIN_ORD)
     if res: sprint(f'⇒ Persisted login file: {LOGIN_XL_PATH}')
     else:  sprint(f'⇒ PermissionError - {LOGIN_XL_PATH} might be open, close it first.')
+    return res
+def write_submitdb_to_disk(dbsub_frame): # will change the order
     ressub = True
     if SUBMIT_XL_PATH: 
         ressub = WRITE_DB_TO_DISK(SUBMIT_XL_PATH, dbsub_frame, SUBMIT_ORD)
         if ressub: sprint(f'⇒ Persisted submission file: {SUBMIT_XL_PATH}')
         else:  sprint(f'⇒ PermissionError - {SUBMIT_XL_PATH} might be open, close it first.')
-    return res and ressub
+    return ressub
 # ------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------
-db, dbsub = read_db_from_disk()  #<----------- Created database here 
+db =    read_logindb_from_disk()  #<----------- Created database here 
+dbsub = read_submitdb_from_disk()  #<----------- Created database here 
+sprint('↷ persisted submit-db [{}]'.format(write_submitdb_to_disk(dbsub)))
+
 # = { k : [vu,  vn, 0.0, ''] for k,(va,vu,vn,_) in db.items() if '-' not in va} 
 # -----------------------------------------------------------------------------------------
 #print(dbsub)
-
+def GetUserFiles(uid): 
+    if not REQUIRED_FILES: return True # no files are required to be uploaded
+    udir = os.path.join( app.config['uploads'], uid)
+    has_udir = os.path.isdir(udir)
+    if has_udir: return not (False in [os.path.isfile(os.path.join(udir, f)) for f in REQUIRED_FILES])
+    else: return False
 
 # ------------------------------------------------------------------------------------------
 # application setting and instance
@@ -1797,11 +1817,11 @@ def route_submit():
                             db[uid][3]='' ## 3 for PASS  record['PASS'].values[0]=''
                             #HAS_PENDING+=1
                             dprint(f"▶ {submitter} ◦ {session['named']} just reset the password for {uid} ◦ {named} via {request.remote_addr}")
-                            status, success =  f"Password was reset for {uid} {named}", True
-                        else: status, success =  f"You cannot reset password for account '{in_query}'", False
-                    else: status, success =  f"User '{in_query}' not found", False
-                else: status, success =  f"User-id was not provided", False
-            else: status, success =  "You are not allow to reset passwords", False
+                            status, success =  f"Password was reset for {uid} {named}.", True
+                        else: status, success =  f"You cannot reset password for account '{in_query}'.", False
+                    else: status, success =  f"User '{in_query}' not found.", False
+                else: status, success =  f"User-id was not provided.", False
+            else: status, success =  "You are not allow to reset passwords.", False
 
         elif 'uid' in request.form and 'score' in request.form:
             if SUBMIT_XL_PATH:
@@ -1818,11 +1838,11 @@ def route_submit():
                     in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
                     valid_query = VALIDATE_UID(in_query) 
                     if not valid_query : 
-                        status, success = f'[{in_uid}] Not a valid user', False
+                        status, success = f'[{in_uid}] is not a valid user.', False
                     else: 
                         record = db.get(in_query, None)
                         if record is None: 
-                            status, success = f'[{in_uid}] Not a valid user', False
+                            status, success = f'[{in_uid}] is not a valid user.', False
                         else:
                             admind, uid, named, _ = record
                             if ('-' in admind):
@@ -1831,11 +1851,16 @@ def route_submit():
                                 scored = dbsub.get(in_query, None)                               
                                 if scored is None: # not found
                                     if not in_score:
-                                        status, success = f'Require numeric value for score since [{in_uid}] {named}, is evaluated first time', False
+                                        status, success = f'Require numeric value to assign score to [{in_uid}] {named}.', False
                                     else:
-                                        dbsub[in_query] = [uid, named, in_score, in_remark, submitter]
-                                        status, success = f'Score/Remark Created for [{in_uid}] {named}, current score is {in_score}.', True
-                                        dprint(f"▶ {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} via {request.remote_addr}")
+                                        has_req_files = GetUserFiles(uid)
+                                        if has_req_files:
+                                            dbsub[in_query] = [uid, named, in_score, in_remark, submitter]
+                                            status, success = f'Score/Remark Created for [{in_uid}] {named}, current score is {in_score}.', True
+                                            dprint(f"▶ {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} via {request.remote_addr}")
+                                        else:
+                                            status, success = f'User [{in_uid}] {named} has not uploaded the required files yet.', False
+
                                 else:
                                     if scored[-1] == submitter or ('+' in session['admind']):
                                         if in_score:  dbsub[in_query][2] = in_score
@@ -1851,7 +1876,7 @@ def route_submit():
             else: status, success =  "Evaluation is disabled.", False
         else: status, success = f"You posted nothing!", False
         
-        if success: persist_db()
+        if success: persist_subdb()
         
     else:
         if ('+' in session['admind']) or ('X' in session['admind']):
@@ -1875,7 +1900,7 @@ def route_home():
     else: submitted, score = -1, -1
 
     if form.validate_on_submit() and ('U' in session['admind']):
-        dprint(f"⇒ user {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
+        dprint(f"● {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
         if app.config['muc']==0: 
             return render_template('home.html', submitted=submitted, score=score, form=form, status=[(0, f'✗ Uploads are disabled')])
         
@@ -1992,18 +2017,28 @@ def update_al():
     return "Updated archive-list", True #  STATUS, SUCCESS
 
 def persist_db():
-    r""" writes db to disk """
+    r""" writes both dbs to disk """
     global db, dbsub
-    if write_db_to_disk(db, dbsub):
+    if write_logindb_to_disk(db) and write_submitdb_to_disk(dbsub): #if write_db_to_disk(db, dbsub):
         dprint(f"▶ {session['uid']} ◦ {session['named']} just persisted the db to disk via {request.remote_addr}")
         STATUS, SUCCESS = "Persisted db to disk", True
-    else: STATUS, SUCCESS =  f"Write error, login file might be open", False
+    else: STATUS, SUCCESS =  f"Write error, file might be open", False
+    return STATUS, SUCCESS 
+
+def persist_subdb():
+    r""" writes submit-db to disk """
+    global dbsub
+    if write_submitdb_to_disk(dbsub): 
+        dprint(f"▶ {session['uid']} ◦ {session['named']} just persisted the submit-db to disk via {request.remote_addr}")
+        STATUS, SUCCESS = "Persisted db to disk", True
+    else: STATUS, SUCCESS =  f"Write error, file might be open", False
     return STATUS, SUCCESS 
 
 def reload_db():
     r""" reloads db from disk """
     global db, dbsub#, HAS_PENDING
-    db, dbsub = read_db_from_disk()
+    db = read_logindb_from_disk()
+    dbsub = read_submitdb_from_disk()
     #HAS_PENDING=0
     dprint(f"▶ {session['uid']} ◦ {session['named']} just reloaded the db from disk via {request.remote_addr}")
     return "Reloaded db from disk", True #  STATUS, SUCCESS
@@ -2063,9 +2098,8 @@ serve(app, # https://docs.pylonsproject.org/projects/waitress/en/stable/runner.h
 #<-------------------DO NOT WRITE ANY CODE AFTER THIS
 end_time = datetime.datetime.now()
 sprint('◉ stop server @ [{}]'.format(end_time))
-
-final_db_persist = write_db_to_disk(db, dbsub)
-sprint('↷ persisted db [{}]'.format(final_db_persist))
+sprint('↷ persisted login-db [{}]'.format(write_logindb_to_disk(db)))
+sprint('↷ persisted submit-db [{}]'.format(write_submitdb_to_disk(dbsub)))
 
 if bool(parsed.coe):
     sprint(f'↪ Cleaning up html/css templates...')
@@ -2073,7 +2107,7 @@ if bool(parsed.coe):
         for k,v in HTML_TEMPLATES.items():
             h = os.path.join(TEMPLATES_DIR, f"{k}.html")
             if  os.path.isfile(h) : os.remove(h)
-        sprint(f'↪ Creating css templates @ {STATIC_DIR}')
+        #sprint(f'↪ Removing css templates @ {STATIC_DIR}')
         for k,v in CSS_TEMPLATES.items():
             h = os.path.join(STATIC_DIR, f"{k}.css")
             if os.path.isfile(h): os.remove(h)
