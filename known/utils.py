@@ -153,7 +153,7 @@ def ConfigParser(dict_to_object=True):
 
     return CONFIG_OBJECT #<---- this can return a dict as well (set the argument dict_to_object = False )
 
-def ImportCustomModule(python_file:str, python_object:str, do_initialize:bool):
+def ImportCustomModule(python_file:str, python_object:str='', do_initialize:bool=False):
     r""" Import a custom module from a python file and optionally initialize it """
     import os, importlib.util
     cpath = os.path.abspath(python_file)

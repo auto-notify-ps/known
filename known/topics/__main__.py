@@ -323,7 +323,7 @@ def GET_FILE_LIST (d):
     for f in os.listdir(d):
         p = os.path.join(d, f)
         if os.path.isfile(p): dlist.append(f)
-    return dlist
+    return sorted(dlist)
 
 
 def DISPLAY_SIZE_READABLE(mus):
@@ -1517,12 +1517,13 @@ def write_logindb_to_disk(db_frame): # will change the order
     if res: sprint(f'⇒ Persisted login file: {LOGIN_XL_PATH}')
     else:  sprint(f'⇒ PermissionError - {LOGIN_XL_PATH} might be open, close it first.')
     return res
-def write_submitdb_to_disk(dbsub_frame): # will change the order
+def write_submitdb_to_disk(dbsub_frame, verbose=True): # will change the order
     ressub = True
     if SUBMIT_XL_PATH: 
         ressub = WRITE_DB_TO_DISK(SUBMIT_XL_PATH, dbsub_frame, SUBMIT_ORD)
-        if ressub: sprint(f'⇒ Persisted submission file: {SUBMIT_XL_PATH}')
-        else:  sprint(f'⇒ PermissionError - {SUBMIT_XL_PATH} might be open, close it first.')
+        if verbose:
+            if ressub: sprint(f'⇒ Persisted submission file: {SUBMIT_XL_PATH}')
+            else:  sprint(f'⇒ PermissionError - {SUBMIT_XL_PATH} might be open, close it first.')
     return ressub
 # ------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------
@@ -1725,12 +1726,13 @@ def route_logout():
     if not session.get('uid', False): return redirect(url_for('route_login'))
     if session['has_login']:  dprint(f'● {session["uid"]} {session["emojid"]} {session["named"]} has logged out via {request.remote_addr}') 
     else: dprint(f'✗ {session["uid"]} ◦ {session["named"]} was removed due to invalid uid ({session["uid"]}) via {request.remote_addr}') 
-    session['has_login'] = False
-    session['uid'] = ""
-    session['named'] = ""
-    session['emojid'] = ""
-    session['admind'] = ''
-    session['filed'] = []
+    # session['has_login'] = False
+    # session['uid'] = ""
+    # session['named'] = ""
+    # session['emojid'] = ""
+    # session['admind'] = ''
+    # session['filed'] = []
+    session.clear()
     return redirect(url_for('route_login'))
 # ------------------------------------------------------------------------------------------
 
@@ -1936,7 +1938,8 @@ def route_home():
         #---------------------------------------------------------------------------------
             
         result_show = ''.join([f'\t{r[-1]}\n' for r in result])
-        dprint(f'✓ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s)\n\n{result_show}') 
+        result_show = result_show[:-1]
+        dprint(f'✓ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s)\n{result_show}') 
         return render_template('home.html', submitted=submitted, score=score, form=form, status=result)
     
     #file_list = session['filed'] #os.listdir(folder_name)
@@ -2028,8 +2031,8 @@ def persist_db():
 def persist_subdb():
     r""" writes submit-db to disk """
     global dbsub
-    if write_submitdb_to_disk(dbsub): 
-        dprint(f"▶ {session['uid']} ◦ {session['named']} just persisted the submit-db to disk via {request.remote_addr}")
+    if write_submitdb_to_disk(dbsub, verbose=False): 
+        #dprint(f"▶ {session['uid']} ◦ {session['named']} just persisted the submit-db to disk via {request.remote_addr}")
         STATUS, SUCCESS = "Persisted db to disk", True
     else: STATUS, SUCCESS =  f"Write error, file might be open", False
     return STATUS, SUCCESS 

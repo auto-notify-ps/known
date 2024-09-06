@@ -72,7 +72,7 @@ def remove_tag(page, tag): # does not work on nested tags
         page = f'{page[:istart]}{page[istart+istop+len(fstop):]}'
     return page
     
-def nb2html(source_notebook, template_name, no_script, html_title=None, parsed_title=None):
+def nb2html(source_notebook, template_name, no_script, html_title=None, parsed_title=None, dlink=''):
     if html_title is None: # auto infer
         html_title = os.path.basename(source_notebook)
         iht = html_title.rfind('.')
@@ -82,6 +82,16 @@ def nb2html(source_notebook, template_name, no_script, html_title=None, parsed_t
         page, _ = HTMLExporter(template_name=template_name).from_file(source_notebook,  dict(  metadata = dict( name = f'{html_title}' )    )) 
         if no_script: page = remove_tag(page, 'script') # force removing any scripts
     except: page = None
+
+    if dlink:
+        fstart, fstop = f'<body', f'>'
+        istart = page.find(fstart)
+        if istart<0: return None
+        istop = page[istart:].find(fstop)
+        ins = f'<a href="{dlink}?{app.config["query_download"]}">⬇️</a>'
+        page = f'{page[:istart+istop+len(fstop)]}{ins}{page[istart+istop+len(fstop):]}'
+
+
     return  page
 
 
@@ -120,7 +130,7 @@ def route_home(query):
         if tosend: return send_file(requested)
         else:
             global loaded_pages
-            if (requested not in loaded_pages) or refresh: loaded_pages[requested] = nb2html(requested, app.config['template'], app.config['no_script'],  html_title=None, parsed_title=app.config['title'])
+            if (requested not in loaded_pages) or refresh: loaded_pages[requested] = nb2html(requested, app.config['template'], app.config['no_script'],  html_title=None, parsed_title=app.config['title'], dlink=(f'{request.url}' if query!=ext else ''))
             return redirect(url_for('route_home', query=query)) if refresh else ( send_file(requested) if download else loaded_pages[requested])
 
 #%% Server Section
