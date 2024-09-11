@@ -46,14 +46,16 @@ parser.add_argument('--dir', type=str, default='', help="path of workspace direc
 parser.add_argument('--verbose', type=int, default=2, help="verbose level in logging")
 
 parser.add_argument('--log', type=str, default='', help="path of log dir - keep blank to disable logging")
-parser.add_argument('--logpre', type=str, default='log_', help="adds this to the start of logfile name (works when logging is enabled)")
+parser.add_argument('--logpre', type=str, default='', help="adds this to the start of logfile name (works when logging is enabled)")
 parser.add_argument('--logname', type=str, default='%Y_%m_%d_%H_%M_%S_%f', help="name of logfile as formated string (works when logging is enabled)")
-parser.add_argument('--logpost', type=str, default='.txt', help="adds this to the end of logfile name (works when logging is enabled)")
+parser.add_argument('--logpost', type=str, default='', help="adds this to the end of logfile name (works when logging is enabled)")
 
 parser.add_argument('--con', type=str, default='', help="config name - if not provided, uses 'default'")
 parser.add_argument('--reg', type=str, default='', help="if specified, allow users to register with specified access string such as DABU or DABUS+")
 parser.add_argument('--cos', type=int, default=1, help="use 1 to create-on-start - create (overwrites) pages")
 parser.add_argument('--coe', type=int, default=1, help="use 1 to clean-on-exit - deletes pages")
+
+parser.add_argument('--access', type=str, default='', help="if specified, allow users to add access string such as DABU or DABUS+")
 parsed = parser.parse_args()
 # ------------------------------------------------------------------------------------------
 
@@ -142,7 +144,7 @@ LOGIN_ORD = ['ADMIN','UID','NAME','PASS']
 SUBMIT_ORD = ['UID', 'NAME', 'SCORE', 'REMARK', 'BY']
 
 DEFAULT_USER = 'admin'
-DEFAULT_ACCESS = f'DABUS+-'
+DEFAULT_ACCESS = f'DABUSR+-'
 """
 DEFAULT_ACCESS:
 D   Read from [D]ownloads
@@ -150,6 +152,7 @@ A   Read from [A]rchives
 B   Access [B]oard
 U   Perform [U]pload
 S   Read from [S]elf Uploads
+R   Read from [R]eports
 +   Admin access enabled
 X   Reset access enabled (password reset)
 -   Not included in submission
@@ -213,6 +216,7 @@ default = dict(
     login        = "__login__.csv",       # login database
     submit       = "__submit__.csv",      # submission database - created if not existing - reloads if exists
     uploads      = "__uploads__",         # uploads folder (uploaded files by users go here)
+    reports      = "__reports__",         # reports folder (personal user access files by users go here)
     downloads    = "__downloads__",       # downloads folder
     archives     = "__archives__",        # archives folder
     board        = "__board__.ipynb",     # board file
@@ -230,6 +234,7 @@ default = dict(
                         new_=           'Register',
                         submit_=        'Eval',
                         resetpass_=     'Reset',
+                        report_=        'Report',
 
                         # -------------# icons 
                         icon_board =    '🔰',
@@ -241,6 +246,7 @@ default = dict(
                         icon_uploads=   '📤',
                         icon_archives=  '📦',
                         icon_submit=    '✴️',
+                        icon_report=    '📜',
 
                         # -------------# admin actions 
                         aa_ref_downloads =  '📥',
@@ -251,7 +257,7 @@ default = dict(
                         aa_reset_pass= 		'🔑',
 
                         # -------------# board style ('lab'  'classic' 'reveal')
-                        template_board = 'classic', 
+                        template_board = 'lab', 
                     )
     )
 
@@ -267,6 +273,8 @@ def DICT2CSV(path, d, ord):
     with open(path, 'w', encoding='utf-8') as f: 
         f.write(CSV_DELIM.join(ord)+SSV_DELIM)
         for v in d.values(): f.write(CSV_DELIM.join(v)+SSV_DELIM)
+
+APPEND_ACCESS = f'{parsed.access}'.strip().upper()
 
 def CSV2DICT(path, key_at):
     with open(path, 'r', encoding='utf-8') as f: 
@@ -306,7 +314,7 @@ def CREATE_LOGIN_FILE(login_xl_path):
 
 
 def READ_DB_FROM_DISK(path, key_at):
-    try: return CSV2DICT(path, key_at), True
+    try:    return CSV2DICT(path, key_at), True
     except: return dict(), False
 # ------------------------------------------------------------------------------------------
 def WRITE_DB_TO_DISK(path, db_frame, ord): # will change the order
@@ -469,6 +477,16 @@ try: os.makedirs(UPLOAD_FOLDER_PATH, exist_ok=True)
 except: fexit(f'[!] uploads folder @ {UPLOAD_FOLDER_PATH} was not found and could not be created')
 sprint(f'⚙ Upload Folder: {UPLOAD_FOLDER_PATH}')
 
+# ------------------------------------------------------------------------------------------
+# report settings
+# ------------------------------------------------------------------------------------------
+if not args.reports: fexit(f'[!] reports folder was not provided!')
+REPORT_FOLDER_PATH = os.path.join( BASEDIR, args.reports ) 
+try: os.makedirs(REPORT_FOLDER_PATH, exist_ok=True)
+except: fexit(f'[!] reports folder @ {REPORT_FOLDER_PATH} was not found and could not be created')
+sprint(f'⚙ Reports Folder: {REPORT_FOLDER_PATH}')
+
+
 
 
 
@@ -528,6 +546,7 @@ CAPTION_LOGIN =         style['login_']
 CAPTION_NEW =           style['new_'] 
 CAPTION_SUBMIT =        style['submit_'] 
 CAPTION_RESET_PASS =    style['resetpass_'] 
+CAPTION_REPORT =        style['report_'] 
 
 ICON_BOARD =            style['icon_board'] 
 ICON_ADMIN =            style['icon_admin'] 
@@ -538,6 +557,7 @@ ICON_DOWNLOADS =        style['icon_downloads']
 ICON_UPLOADS =          style['icon_uploads'] 
 ICON_ARCHIVES =         style['icon_archives'] 
 ICON_SUBMIT =           style['icon_submit'] 
+ICON_REPORT =           style['icon_report'] 
 
 AA_REFD=                style['aa_ref_downloads'] 
 AA_REFA=                style['aa_ref_archives']
@@ -911,6 +931,47 @@ uploads = """
 </html>
 """,
 # ******************************************************************************************
+reports = """
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title> """+f'{ICON_REPORT}'+""" {{ config.topic }} | {{ session.uid }} </title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">           
+    </head>
+    <body>
+    <!-- ---------------------------------------------------------->
+    </br>
+    <!-- ---------------------------------------------------------->
+    
+    <div align="left" style="padding: 20px;">
+        <div class="topic_mid">{{ config.topic }}</div>
+        <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
+        <br>
+        <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{CAPTION_LOGOUT}'+"""</a>
+        <a href="{{ url_for('route_home') }}" class="btn_back">Back</a>
+        <br>
+        <br>
+        <div class="files_status">"""+f'{CAPTION_REPORT}'+"""</div>
+        <br>
+        <div class="files_list_down">
+            <ol>
+            {% for file in session.reported %}
+            <li><a href="{{ (request.path + '/' if request.path != '/' else '') + file }}"  target="_blank" style="text-decoration: none; color: rgb(20, 20, 20);" >{{ file }}</a></li>
+            <br>
+            {% endfor %}
+            </ol>
+        </div>
+        <br>
+        <br>
+    </div>
+
+    <!-- ---------------------------------------------------------->
+    </br>
+    <!-- ---------------------------------------------------------->
+    </body>
+</html>
+""",
+# ******************************************************************************************
 home="""
 <html>
     <head>
@@ -943,6 +1004,10 @@ home="""
         {% if 'X' in session.admind or '+' in session.admind %}
         <a href="{{ url_for('route_submit') }}" class="btn_submit">"""+f'{CAPTION_SUBMIT}'+"""</a>
         {% endif %}
+        {% if 'R' in session.admind %}
+        <a href="{{ url_for('route_reports') }}" class="btn_report">"""+f'{CAPTION_REPORT}'+"""</a>
+        {% endif %}
+        
         {% if '+' in session.admind %}
         <a href="{{ url_for('route_adminpage') }}" class="btn_admin">"""+f'{CAPTION_ADMIN}'+"""</a>
         {% endif %}
@@ -1291,7 +1356,17 @@ style = """
     text-decoration: none;
 }
 
-
+.btn_report {
+    padding: 2px 10px 2px;
+    background-color: #c23f79; 
+    border-style: none;
+    color: #FFFFFF;
+    font-weight: bold;
+    font-size: large;
+    border-radius: 10px;
+    font-family:monospace;
+    text-decoration: none;
+}
 .btn_admin {
     padding: 2px 10px 2px;
     background-color: #2b2b2b; 
@@ -1548,6 +1623,7 @@ app = Flask(__name__)
 app.secret_key =          APP_SECRET_KEY
 app.config['base'] =      BASEDIR
 app.config['uploads'] =   UPLOAD_FOLDER_PATH
+app.config['reports'] =   REPORT_FOLDER_PATH
 app.config['downloads'] = DOWNLOAD_FOLDER_PATH
 app.config['archives'] =  ARCHIVE_FOLDER_PATH
 app.config['emoji'] =     args.emoji
@@ -1618,9 +1694,11 @@ def route_login():
             else: # re login
                 if in_passwd: # password provided 
                     if in_passwd==passwd:
-                        folder_name = os.path.join(app.config['uploads'], uid) 
+                        folder_name = os.path.join(app.config['uploads'], uid)
+                        folder_report = os.path.join(app.config['reports'], uid) 
                         try:
                             os.makedirs(folder_name, exist_ok=True)
+                            os.makedirs(folder_report, exist_ok=True)
                         except:
                             dprint(f'✗ directory could not be created @ {folder_name} :: Force logout user {uid}')
                             session['has_login'] = False
@@ -1631,8 +1709,9 @@ def route_login():
                     
                         session['has_login'] = True
                         session['uid'] = uid
-                        session['admind'] = admind
+                        session['admind'] = admind + APPEND_ACCESS
                         session['filed'] = os.listdir(folder_name)
+                        session['reported'] = os.listdir(folder_report)
                         session['emojid'] = in_emoji 
                         
                         if in_name!=named and  valid_name and  (app.config['rename']>0): 
@@ -1801,6 +1880,24 @@ def route_uploads(req_path):
     return render_template('uploads.html')
 # ------------------------------------------------------------------------------------------
 
+# ------------------------------------------------------------------------------------------
+# reports
+# ------------------------------------------------------------------------------------------
+@app.route('/reports', methods =['GET'], defaults={'req_path': ''})
+@app.route('/reports/<path:req_path>')
+def route_reports(req_path):
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    if 'R' not in session['admind']:  return redirect(url_for('route_home'))
+    abs_path = os.path.join(os.path.join( app.config['reports'], session['uid']) , req_path)# Joining the base and the requested path
+    if not os.path.exists(abs_path): 
+        dprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
+        return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
+    if os.path.isfile(abs_path):  #(f"◦ sending file ")
+        dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the report {req_path} via {request.remote_addr}')
+        return send_file(abs_path) # Check if path is a file and serve
+    return render_template('reports.html')
+# ------------------------------------------------------------------------------------------
+
 @app.route('/submit', methods =['GET', 'POST'])
 def route_submit():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
@@ -1888,6 +1985,7 @@ def route_submit():
     return render_template('submit.html', success=success, status=status)
 
 
+
 # ------------------------------------------------------------------------------------------
 # home - upload
 # ------------------------------------------------------------------------------------------
@@ -1952,6 +2050,8 @@ def route_uploadf():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     folder_name = os.path.join( app.config['uploads'], session['uid']) 
     session['filed'] = os.listdir(folder_name)
+    folder_report = os.path.join(app.config['reports'], session['uid']) 
+    session['reported'] = os.listdir(folder_report)
     return redirect(url_for('route_home'))
 
 
