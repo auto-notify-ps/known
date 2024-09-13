@@ -10,7 +10,7 @@ if __name__!='__main__': exit(f'[!] can not import {__name__}.{__file__}')
 
 
 #%% Imports
-from ..basic import Table, Fuzz
+from . import Table, ZipFolders
 import os, re, argparse, getpass, random, logging
 #from math import inf
 import datetime 
@@ -719,7 +719,7 @@ def route_store(subpath=""):
         if TOKEN_DOWNLOAD in request.args:
             os.chdir(app.config['root'])
             zp = os.path.relpath(abs_path, app.config['root'])
-            Z = Fuzz.ZipFolders(zp) # zipped, zip_path
+            Z = ZipFolders(zp) # zipped, zip_path
             os.chdir(CWDIR)
             #print(zipped, zip_path)
             dprint(f'✓ {session["uid"]} zipped {zp} file(s) -> {Z}') 
