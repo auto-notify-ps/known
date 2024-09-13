@@ -1711,7 +1711,7 @@ def route_login():
                         session['uid'] = uid
                         session['admind'] = admind + APPEND_ACCESS
                         session['filed'] = os.listdir(folder_name)
-                        session['reported'] = os.listdir(folder_report)
+                        session['reported'] = sorted(os.listdir(folder_report))
                         session['emojid'] = in_emoji 
                         
                         if in_name!=named and  valid_name and  (app.config['rename']>0): 
@@ -2051,7 +2051,7 @@ def route_uploadf():
     folder_name = os.path.join( app.config['uploads'], session['uid']) 
     session['filed'] = os.listdir(folder_name)
     folder_report = os.path.join(app.config['reports'], session['uid']) 
-    session['reported'] = os.listdir(folder_report)
+    session['reported'] = sorted(os.listdir(folder_report))
     return redirect(url_for('route_home'))
 
 
