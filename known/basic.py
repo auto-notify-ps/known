@@ -907,31 +907,6 @@ class Symbols:
 
 
 class Table:
-    
-    # a table is a collections of cols with one col being the key
-    # everything is strings
-    # special values :
-    #   None    - None key -  used to store col names
-    """
-    c1  c2  [c3]  c4  c5  ...     cn
-    .   .   c3-1  .   .           .
-    .   .   c3-2  .   .           .
-    .   .   ...   .           .
-    .   .   ...   .           .
-    .   .   c3-m  .   .           .
-
-    {
-        None    :       [c1,   c2,   c3,   ... cn  ],
-        c3-1    :       [c1-1, c2-1, c3-1, ... cn-1],
-        c3-2    :       [c1-2, c2-2, c3-2, ... cn-2],
-        ...
-        ...
-        c3-m    :       [c1-n, c2-n, c3-n, ... cn-m],
-    }
-
-    The first column is primary key
-
-    """
 
     @staticmethod
     def CreateData(*columns):
