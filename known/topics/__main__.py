@@ -414,19 +414,22 @@ sprint(f'⚙ Base dicectiry: {BASEDIR}')
 # ------------------------------------------------------------------------------------------
 # WEB-SERVER INFORMATION
 # ------------------------------------------------------------------------------------------\
-if not args.secret: fexit(f'[!] secret key was not provided!')
-APP_SECRET_KEY_FILE = os.path.join(BASEDIR, args.secret)
-if not os.path.isfile(APP_SECRET_KEY_FILE): #< --- if key dont exist, create it
+if not args.secret: 
     APP_SECRET_KEY =  GET_SECRET_KEY(fnow("%Y%m%d%H%M%S"))
-    try:
-        with open(APP_SECRET_KEY_FILE, 'w') as f: f.write(APP_SECRET_KEY) #<---- auto-generated key
-    except: fexit(f'[!] could not create secret key @ {APP_SECRET_KEY_FILE}')
-    sprint(f'⇒ New secret created: {APP_SECRET_KEY_FILE}')
+    sprint(f'⇒ secret not provided - using random secret')
 else:
-    try:
-        with open(APP_SECRET_KEY_FILE, 'r') as f: APP_SECRET_KEY = f.read()
-        sprint(f'⇒ Loaded secret file: {APP_SECRET_KEY_FILE}')
-    except: fexit(f'[!] could not read secret key @ {APP_SECRET_KEY_FILE}')
+    APP_SECRET_KEY_FILE = os.path.join(BASEDIR, args.secret)
+    if not os.path.isfile(APP_SECRET_KEY_FILE): #< --- if key dont exist, create it
+        APP_SECRET_KEY =  GET_SECRET_KEY(fnow("%Y%m%d%H%M%S"))
+        try:
+            with open(APP_SECRET_KEY_FILE, 'w') as f: f.write(APP_SECRET_KEY) #<---- auto-generated key
+        except: fexit(f'[!] could not create secret key @ {APP_SECRET_KEY_FILE}')
+        sprint(f'⇒ New secret created: {APP_SECRET_KEY_FILE}')
+    else:
+        try:
+            with open(APP_SECRET_KEY_FILE, 'r') as f: APP_SECRET_KEY = f.read()
+            sprint(f'⇒ Loaded secret file: {APP_SECRET_KEY_FILE}')
+        except: fexit(f'[!] could not read secret key @ {APP_SECRET_KEY_FILE}')
 
 
 # ------------------------------------------------------------------------------------------
@@ -2026,12 +2029,18 @@ def route_home():
                     why_failed = f"✗ Upload limit reached [{sf}] "
                     result.append((0, why_failed))
                     continue
+            
+            try: 
+                file.save(file_name) 
+                why_failed = f"✓ Uploaded new file [{sf}] "
+                result.append((1, why_failed))
+                n_success+=1
+                if sf not in session['filed']: session['filed'] = session['filed'] + [sf]
+            except FileNotFoundError: 
+                return redirect(url_for('route_logout'))
 
-            file.save(file_name) 
-            why_failed = f"✓ Uploaded new file [{sf}] "
-            result.append((1, why_failed))
-            n_success+=1
-            if sf not in session['filed']: session['filed'] = session['filed'] + [sf]
+
+            
 
         #---------------------------------------------------------------------------------
             

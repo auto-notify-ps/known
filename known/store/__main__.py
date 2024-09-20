@@ -717,6 +717,7 @@ def route_store(subpath=""):
         dirs = [item for item in items if os.path.isdir(os.path.join(abs_path, item))]
         files = [item for item in items if os.path.isfile(os.path.join(abs_path, item))]
         if TOKEN_DOWNLOAD in request.args:
+            if 'D' not in session['access']:  return abort(404)
             os.chdir(app.config['root'])
             zp = os.path.relpath(abs_path, app.config['root'])
             Z = ZipFolders(zp) # zipped, zip_path
@@ -725,6 +726,7 @@ def route_store(subpath=""):
             dprint(f'✓ {session["uid"]} zipped {zp} file(s) -> {Z}') 
             return redirect(url_for('route_store', subpath=zp+'.zip'))
         elif TOKEN_DELETE in request.args:
+            if 'X' not in session['access']:  return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
             try:
                 shutil.rmtree(abs_path, False)
                 dprint(f'✓ {session["uid"]} deleted {abs_path}') 
