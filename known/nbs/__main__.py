@@ -130,7 +130,7 @@ def route_home(query):
         if tosend: return send_file(requested)
         else:
             global loaded_pages
-            if (requested not in loaded_pages) or refresh: loaded_pages[requested] = nb2html(requested, app.config['template'], app.config['no_script'],  html_title=None, parsed_title=app.config['title'], dlink=(f'{request.url}' if query!=ext else ''))
+            if (requested not in loaded_pages) or refresh: loaded_pages[requested] = nb2html(requested, app.config['template'], app.config['no_script'],  html_title=None, parsed_title=app.config['title'], dlink=(f'{request.base_url}' if query!=ext else ''))
             return redirect(url_for('route_home', query=query)) if refresh else ( send_file(requested) if download else loaded_pages[requested])
 
 #%% Server Section
