@@ -2,6 +2,8 @@ __doc__=""" Helper Functions and Utils """
 
 import os 
 
+__all__ =['ParseLinuxFiles', 'ConfigParser', 'ImportCustomModule', 'GraphFromImage',]
+
 def ParseLinuxFiles(F, check=False): # parses --files="%F"
     Fl = [fi.strip() for fi in F.split("'/")]
     Fr = [os.path.abspath(f'/{fl[:-1]}'.replace("'\\''","'")) for fl in Fl if fl] 

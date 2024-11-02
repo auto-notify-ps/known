@@ -2,13 +2,9 @@ __doc__="""
 Generic functions for pytorch modules
 """
 
-# -----------------------------------------------------------------------------------------------------
-from typing import Any as Tensor # just for type hinting
-from typing import Any as Module # just for type hinting
 import torch as tt
 import torch.nn as nn
 from io import BytesIO
-# -----------------------------------------------------------------------------------------------------
 
 
 def numel(shape): 
@@ -20,32 +16,32 @@ def arange(shape, start=0, step=1, dtype=None):
     r""" returns arange for multi-dimensional array (reshapes) """
     return tt.arange(start=start, end=start+step*numel(shape), step=step, dtype=dtype).reshape(shape)
 
-def shares_memory(a:Tensor, b:Tensor) -> bool: 
+def shares_memory(a, b) -> bool: 
     r""" checks if two tensors share same underlying storage, in which case, changing values of one will change values in other as well
         Note: this is different from Tensor.is_set_to(Tensor) function which checks shape as well"""
     return (a.storage().data_ptr() == b.storage().data_ptr())
 
-def absdiff(a: Tensor, b:Tensor): return tt.sum(tt.abs(a-b)).item()
+def absdiff(a, b): return tt.sum(tt.abs(a-b)).item()
 
-def save_state(path, module:Module): tt.save(module.state_dict(), path) # simply save the state dictionary
+def save_state(path, module): tt.save(module.state_dict(), path) # simply save the state dictionary
 
-def load_state(path, module:Module): module.load_state_dict(tt.load(path)) # simply load the state dictionary
+def load_state(path, module): module.load_state_dict(tt.load(path)) # simply load the state dictionary
 
-def save_to_buffer(module:Module, seek0=False): 
+def save_to_buffer(module, seek0=False): 
     buffer = BytesIO()
     tt.save(module, buffer)
     if seek0: buffer.seek(0)
     return buffer
 
-def load_from_buffer(buffer:BytesIO, seek0=True): 
+def load_from_buffer(buffer, seek0=True): 
     if seek0: buffer.seek(0)
     return tt.load(buffer)
 
-def save(module:Module, path:str): tt.save(module, path)
+def save(module, path:str): tt.save(module, path)
 
 def load(path:str): return tt.load(path)
 
-def count(module:Module, requires_grad=None): 
+def count(module, requires_grad=None): 
     r""" Counts the total number of parameters (numel) in a params
     
     :param requires_grad: 
@@ -56,7 +52,7 @@ def count(module:Module, requires_grad=None):
     return sum( ([ p.numel() for p in module.parameters() ]) if requires_grad is None else \
                 ([ p.numel() for p in module.parameters()    if p.requires_grad is requires_grad ]) )
 
-def show(module:Module, values:bool=False):
+def show(module, values:bool=False):
     r""" Prints the parameters of a params
     
     :param values: if True, prints the full tensors otherwise prints only shape
@@ -78,7 +74,7 @@ def show(module:Module, values:bool=False):
     print('=====================================')
     return 
 
-def state(module:Module, values=False):
+def state(module, values=False):
     r""" prints the parameters using `nn.Module.parameters` iterator, use `values=True` to print full parameter tensor """
     sd = module.state_dict()
     for i,(k,v) in enumerate(sd.items()):
@@ -87,7 +83,7 @@ def state(module:Module, values=False):
     return 
 
 @tt.no_grad()
-def diff(module1:Module, module2:Module, do_abs:bool=True, do_sum:bool=True):
+def diff(module1, module2, do_abs:bool=True, do_sum:bool=True):
     r""" Checks the difference between the parameters of two modules.
         This can be used to check if two models have exactly the same parameters.
 
@@ -101,11 +97,11 @@ def diff(module1:Module, module2:Module, do_abs:bool=True, do_sum:bool=True):
     return d
 
 @tt.no_grad()
-def copy(module_from:Module, module_to:Module) -> None:
+def copy(module_from, module_to) -> None:
     r""" Copies the parameters of a params to another - both modules are supposed to be identical"""
     for pt,pf in zip(module_to.parameters(), module_from.parameters()): pt.copy_(pf)
 
-def clones(module:Module, n_copies:int):
+def clones(module, n_copies:int):
     r""" Replicates a params by storing it in a buffer and retriving many copies
     NOTE: this will preserve the ```require_grad``` attribute on all tensors. """
     #from io import BytesIO
@@ -121,11 +117,11 @@ def clones(module:Module, n_copies:int):
     del buffer
     return model_copies
 
-def clone(module:Module): return clones(module, 1).pop()
+def clone(module): return clones(module, 1).pop()
 
-def duplicate(module:Module, n_copies): return nn.ModuleList(clones(module, n_copies))
+def duplicate(module, n_copies): return nn.ModuleList(clones(module, n_copies))
 
-def requires_grad_(module:Module, requires:bool, *names):
+def requires_grad_(module, requires:bool, *names):
     r""" Sets requires_grad attribute on tensors in params
     if no names are provided, sets requires_grad on all tensors 
     NOTE: careful with *names, if a buffer's name is provided
@@ -141,7 +137,7 @@ def requires_grad_(module:Module, requires:bool, *names):
     return module
 
 @tt.no_grad()
-def zero_(module:Module, *names):
+def zero_(module, *names):
     r""" Sets requires_grad attribute on tensors in params
     if no names are provided, sets requires_grad on all tensors 
     
@@ -161,10 +157,10 @@ def zero_(module:Module, *names):
         for p in module.parameters(): p.zero_()
     return module
 
-def zero_like(module:Module) -> dict: return zero_(clone(module), " ")
+def zero_like(module) -> dict: return zero_(clone(module), " ")
 
 def dense(in_dim, layer_dims, out_dim, 
-          actFs, bias=True, dtype=None, device=None ):
+        actFs, bias=True, dtype=None, device=None ):
     r"""
     Creats a stack of fully connected (dense) layers which is usually connected at end of other networks
     Args:

@@ -3,7 +3,19 @@ __doc__=r"""
 :py:mod:`known/basic.py`
 """
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-__all__ = [ 'Fake', 'Infinity', 'Kio', 'Remap',  'BaseConvert', 'IndexedDict', 'Fuzz', 'Mailer', 'Verbose', 'Symbols', 'Table']
+__all__ = [ 
+    'Fake', 
+    'Infinity', 
+    'Kio', 
+    'Remap',  
+    'BaseConvert', 
+    'IndexedDict', 
+    'Fuzz', 
+    'Mailer', 
+    'Verbose', 
+    'Symbols', 
+    'Table', 
+    ]
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 from typing import Any, Union, Iterable #, Callable #, BinaryIO, cast, Dict, Optional, Type, Tuple, IO
 import os, platform, datetime, smtplib, mimetypes
@@ -994,4 +1006,5 @@ class Table:
 
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
 

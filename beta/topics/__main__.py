@@ -2193,12 +2193,24 @@ def route_repass(req_uid):
 
 
 
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #<-------------------DO NOT WRITE ANY NEW CODE AFTER THIS
-endpoint = f'{args.host}:{args.port}' if args.host!='0.0.0.0' else f'localhost:{args.port}'
-sprint(f'◉ http://{endpoint}')
+def endpoints(athost):
+    if athost=='0.0.0.0':
+        import socket
+        ips=set()
+        for info in socket.getaddrinfo(socket.gethostname(), None):
+            if (info[0].name == socket.AddressFamily.AF_INET.name): ips.add(info[4][0])
+        ips=list(ips)
+        ips.extend(['127.0.0.1', 'localhost'])
+        return ips
+    else: return [f'{athost}']
+    
+
 start_time = datetime.datetime.now()
 sprint('◉ start server @ [{}]'.format(start_time))
+for endpoint in endpoints(args.host): sprint(f'◉ http://{endpoint}:{args.port}')
 serve(app, # https://docs.pylonsproject.org/projects/waitress/en/stable/runner.html
     host = args.host,          
     port = args.port,          
@@ -2206,6 +2218,7 @@ serve(app, # https://docs.pylonsproject.org/projects/waitress/en/stable/runner.h
     threads = args.threads,    
     connection_limit = args.maxconnect,
     max_request_body_size = MAX_UPLOAD_SIZE,
+    #_quiet=True,
 )
 #<-------------------DO NOT WRITE ANY CODE AFTER THIS
 end_time = datetime.datetime.now()
