@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name =                      'known',
-    version =                   '0.0.24',
+    version =                   '0.0.25',
     url =                       'https://github.com/auto-notify-ps/known',
     author =                    'Nelson.S',
     author_email =              'mail.nelsonsharma@gmail.com',
