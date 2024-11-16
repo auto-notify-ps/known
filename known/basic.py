@@ -10,20 +10,20 @@ __all__ = [
     'Remap',  
     'BaseConvert', 
     'IndexedDict', 
-    'Fuzz', 
-    'Mailer', 
     'Verbose', 
     'Symbols', 
     'Table', 
+    'Fuzz',
+    'Mailer',
     ]
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-from typing import Any, Union, Iterable #, Callable #, BinaryIO, cast, Dict, Optional, Type, Tuple, IO
-import os, platform, datetime, smtplib, mimetypes
+import datetime, os
 from math import floor, log, ceil
-from zipfile import ZipFile
-from email.message import EmailMessage
 from collections import UserDict
 from io import BytesIO
+from zipfile import ZipFile
+import smtplib, mimetypes
+from email.message import EmailMessage
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -68,7 +68,7 @@ class Kio:
     def get_ioas(): return list(__class__.IOFLAG.keys())
 
     @staticmethod
-    def save_buffer(o:Any, ioas:str, seek0=False) -> None:
+    def save_buffer(o, ioas:str, seek0=False) -> None:
         assert ioas in __class__.IOFLAG, f'key error {ioas}'
         s_module, s_flag = __class__.IOFLAG[ioas]
         buffer = BytesIO()
@@ -84,7 +84,7 @@ class Kio:
         return s_module.load(buffer)
 
     @staticmethod
-    def save_file(o:Any, path:str, ioas:str, **kwargs):
+    def save_file(o, path:str, ioas:str, **kwargs):
         assert ioas in __class__.IOFLAG, f'key error {ioas}'
         s_module, s_flag = __class__.IOFLAG[ioas]
         with open(path, f'w{s_flag}') as f: s_module.dump(o, f, **kwargs)
@@ -97,12 +97,12 @@ class Kio:
         return o
     
     @staticmethod
-    def save_as_json(o:Any, path:str, **kwargs):    return __class__.save_file(o, path, 'json', **kwargs)
+    def save_as_json(o, path:str, **kwargs):    return __class__.save_file(o, path, 'json', **kwargs)
     @staticmethod
     def load_as_json(path:str):                     return __class__.load_file(path, 'json')
 
     @staticmethod
-    def save_as_pickle(o:Any, path:str, **kwargs):  return __class__.save_file(o, path, 'pickle', **kwargs)
+    def save_as_pickle(o, path:str, **kwargs):  return __class__.save_file(o, path, 'pickle', **kwargs)
     @staticmethod
     def load_as_pickle(path:str):                   return __class__.load_file(path, 'pickle')
 
@@ -224,7 +224,7 @@ class BaseConvert:
         return digits
 
     @staticmethod
-    def base2int(num:Iterable, base:int) -> int:
+    def base2int(num, base:int) -> int:
         """ 
         Convert an iterbale of digits in base-n system to base-10 integer
 
@@ -329,339 +329,10 @@ class IndexedDict(UserDict):
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-class Fuzz:
-    r""" file system and zipping """
-
-    @staticmethod
-    def SplitFileName(f:str):
-        r"""splits a file-name into name.ext 
-        Note: make sure to pass os.path.basename() to this function
-        Retutns: 2-tuple (name, ext)
-            `name` is always a string
-            `ext` can be None or a string (None means that there is no "." in file name)
-        """
-        i = f.rfind('.')
-        return (f, None) if i<0 else (f[0:i], f[i+1:])
-
-    @staticmethod
-    def ExistInfo(path):
-        """ returns 4-tuple (exists,isdir,isfile,islink) """
-        return os.path.exists(path), os.path.isdir(path), os.path.isfile(path), os.path.islink(path)
-
-    
-    @staticmethod
-    def PathInfo(path):
-        """ returns information about file-name, path and its types """
-        abspath = os.path.abspath(path)
-        dirname, filename = os.path.dirname(abspath), os.path.basename(abspath)
-        exists,isdir,isfile,islink = __class__.ExistInfo(abspath)
-        name, ext = __class__.SplitFileName(f'{filename}')
-        return dict(
-            abspath=abspath, 
-            filename=filename, 
-            dirname=dirname, 
-            exists=exists, 
-            isdir=isdir, 
-            isfile=isfile, 
-            islink=islink, 
-            name=name, ext=ext)
-    
-    @staticmethod
-    def RenameFile(path, new_name, keep_ext=False):
-        """ rename a file with or without changing its extension """
-        dirname, filename = os.path.dirname(path), os.path.basename(path)
-        _, ext = __class__.SplitFileName(f'{filename}')
-        if keep_ext and (ext is not None):  name_ = f'{new_name}.{ext}'
-        else:                               name_ = f'{new_name}'
-        return os.path.join(dirname, name_)
-    
-    @staticmethod
-    def RenameFileExt(path, new_ext):
-        """ change a file extension without renaming it """
-        dirname, filename = os.path.dirname(path), os.path.basename(path)
-        name, _ = __class__.SplitFileName(f'{filename}')
-        return os.path.join(dirname, f'{name}.{new_ext}')
-
-    
-
-
-    @staticmethod
-    def ZipFiles(files:list, zip_path:str=None, **kwargs):
-        r""" zips all (only files) in the list of file paths and saves at 'zip_path' """
-        if isinstance(files, str): files= [f'{files}']
-        if not files: return # no files provided to zip
-        if not zip_path : zip_path = f'{files[0]}.zip' # if zip path not provided take it to be the first file
-        if not zip_path.lower().endswith('.zip'): zip_path = f'{zip_path}.zip'  # append .zip to the end of path
-
-        zipped = 0
-        with ZipFile(zip_path, 'w', **kwargs) as zip_object:
-            for path in files:
-                if not os.path.isfile(path): continue
-                zip_object.write(f'{path}')
-                zipped+=1
-        return zipped, zip_path
-
-    @staticmethod
-    def ZipFolders(folders:Union[str,list], zip_path:str=None, **kwargs):  
-        r""" zip multiple folders into a single zip file 
-        to zip a single folder with the same zip name - provide folder as a string and keep zip_path as none
-        """    
-        if isinstance(folders, str): folders= [f'{folders}']
-        if not folders: return None, None# no folders provided to zip
-        if not zip_path : zip_path = f'{folders[0]}.zip' # if zip path not provided take it to be the first folder
-        if not zip_path.lower().endswith('.zip'): zip_path = f'{zip_path}.zip'  # append .zip to the end of path
-        all_files = []
-        for folder in folders:
-            for root, directories, files in os.walk(folder): all_files.extend([os.path.join(root, filename) for filename in files])
-        return __class__.ZipFiles(all_files, f'{zip_path}', **kwargs)
-    
-    @staticmethod
-    def GetAllFilesInfo(directory):
-        r""" recursively list all files in a folder along with size and extension 
-
-        eg - path is /home/user/name.ext
-        returns list of 6-tuples (
-            file-name,                      # name.ext
-            file-name-without-extension,    # name
-            file-extension,                 # .ext          --> note it includes '.'
-            file-dir,                       # /home/user
-            file-path,                      # /home/user/name.ext
-            file-size,                      # size in bytes
-        ) 
-            
-        """
-        file_paths = []
-        for root, _, files in os.walk(directory):
-            for file_name in files:
-                # join the two strings in order to form the full filepath.
-                i = file_name.rfind('.')
-                if i<0:     file_name_we, file_ext = file_name, '' # extension = '' means "." was not in filename at all
-                else:       file_name_we, file_ext = file_name[0:i], file_name[i:] # includes .
-                file_path = os.path.abspath(os.path.join(root, file_name))
-                #file_paths.append((file_name, file_name_we, file_ext, root, file_path, file_abs, os.stat(file_path).st_size))
-                # eg - path is /home/user/name.ext
-                file_paths.append((
-                        file_name,                      # name.ext
-                        file_name_we,                   # name
-                        file_ext,                       # .ext          --> note it includes '.'
-                        os.path.dirname(file_path),     # /home/user
-                        file_path,                      # /home/user/name.ext
-                        os.stat(file_path).st_size,     # size in bytes
-                    ))
-        return file_paths 
-
-    @staticmethod
-    def MatchFiles(directory, policy):
-        """ Matches all files (recursive) in a directory against a policy
-
-        Policy:
-            # policy should be function that takes 6-tuples retuned by `GetAllFilesInfo` method - fn, fnwe, fe, fd, fp, fs 
-            # and returns if this file matches that policy - return bool - match or not
-            # policy = lambda fn, fnwe, fe, fd, fp, fs : bool
-
-        Example usage:
-
-        -> get all png and jpg files in /home/user folder that are larger than 15KB
-
-        matched_files = MatchFiles(
-                            directory = '/home/user', 
-                            policy = lambda fn, fnwe, fe, fd, fp, fs: ((fe.lower() in set(['.jpg', '.png'])) and (fs > 15*1024)),
-                        )
-        # or
-        matched_files = MatchFiles(
-                            directory = '/home/user', 
-                            policy = lambda *args: ((args[2].lower() in set(['.jpg', '.png'])) and (args[-1] > 15*1024)),
-                        )
-        """
-        allfiles = __class__.GetAllFilesInfo(directory) # can del this later
-        return [allfiles[i] for i,(fn, fnwe, fe, fd, fp, fs) in enumerate(allfiles) if policy(fn, fnwe, fe, fd, fp, fs)]
-
-
-#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
-class Mailer:
-    r""" Use a g-mail account to send mail. 
-
-    .. warning:: security concern
-        You should enable 2-factor-auth in gmail and generate an app-password instead of using your gmail password.
-        Visit (https://myaccount.google.com/apppasswords) to generate app-password.
-        Usually, these type of emails are treated as spam by google, so they must be marked 'not spam' at least once.
-        It is recomended to create a seperate gmail account for sending mails.
-
-    Usage: 
-    - use the `Mailer.send` method to send emails
-            username:str        the username that is send the email, 
-            password:str        the password of sender, 
-            subject:str         the subject line, 
-            rx:str              reciver email addresses - comma seperated, 
-            cc:str              carbon copy email addresses - comma seperated,
-            bcc:str             blind carbon copy email addresses - comma seperated, 
-            content:str         the content - body of email      
-            signature:str       the signature to put at the bottom, 
-            attached:list       a list of files to be attached =None by default - a blank list, 
-            url:str             the smtp server url (=None by default) - takes from class variable `DEFAULT_URL`, 
-            port:Union[int,str] the smtp server port (=None by default) - takes from class variable `DEFAULT_PORT`, 
-            tls:bool            a boolean value indicating if `starttls()` should be called on `smpt` (=None by default) - takes from class variable `DEFAULT_TLS`, 
-            verbose             (=True by default)
-
-    - otherwise use `compose_mail` to return an `EmailMessage` object and use `send_mail` to send it later
-        
-    Changes: 
-
-        version 0.0.20
-        - moved zipping functionality inside the class, can now be used as a stand alone class
-        - removed callable login() function, instead directly requires username and password as strings
-    """
-    
-    DEFAULT_CTYPE =     'application/octet-stream'  
-    DEFAULT_URL =       'smtp.gmail.com'
-    DEFAULT_PORT =      '587'
-    DEFAULT_TLS =       True
-
-    @staticmethod
-    def global_alias(prefix=''): return f'{prefix}{os.getlogin()} @ {platform.node()}:{platform.system()}.{platform.release()}'
-
-    @staticmethod # helper method
-    def _get_files(directory):
-        r""" recursively list all files in a folder """
-        file_paths = []
-        for root, directories, files in os.walk(directory): file_paths.extend([os.path.join(root, filename) for filename in files])
-        return file_paths   
-
-    @staticmethod # helper method
-    def _zip_files(zip_path:str, files, **kwargs):
-        r""" zips all (only files) in the list of file paths and saves at 'zip_path' """
-        zipped = 0
-        if not zip_path.lower().endswith('.zip'): zip_path = f'{zip_path}.zip'
-        with ZipFile(zip_path, 'w', **kwargs) as zip_object:
-            for path in files:
-                if not os.path.isfile(path): continue
-                zip_object.write(f'{path}')
-                zipped+=1
-        return zipped, zip_path
-        
-    @staticmethod # helper method
-    def _get_mimes(files):
-        r""" gets mimetype info all files in a list """
-        if isinstance(files, str): files=[f'{files}']
-        res = []
-        for path in files:
-            if not os.path.isfile(path): continue
-            ctype, encoding = mimetypes.guess_type(path)
-            if ctype is None or encoding is not None: ctype = __class__.DEFAULT_CTYPE  
-            maintype, subtype = ctype.split('/', 1)
-            res.append( (path, maintype, subtype) )
-        return res
-
-    @staticmethod 
-    def compose_mail(subject:str, rx:str, cc:str, bcc:str, content:str, signature:str, attached:list=None, verbose=True):
-        r""" compose an e-mail msg to send later
-        
-        :param subject:     subject
-        :param rx:          csv recipent email address
-        :param cc:          csv cc email address
-        :param bcc:         csv bcc email address
-        :param content:     main content
-        :param attached:    list of attached files - is a 2-tuple (attachment_type:str, files:tuple )
-
-        # attach all files in the list ::   ('',                ('file1.xyz', 'file2.xyz'))
-        # zip all the files in the list ::  ('zipname.zip',     ('file1.xyz', 'file2.xyz'))
-        """
-        
-        msg = EmailMessage()
-
-        # set subject
-        msg['Subject'] = f'{subject}'
-        if verbose: print(f'SUBJECT: {subject}')
-
-        # set to
-        msg['To'] = rx
-        if verbose: print(f'TO: {rx}')
-
-        if cc: msg['Cc'] = cc
-        if verbose: print(f'CC: {cc}')
-
-        if bcc: msg['Bcc'] = bcc
-        if verbose: print(f'BCC: {bcc}')
-
-        # set content
-        body = content + signature
-        msg.set_content(body)
-        if verbose: print(f'MESSAGE: #[{len(body)}] chars.')
-
-        default_attached = []
-
-        attached = [] if attached is None else attached
-        assert isinstance(attached, (list, tuple)), f'Expecting a list or tuple of attached files but got {type(attached)}'
-        for (attach_type, attach_args) in attached:
-            if verbose: print(f' ... processing attachement :: {attach_type} :: {attach_args}')
-
-            all_files = []
-            for path in attach_args:
-                if os.path.isdir(path):     all_files.extend(__class__._get_files(path))
-                elif os.path.isfile(path):  all_files.append(path)
-                else:
-                    if verbose: print(f'[!] Invalid Path :: {path}, skipped...')
-
-            if not attach_type:  default_attached.extend(__class__._get_mimes(all_files)) # attach individually
-            else: # make zip
-                zipped, zip_path=__class__._zip_files(attach_type, all_files)
-                if verbose: print(f'\t --> zipped {zipped} items @ {zip_path} ')
-                if zipped>0: default_attached.extend(__class__._get_mimes(zip_path))
-                else:
-                    if verbose: print(f'[!] [{zip_path}] is empty, will not be attched!' )
-                    try:
-                        os.remove(zip_path)
-                        if verbose: print(f'[!] [{zip_path}] was removed.' )
-                    except:
-                        if verbose: print(f'[!] [{zip_path}] could not be removed.' ) 
-                
-
-        # set attached ( name, main_type, sub_type), if sub_type is none, auto-infers using imghdr
-        for file_name,main_type,sub_type in default_attached:
-            if verbose: print(f'[+] Attaching file [{main_type}/{sub_type}] :: [{file_name}]')
-            with open (file_name, 'rb') as f: file_data = f.read()
-            msg.add_attachment(file_data, maintype=main_type, subtype=sub_type, filename=os.path.basename(file_name))
-
-        return msg
-
-    @staticmethod
-    def send_mail(username:str, password:str, msg:EmailMessage, url:str, port:Union[int,str], tls:bool, verbose=True):
-        r""" send a msg using url:port with provided credentials, calls `starttls` is `tls` is True """
-        if verbose: print(f'[*] Sending Email from {username}')
-        msg['From'] = f'{username}' # set from
-        if url is None:     url =   __class__.DEFAULT_URL
-        if port is None:    port =  __class__.DEFAULT_PORT
-        if tls is None:     tls =    __class__.DEFAULT_TLS
-        if verbose: print(f'[~] using smtp server: {url}:{port}/{tls}')
-        with smtplib.SMTP(f'{url}', int(port)) as smpt: 
-            if tls: smpt.starttls()
-            smpt.login(username, password) 
-            smpt.ehlo()
-            smpt.send_message(msg)
-        if verbose: print(f'[*] Sent!')
-
-    @staticmethod
-    def send(
-            username:str, 
-            password:str, 
-            subject:str, 
-            rx:str, 
-            cc:str, 
-            bcc:str, 
-            content:str, 
-            signature:str, 
-            attached:list       =None, 
-            url:str             =None, 
-            port:Union[int,str] =None, 
-            tls:bool            =None, 
-            verbose             =True
-        ): __class__.send_mail(username, password, __class__.compose_mail(subject, rx, cc, bcc, content, signature, attached, verbose), url, port, tls, verbose)
-
-#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
 class Verbose:
-    r""" Contains shorthand helper functions for printing outputs and representing objects as strings."""
+    r""" Contains shorthand helper functions for printing outputs and representing objects as strings.
+            Methods ending with '_' in name return Strings instead of printing them
+    """
     
     #-----------------------------------------------------------------------
     """ SECTION: HRS - Human Readable String  for sizes"""
@@ -721,7 +392,7 @@ class Verbose:
             print(f'{__class__.strN(tabchar, level)}]')
 
     @staticmethod
-    def recP(arr:Iterable, show_dim:bool=False) -> None: 
+    def recP(arr, show_dim:bool=False) -> None: 
         r"""
         Recursive Print - print an iterable recursively with added indentation.
 
@@ -731,7 +402,7 @@ class Verbose:
         __class__._recP_(arr, 0, -1, '', '\t', show_dim)
     
     @staticmethod
-    def strA_(arr:Iterable, start:str="", sep:str="|", end:str="") -> str:
+    def strA_(arr, start:str="", sep:str="|", end:str="") -> str:
         r"""
         String Array - returns a string representation of an iterable for printing.
         
@@ -745,10 +416,10 @@ class Verbose:
         return res + end
 
     @staticmethod
-    def strA(arr:Iterable, start:str="", sep:str="|", end:str="") -> None: print(__class__.strA_(arr, start, sep, end))
+    def strA(arr, start:str="", sep:str="|", end:str="") -> None: print(__class__.strA_(arr, start, sep, end))
     
     @staticmethod
-    def strD_(arr:Iterable, sep:str="\n", cep:str=":\n", caption:str="") -> str:
+    def strD_(arr, sep:str="\n", cep:str=":\n", caption:str="") -> str:
         r"""
         String Dict - returns a string representation of a dict object for printing.
         
@@ -762,10 +433,10 @@ class Verbose:
         return f"{res}{__class__.DASHED_LINE}{sep}"
 
     @staticmethod
-    def strD(arr:Iterable, sep:str="\n", cep:str=":\n", caption:str="") -> None: print(__class__.strD_(arr, sep, cep, caption))
+    def strD(arr, sep:str="\n", cep:str=":\n", caption:str="") -> None: print(__class__.strD_(arr, sep, cep, caption))
 
     @staticmethod
-    def strU(form:Union[None, Iterable[str]], start:str='', sep:str='', end:str='') -> str:
+    def strU(form, start:str='', sep:str='', end:str='') -> str:
         r""" 
         String UID - returns a formated string of current timestamp.
 
@@ -776,8 +447,6 @@ class Verbose:
         :param sep: UID seperator
         :param end: UID postfix
 
-        .. seealso::
-            :func:`~known.basic.uid`
         """
         if not form: form = __class__.DEFAULT_DATE_FORMAT
         return start + datetime.datetime.strftime(datetime.datetime.now(), sep.join(form)) + end
@@ -811,7 +480,7 @@ class Verbose:
     DOCSTR_FORM = lambda x: f'\t!docstr:\n! - - - - - - - - - - - - - - - - -\n{x}\n- - - - - - - - - - - - - - - - - !'
 
     @staticmethod
-    def show_(x:Any, cep:str='\t\t:', sep="\n", sw:str='__', ew:str='__') -> None:
+    def show_(x, cep:str='\t\t:', sep="\n", sw:str='__', ew:str='__') -> None:
         res = ""
         for d in dir(x):
             if not (d.startswith(sw) or d.endswith(ew)):
@@ -824,7 +493,7 @@ class Verbose:
         return res
 
     @staticmethod
-    def show(x:Any, cep:str='\t\t:', sep="\n", sw:str='__', ew:str='__') -> None:
+    def show(x, cep:str='\t\t:', sep="\n", sw:str='__', ew:str='__') -> None:
         r"""
         Show Object - describes members of an object using the ``dir`` call.
 
@@ -837,12 +506,12 @@ class Verbose:
             and only matching member are displayed. This is usually done to prevent showing dunder members.
         
         .. seealso::
-            :func:`~known.basic.Verbose.showX`
+            :func:`~known.basic.Verbose.dir`
         """
         print(__class__.show_(x, cep=cep, sw=sw, ew=ew))
 
     @staticmethod
-    def dir(x:Any, doc=False, filter:str='', sew=('__','__')):
+    def dir(x, doc=False, filter:str='', sew=('__','__')):
         """ Calls ```dir``` on given argument and lists the name and types of non-dunder members.
 
         :param filter: csv string of types to filter out like `type,function,module`, keep blank for no filter
@@ -853,6 +522,9 @@ class Verbose:
 
         :param sew: 2-Tuple (start:str, end:str) - excludes member names that start and end with specific chars, 
             used to exclude dunder methods by default
+
+        .. seealso::
+            :func:`~known.basic.Verbose.show`
         """
         #if self_doc: print( f'{type(x)}\n{x.__doc__}\n' )
         if sew: sw, ew = f'{sew[0]}', f'{sew[1]}'
@@ -915,13 +587,10 @@ class Symbols:
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-
-
-
 class Table:
 
     @staticmethod
-    def CreateData(*columns):
+    def _Create(*columns):
         data = {None:[f'{col}' for col in columns]} # this is to make sure that col names are always on top
         return data
 
@@ -929,7 +598,7 @@ class Table:
     def Create(columns:tuple, primary_key:str, cell_delimiter=',', record_delimiter='\n'):
         # should be called on a new object after init\
         table = __class__()
-        table.data = __class__.CreateData(*columns)
+        table.data = __class__._Create(*columns)
         table.pk = primary_key
         table.pkat = table.data[None].index(table.pk)
         table.cell_delimiter, table.record_delimiter = cell_delimiter, record_delimiter
@@ -937,7 +606,7 @@ class Table:
 
 
     @staticmethod
-    def ImportData(path, key_at, cell_delimiter, record_delimiter): 
+    def _Import(path, key_at, cell_delimiter, record_delimiter): 
         with open(path, 'r', encoding='utf-8') as f: 
             s = f.read()
             lines = s.split(record_delimiter)
@@ -954,7 +623,7 @@ class Table:
     @staticmethod
     def Import(path, key_at, cell_delimiter=',', record_delimiter='\n'): 
         table = __class__()
-        table.data = __class__.ImportData(path, key_at, cell_delimiter, record_delimiter)
+        table.data = __class__._Import(path, key_at, cell_delimiter, record_delimiter)
         if isinstance(key_at, str): key_at = table[None].index(key_at)
         table.pk = table.data[None][key_at]
         table.pkat = key_at
@@ -963,13 +632,19 @@ class Table:
 
 
     @staticmethod
-    def ExportData(data, path, cell_delimiter, record_delimiter): 
+    def _Export(data, path, cell_delimiter, record_delimiter): 
         with open(path, 'w', encoding='utf-8') as f: 
             for v in data.values(): f.write(cell_delimiter.join(v)+record_delimiter)
 
     @staticmethod
     def Export(table, path): 
-        __class__.ExportData(table.data, path, table.cell_delimiter, table.record_delimiter)
+        __class__._Export(table.data, path, table.cell_delimiter, table.record_delimiter)
+
+    @property
+    def cols(self): return self[None]
+
+    @property
+    def keys(self): return set([k for k in self.data.keys() if k is not None])
 
     # get row as dict
     def __call__(self, key): return {k:v for k,v in zip(self[None], self[key])}
@@ -979,13 +654,32 @@ class Table:
 
     # set row based on if its a dict or a list (note: key is irrelavant here)
     def __setitem__(self, key, row):
-        assert len(row) == len(self[None]), f'Rows are expected to have length {len(self[None])} but got {len(row)}'
+        assert key is not None, f'Cannot set `None` key'
+        assert isinstance(key, str), f'Expected string type keys but got {type(key)}'
         if isinstance(row, dict):
-            key = row[self.pk]
-            if key is not None: self.data[f'{key}'] = [row[r] for r in self[None]]
-        else: 
-            key = row[self.pkat]
-            if key is not None: self.data[f'{key}'] = list(row)
+            # dict does not require to match exact length
+            assert self.pk not in row , f'Cannot change primary key' 
+            indexof = {k:self[None].index(k) for k in row}
+            if not key in self.data: self[key] = None 
+            self.data[key][self.pkat] = key
+            for k,v in row.items(): self.data[key][indexof[k]] = str(v)
+            
+
+        elif isinstance(row, (list, tuple)):
+            # must exactly match no of cols, 
+            # use ... to keep values unchanged 
+            # value are initialized to None
+            assert len(row) == len(self[None]), f'Rows are expected to have length {len(self[None])} but got {len(row)}'
+            assert row[self.pkat] is ... , f'Cannot change primary key'
+            if not key in self.data: self[key] = None 
+            self.data[key][self.pkat] = key
+            for i,v in enumerate(row):
+                if not (v is ...) : self.data[key][i] = str(v)
+        elif row is None: 
+            # (re)initializes the row
+            self.data[key] = ['' for _ in self[None]]
+            self.data[key][self.pkat] = key
+        else: raise AssertionError(f'Excepting a dict/list/tuple/None but got {type(row)}')
 
     # del row based on key
     def __delitem__(self, key):
@@ -994,16 +688,206 @@ class Table:
     def __contains__(self, key): return key in self.data
 
     # quick export > file
-    def __gt__(self, other):__class__.ExportData(self.data, f'{other}', self.cell_delimiter, self.record_delimiter)
+    def __gt__(self, other):__class__._Export(self.data, f'{other}', self.cell_delimiter, self.record_delimiter)
 
     # quick import < file
-    def __lt__(self, other): self.data = __class__.ImportData(f'{other}', self.pkat, self.cell_delimiter, self.record_delimiter)
+    def __lt__(self, other): self.data = __class__._Import(f'{other}', self.pkat, self.cell_delimiter, self.record_delimiter)
 
     # total number of rows
     def __len__(self): return len(self.data)-1
 
+    def __str__(self):
+        return ...
 
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+class Fuzz:
+    r""" file system related """
+
+    @staticmethod
+    def ExistInfo(path):
+        """ returns 4-tuple (exists,isdir,isfile,islink) """
+        return os.path.exists(path), os.path.isdir(path), os.path.isfile(path), os.path.islink(path)
+    
+    @staticmethod
+    def Scan(path, exclude_hidden=False, include_size=False, include_extra=False):
+        r""" Scans a directory using os.scandir call 
+             returns a list of 6 or 9 tuple (name, path, isdir, isfile, islink, size, parent, fname, ext) """
+        if exclude_hidden:  
+            if include_size: 
+                if include_extra:   return [(x.name, os.path.abspath(x.path), x.is_dir(), x.is_file(), x.is_symlink(), x.stat().st_size, os.path.dirname(os.path.abspath(x.path)), *__class__.SplitName(x.name)) for x in os.scandir(path) if not x.name.startswith(".")]
+                else:               return [(x.name, os.path.abspath(x.path), x.is_dir(), x.is_file(), x.is_symlink(), x.stat().st_size) for x in os.scandir(path) if not x.name.startswith(".")]
+
+            else:            
+                if include_extra:   return [(x.name, os.path.abspath(x.path), x.is_dir(), x.is_file(), x.is_symlink(), -1              , os.path.dirname(os.path.abspath(x.path)), *__class__.SplitName(x.name)) for x in os.scandir(path) if not x.name.startswith(".")]
+                else:               return [(x.name, os.path.abspath(x.path), x.is_dir(), x.is_file(), x.is_symlink(), -1              ) for x in os.scandir(path) if not x.name.startswith(".")]
+        else:
+            if include_size: 
+                if include_extra:   return [(x.name, os.path.abspath(x.path), x.is_dir(), x.is_file(), x.is_symlink(), x.stat().st_size, os.path.dirname(os.path.abspath(x.path)), *__class__.SplitName(x.name)) for x in os.scandir(path)]
+                else:               return [(x.name, os.path.abspath(x.path), x.is_dir(), x.is_file(), x.is_symlink(), x.stat().st_size) for x in os.scandir(path)]
+            else:
+                if include_extra:   return [(x.name, os.path.abspath(x.path), x.is_dir(), x.is_file(), x.is_symlink(), -1              ,os.path.dirname(os.path.abspath(x.path)), *__class__.SplitName(x.name)) for x in os.scandir(path)]
+                else:               return [(x.name, os.path.abspath(x.path), x.is_dir(), x.is_file(), x.is_symlink(), -1              ) for x in os.scandir(path)]
+
+    @staticmethod
+    def ReScan(path, exclude_hidden=False, include_size=False, expand_links=False, include_extra=False):
+        r""" Recursively Scans a directory using os.scandir """
+        res = []
+        pending = [path]
+        while pending:
+            ls = __class__.Scan(pending.pop(0), exclude_hidden=exclude_hidden, include_size=include_size, include_extra=include_extra)
+            for l in ls: # name, path, isdir, isfile, islink, size, parent, (fname, ext)
+                res.append(l)
+                if l[2]: (pending.append(l[1]) if not l[4] else (pending.append(l[1]) if expand_links else None))  
+        return res
+
+    @staticmethod
+    def SplitFileName(path:str): return __class__.SplitName(os.path.basename(path))
+        
+    @staticmethod
+    def SplitName(f:str):
+        r"""splits a file-name into name.ext 
+        Note: make sure to pass os.path.basename() to this function
+        Retutns: 2-tuple (name, ext)
+            `name` is always a string
+            `ext` can be None or a string (None means that there is no "." in file name)
+        """
+        i = f.rfind('.')
+        return (f, None) if i<0 else (f[0:i], f[i+1:])
+
+    @staticmethod
+    def RenameFile(path, new_name, keep_ext=False):
+        """ rename a file with or without changing its extension """
+        dirname, filename = os.path.dirname(path), os.path.basename(path)
+        _, ext = __class__.SplitName(f'{filename}')
+        if keep_ext and (ext is not None):  name_ = f'{new_name}.{ext}'
+        else:                               name_ = f'{new_name}'
+        return os.path.join(dirname, name_)
+    
+    @staticmethod
+    def RenameExt(path, new_ext):
+        """ change a file extension without renaming it """
+        dirname, filename = os.path.dirname(path), os.path.basename(path)
+        name, _ = __class__.SplitName(f'{filename}')
+        return os.path.join(dirname, f'{name}.{new_ext}')
+
+    def Zip(nested:bool, zip:str, *paths):
+
+        assert paths, f'no paths provided to zip'
+        assert zip,   f'zip path not provided'
+        if not zip.lower().endswith('.zip'): zip = f'{zip}.zip'  # append .zip to the end of path
+        zipn = zip[:-4]
+        paths = list(paths)
+        tozip = {}
+        while paths:
+            path = paths.pop(0)
+            
+            if isinstance(path, (list, tuple)): item_path, arc_path = path
+            else: item_path, arc_path = path, path
+
+            if os.path.islink(item_path): continue
+            isfile, isdir = os.path.isfile(item_path), os.path.isdir(item_path)
+            if not (isfile or isdir): continue
+            arc_path = os.path.basename(arc_path)
+            
+            if isfile:
+                assert arc_path not in tozip, f'Duplicate names detected {arc_path} from {path}'
+                tozip[arc_path] = os.path.abspath(item_path)
+            else:
+                for l in __class__.ReScan(item_path): 
+                    arc = os.path.join(arc_path, os.path.relpath( l[1], item_path))
+                    assert arc not in tozip, f'Duplicate names detected {arc} from {path}'
+                    tozip[arc] = l[1]
+
+        with ZipFile(zip, 'w') as zip_object:
+            if nested: zip_object.mkdir(zipn)
+            for arc_path, file_path in tozip.items():
+                if nested: arc_path = os.path.join(zipn, arc_path)
+                zip_object.write(filename=file_path, arcname=arc_path)
+        return tozip
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+class Mailer:
+    r"""
+    Use gmail account to send mails.
+    Use `Mail` static method to send mail which requires username and password
+        > username must be a gmail address from which mail will be sent - recivers can be in any domain
+        > password can be either one of:
+            > google (account) password
+            > app password
+
+    Its recomended to use app password, to generate one visit 
+        > https://myaccount.google.com/apppasswords
+    
+    App passwords requires enabling 2-step verification first, to enable it visit
+        > https://myaccount.google.com/signinoptions/twosv
+
+    
+    -> on the reciver side - mark incoming mails as'not spam' at least once
+    """
+    @staticmethod
+    def Mimes(files, default_ctype='application/octet-stream'):
+        r""" gets mimetype info all files in a list """
+        if isinstance(files, str): files=[f'{files}']
+        res = []
+        for path in files:
+            if not os.path.isfile(path): continue
+            ctype, encoding = mimetypes.guess_type(path)
+            if ctype is None or encoding is not None: ctype = default_ctype
+            maintype, subtype = ctype.split('/', 1)
+            res.append( (path, maintype, subtype) )
+        return res
+    
+    @staticmethod
+    def Compose(From:str, Subject:str, To:str, Cc:str, Body:str, Attached:list=None):
+        msg = EmailMessage()
+
+        # from, subject and recivers
+        msg['From'] = f'{From}' 
+        msg['Subject'] = f'{Subject}'
+        msg['To'] = To
+        if Cc: msg['Cc'] = Cc
+        msg.set_content(Body)
+
+        # attachement
+        if Attached is None: Attached = []
+        assert isinstance(Attached, (list, tuple)), f'Expecting a list or tuple of attached files but got {type(Attached)}'       
+        for file_name,main_type,sub_type in __class__.Mimes(Attached):
+            with open (file_name, 'rb') as f: file_data = f.read()
+            msg.add_attachment(file_data, 
+                                maintype=main_type, 
+                                subtype=sub_type, 
+                                filename=os.path.basename(file_name))
+
+        return msg
+
+    @staticmethod
+    def Send(msg:EmailMessage, username:str, password:str, url='smtp.gmail.com', port='587', tls=True):
+        r""" send a msg using url:port with provided credentials, calls `starttls` is `tls` is True """
+        if not (username and password): return False
+        try:
+            with smtplib.SMTP(f'{url}', int(port)) as smpt: 
+                if tls: smpt.starttls()
+                # assert username == msg['From'] #<--- should be?
+                smpt.login(username, password) 
+                smpt.ehlo()
+                smpt.send_message(msg)
+        except: return False
+        return True
+
+    @staticmethod
+    def Mail(
+        username, 
+        password, 
+        Subject, 
+        To, 
+        Cc, 
+        Body, 
+        Attached:list=None,
+        url='smtp.gmail.com', port='587', tls=True,
+    ): return __class__.Send(__class__.Compose(username, Subject, To, Cc, Body, Attached=Attached), 
+            username, password, url=url, port=port, tls=True)
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
