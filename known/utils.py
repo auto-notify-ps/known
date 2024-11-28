@@ -2,7 +2,7 @@ __doc__=""" Helper Functions and Utils """
 
 import os 
 
-__all__ =['ParseLinuxFiles', 'ConfigParser', 'ImportCustomModule', 'GraphFromImage',]
+__all__ =['ParseLinuxFiles', 'ConfigParser', 'ImportCustomModule', 'GraphFromImage', 'Int2File', 'File2Int']
 
 def ParseLinuxFiles(F, check=False): # parses --files="%F"
     Fl = [fi.strip() for fi in F.split("'/")]
@@ -217,4 +217,23 @@ def GraphFromImage(img_path:str, pixel_choice:str='first', dtype=None):
     px = pixel_choice_dict[pixel_choice]
     if dtype is None: dtype=np.float_
     return np.array([ imgmax-px(np.where(j[:,i]==1)[0]) for i in range(j.shape[1]) ], dtype=dtype)
+
+
+
+def File2Int(file, col=None):
+    r""" Reads a file and converts bytes to a list of integers """
+    with open(file, 'rb') as f: B = f.read()
+    I = [int(b) for b in B]
+    if col:
+        print('[')
+        for c,i in enumerate(I,1): 
+            print(f'{i},', end="")
+            if not c%col: print('') 
+        print('\n]')
+    return I
+
+def Int2File(I, file):
+    r""" reads bytes from list of Intergers (I) and writes to file """
+    with open(file, 'wb') as f:
+        for i in I: f.write(i.to_bytes())
 
