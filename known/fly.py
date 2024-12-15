@@ -15,10 +15,10 @@ import argparse
 # args parsing
 # ------------------------------------------------------------------------------------------
 parser = argparse.ArgumentParser()
+# python -m known.fly --help
 parser.add_argument('--dir', type=str, default='', help="path of workspace directory")
 parser.add_argument('--verbose', type=int, default=2, help="verbose level in logging")
-parser.add_argument('--log', type=str, default='', help="path of log dir - keep blank to disable logging")
-parser.add_argument('--logname', type=str, default='fly_%Y_%m_%d_%H_%M_%S_%f_log.txt', help="name of logfile as formated string (works when logging is enabled)")
+parser.add_argument('--log', type=str, default='', help="name of logfile as date-time-formated string e.g. fly_%Y_%m_%d_%H_%M_%S_%f_log.txt [Note: keep blank to disable logging]")
 parser.add_argument('--con', type=str, default='', help="config name - if not provided, uses 'default'")
 parser.add_argument('--reg', type=str, default='', help="if specified, allow users to register with specified access string such as DABU or DABUS+")
 parser.add_argument('--cos', type=int, default=1, help="use 1 to create-on-start - create (overwrites) pages")
@@ -52,16 +52,12 @@ except:
 # ------------------------------------------------------------------------------------------
 # Logging
 # ------------------------------------------------------------------------------------------
-LOGDIR = f'{parsed.log}' # define log dir - contains all logs
+LOGF = f'{parsed.log}' 
 LOGFILE = None
-if LOGDIR and parsed.verbose>0: 
-    LOGFILENAME = f'{fnow(parsed.logname)}'
-    if not LOGFILENAME: exit(f'[!] Provided logfile nameLogging directory was not found and could not be created is blank!')
-    try: os.makedirs(LOGDIR, exist_ok=True)
-    except: exit(f'[!] Logging directory was not found and could not be created')
-# ------------------------------------------------------------------------------------------
+if LOGF and parsed.verbose>0: 
+    LOGFILENAME = f'{fnow(LOGF)}'
     try:# Set up logging to a file # also output to the console
-        LOGFILE = os.path.join(LOGDIR, LOGFILENAME)
+        LOGFILE = os.path.abspath(LOGFILENAME)
         logging.basicConfig(filename=LOGFILE, level=logging.INFO, format='%(asctime)s - %(message)s')
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.INFO)
@@ -344,7 +340,11 @@ CONFIGS_FILE = f'{CONFIG_MODULE}.py' # the name of configs file
 CONFIGS_FILE_PATH = os.path.join(WORKDIR, CONFIGS_FILE) # should exsist under workdir
 if not os.path.isfile(CONFIGS_FILE_PATH):
     sprint(f'↪ Creating default config "{CONFIGS_FILE}" ...')
-    try: DEFAULT_CONFIG(CONFIGS_FILE_PATH)
+    try: 
+        DEFAULT_CONFIG(CONFIGS_FILE_PATH)
+        sprint(f'⇒ Created new config "{CONFIG_MODULE}" at "{CONFIGS_FILE_PATH}"')
+        raise AssertionError
+    except AssertionError: fexit(f'⇒ Server will not start on this run, edit the config and start again')
     except: fexit(f'[!] Could find or create config "{CONFIG_MODULE}" at "{CONFIGS_FILE_PATH}"')
 try: 
     # Load the module from the specified file path
