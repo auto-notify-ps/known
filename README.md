@@ -138,7 +138,7 @@ python -m pip install Flask Flask-WTF waitress nbconvert
     * Evaluation-Page: `/eval`
     * Generate and Download a template for bulk evaluation: `/generate_eval_template`
     * Generate and View user reports: `/generate_submit_report`
-    * Booard-Page: `/board`
+    * Board-Page: `/board`
     * Admin-Access (redirects to Evalution-Page): `/x`
 
 

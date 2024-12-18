@@ -13,7 +13,7 @@ parser.add_argument('--no_script',      type=int, default=0,            help="[d
 parser.add_argument('--no_files',       type=int, default=0,            help="[default=False] if true, prevents downloading files - only notebooks can be viewed and downloaded ")
 parser.add_argument('--log',            type=str, default='',           help="log file name - keep empty for no logging")
 parser.add_argument('--host',           type=str, default='0.0.0.0',                                                )
-parser.add_argument('--port',           type=str, default='8888',                                                   )
+parser.add_argument('--port',           type=str, default='8080',                                                   )
 parser.add_argument('--threads',        type=int, default=10,                                                       )
 parser.add_argument('--max_connect',    type=int, default=500,                                                      )
 parser.add_argument('--max_size',       type=str, default='1024MB',     help="size of http body"                        )

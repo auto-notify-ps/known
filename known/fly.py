@@ -12,7 +12,7 @@ if __name__!='__main__': exit(f'[!] can not import {__name__}.{__file__}')
 
 import argparse
 # ------------------------------------------------------------------------------------------
-# args parsing
+# parsing
 # ------------------------------------------------------------------------------------------
 parser = argparse.ArgumentParser()
 # python -m known.fly --help
@@ -23,7 +23,7 @@ parser.add_argument('--con', type=str, default='', help="config name - if not pr
 parser.add_argument('--reg', type=str, default='', help="if specified, allow users to register with specified access string such as DABU or DABUS+")
 parser.add_argument('--cos', type=int, default=1, help="use 1 to create-on-start - create (overwrites) pages")
 parser.add_argument('--coe', type=int, default=0, help="use 1 to clean-on-exit - deletes pages")
-parser.add_argument('--access', type=str, default='', help="if specified, allow users to add access string such as DABU or DABUS+")
+parser.add_argument('--access', type=str, default='', help="if specified, adds extra premissions to access string (catenates) for this session only")
 parser.add_argument('--msl', type=int, default=100, help="Max String Length for UID/NAME/PASSWORDS")
 parser.add_argument('--eip', type=int, default=1, help="Evaluate Immediate Persis. If True, persist the eval-db after each single evaluation (eval-db in always persisted after update from template)")
 parsed = parser.parse_args()
@@ -259,8 +259,8 @@ default = dict(
                                             #   (if case<0 uids are converted to lower-case when matching in database)
     
     # -------------------------------------# validation
-    ext          = "",                     # csv list of file-extensions that are allowed to be uploaded e.g., ext = "jpg,jpeg,png,txt" (keep blank to allow all extensions)
     required     = "",                     # csv list of file-names that are required to be uploaded e.g., required = "a.pdf,b.png,c.exe" (keep blank to allow all file-names)
+    extra        = 1,                      # if true, allows uploading extra file (other tna required)
     maxupcount   = -1,                     # maximum number of files that can be uploaded by a user (keep -1 for no limit and 0 to disable uploading)
     maxupsize    = "40GB",                 # maximum size of uploaded file (html_body_size)
     
@@ -352,7 +352,7 @@ try:
     c_module = importlib.util.module_from_spec(c_spec)
     c_spec.loader.exec_module(c_module)
     sprint(f'↪ Imported config-module "{CONFIG_MODULE}" from {c_module.__file__}')
-except: fexit(f'[!] Could import configs module "{CONFIG_MODULE}" at "{CONFIGS_FILE_PATH[:-3]}"')
+except: fexit(f'[!] Could not import configs module "{CONFIG_MODULE}" at "{CONFIGS_FILE_PATH[:-3]}"')
 try:
     sprint(f'↪ Reading config from {CONFIG_MODULE}.{CONFIG}')
     if "." in CONFIG: 
@@ -376,6 +376,46 @@ try:
     args = Fake(**config_dict)
 except: fexit(f'[!] Could not read config')
 if not len(args): fexit(f'[!] Empty or Invalid config provided')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #-----------------------------------------------------------------------------------------
 # Directories
@@ -475,37 +515,33 @@ sprint(f'⚙ Reports Folder: {REPORT_FOLDER_PATH}')
 #-----------------------------------------------------------------------------------------
 # file-name and uploads validation
 #-----------------------------------------------------------------------------------------
-ALLOWED_EXTENSIONS = set([x.strip() for x in args.ext.split(',') if x])  # a set or list of file extensions that are allowed to be uploaded 
-if '' in ALLOWED_EXTENSIONS: ALLOWED_EXTENSIONS.remove('')
-VALID_FILES_PATTERN = r'^[\w\-. ]+\.(?:' + '|'.join(ALLOWED_EXTENSIONS) + r')$'
+ALLOWED_EXTRA = bool(args.extra)
 REQUIRED_FILES = set([x.strip() for x in args.required.split(',') if x])  # a set or list of file extensions that are required to be uploaded 
 if '' in REQUIRED_FILES: REQUIRED_FILES.remove('')
-def VALIDATE_FILENAME(instr):           return rematch(instr, r'^[a-zA-Z]+(?: [a-zA-Z]+)*$')
-def VALIDATE_FILENAME_SUBMIT(instr):     return rematch(instr, r'^[a-zA-Z]+(?: [a-zA-Z]+)*$')
-def VALIDATE_FILENAME(filename):   # a function that checks for valid file extensions based on ALLOWED_EXTENSIONS
+# def VALIDATE_FILENAME(instr):           return rematch(instr, r'^[a-zA-Z]+(?: [a-zA-Z]+)*$')
+# def VALIDATE_FILENAME_SUBMIT(instr):     return rematch(instr, r'^[a-zA-Z]+(?: [a-zA-Z]+)*$')
+def VALIDATE_FILENAME(filename):   # a function that checks for valid file 
     if '.' in filename: 
         name, ext = filename.rsplit('.', 1)
         safename = f'{name}.{ext.lower()}'
-        if REQUIRED_FILES:  isvalid = (safename in REQUIRED_FILES)
-        else:               isvalid = re.match(VALID_FILES_PATTERN, safename, re.IGNORECASE)  # Case-insensitive matching
+        if REQUIRED_FILES:  isvalid = bool(safename) if ALLOWED_EXTRA else (safename in REQUIRED_FILES)
+        else:               isvalid = bool(safename) #re.match(VALID_FILES_PATTERN, safename, re.IGNORECASE)  # Case-insensitive matching
     else:               
         name, ext = filename, ''
         safename = f'{name}'
-        if REQUIRED_FILES:  isvalid = (safename in REQUIRED_FILES)
-        else:               isvalid = (not ALLOWED_EXTENSIONS)
+        if REQUIRED_FILES:  isvalid = bool(safename) if ALLOWED_EXTRA else (safename in REQUIRED_FILES)
+        else:               isvalid = bool(safename) #(not ALLOWED_EXTENSIONS)
     return isvalid, safename
 
-VALID_FILE_EXT_SUBMIT = ['csv', 'txt']
-VALID_FILES_PATTERN_SUMBIT = r'^[\w\-. ]+\.(?:' + '|'.join(VALID_FILE_EXT_SUBMIT) + r')$'
 def VALIDATE_FILENAME_SUBMIT(filename): 
     if '.' in filename: 
         name, ext = filename.rsplit('.', 1)
         safename = f'{name}.{ext.lower()}'
-        isvalid = isvalid = re.match(VALID_FILES_PATTERN_SUMBIT, safename, re.IGNORECASE)
+        isvalid = bool(safename)
     else:               
         name, ext = filename, ''
         safename = f'{name}'
-        isvalid = False
+        isvalid = isvalid = bool(safename)
     return isvalid, safename
 
 def str2bytes(size):
@@ -515,8 +551,6 @@ MAX_UPLOAD_SIZE = str2bytes(args.maxupsize)     # maximum upload file size
 MAX_UPLOAD_COUNT = ( inf if args.maxupcount<0 else args.maxupcount )       # maximum number of files that can be uploaded by one user
 INITIAL_UPLOAD_STATUS = []           # a list of notes to be displayed to the users about uploading files
 if REQUIRED_FILES: INITIAL_UPLOAD_STATUS.append((-1, f'accepted files [{len(REQUIRED_FILES)}]: {REQUIRED_FILES}'))
-else:
-    if ALLOWED_EXTENSIONS:  INITIAL_UPLOAD_STATUS.append((-1, f'allowed extensions [{len(ALLOWED_EXTENSIONS)}]: {ALLOWED_EXTENSIONS}'))
 INITIAL_UPLOAD_STATUS.append((-1, f'max upload size: {DISPLAY_SIZE_READABLE(MAX_UPLOAD_SIZE)}'))
 if not (MAX_UPLOAD_COUNT is inf): INITIAL_UPLOAD_STATUS.append((-1, f'max upload count: {MAX_UPLOAD_COUNT}'))
 sprint(f'⚙ Upload Settings ({len(INITIAL_UPLOAD_STATUS)})')
@@ -2143,7 +2177,7 @@ def route_eval():
                     file = form.file.data[0]
                     isvalid, sf = VALIDATE_FILENAME_SUBMIT(secure_filename(file.filename))
                     #---------------------------------------------------------------------------------
-                    if not isvalid: status, success = f"Extension is invalid '{sf}' - Accepted extensions are {VALID_FILE_EXT_SUBMIT}", False
+                    if not isvalid: status, success = f"FileName is invalid '{sf}'", False
                     else:
                         try: 
                             filebuffer = BytesIO()
