@@ -273,14 +273,14 @@ default = dict(
     # ------------------------------------# file and directory information
     base         = "__base__",            # the base directory 
     html         = "__pycache__",         # use pycache dir to store flask html
-    secret       = "__secret__.txt",      # flask app secret
-    login        = "__login__.csv",       # login database
-    eval         = "__eval__.csv",        # evaluation database - created if not existing - reloads if exists
-    uploads      = "__uploads__",         # uploads folder (uploaded files by users go here)
-    reports      = "__reports__",         # reports folder (personal user access files by users go here)
-    downloads    = "__downloads__",       # downloads folder
-    store        = "__store__",           # store folder
-    board        = "__board__.ipynb",     # board file
+    secret       = "secret.txt",      # flask app secret
+    login        = "login.csv",       # login database
+    eval         = "eval.csv",        # evaluation database - created if not existing - reloads if exists
+    uploads      = "uploads",         # uploads folder (uploaded files by users go here)
+    reports      = "reports",         # reports folder (personal user access files by users go here)
+    downloads    = "downloads",       # downloads folder
+    store        = "store",           # store folder
+    board        = "board.ipynb",     # board file
     # --------------------------------------# style dict
     style        = dict(                   
                         # -------------# labels
@@ -321,6 +321,7 @@ default = dict(
                         icon_report=    '📜',
                         icon_getfile=   '⬇️',
                         icon_gethtml=   '🌐',
+                        icon_hidden=    '👁️',
 
                         # -------------# board style ('lab'  'classic' 'reveal')
                         template_board = 'lab', 
@@ -869,9 +870,9 @@ def TEMPLATES(style):
             <a href="{{ url_for('route_eval') }}" class="btn_submit">"""+f'{style.eval_}'+"""</a>
             {% if not subpath %}
             {% if session.hidden_storeuser %}
-                <span class="files_status">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hidden Files: </span><a href="{{ url_for('route_hidden_show', user_enable='10') }}" class="btn_disable">Enabled</a>
+                <a href="{{ url_for('route_hidden_show', user_enable='10') }}" class="btn_disable">"""+f'{style.icon_hidden}'+"""</a>
             {% else %}
-                <span class="files_status">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hidden Files: </span><a href="{{ url_for('route_hidden_show', user_enable='11') }}" class="btn_enable">Disabled</a>
+                <a href="{{ url_for('route_hidden_show', user_enable='11') }}" class="btn_enable">"""+f'{style.icon_hidden}'+"""</a>
             {% endif %}
             {% endif %}
             </div>
@@ -947,9 +948,9 @@ def TEMPLATES(style):
             <a href="{{ url_for('route_home') }}" class="btn_home">Home</a>
             {% if not subpath %}
             {% if session.hidden_store %}
-                <span class="files_status">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hidden Files: </span><a href="{{ url_for('route_hidden_show', user_enable='00') }}" class="btn_disable">Enabled</a>
+                <a href="{{ url_for('route_hidden_show', user_enable='00') }}" class="btn_disable">"""+f'{style.icon_hidden}'+"""</a>
             {% else %}
-                <span class="files_status">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hidden Files: </span><a href="{{ url_for('route_hidden_show', user_enable='01') }}" class="btn_enable">Disabled</a>
+                <a href="{{ url_for('route_hidden_show', user_enable='01') }}" class="btn_enable">"""+f'{style.icon_hidden}'+"""</a>
             {% endif %}
             {% endif %}
             </div>
@@ -1324,6 +1325,28 @@ def TEMPLATES(style):
         text-decoration: none;
     }}
 
+    .btn_enable {{
+        padding: 2px 10px 2px;
+        background-color: {style.item_false}; 
+        color: #FFFFFF;
+        font-weight: bold;
+        font-size: large;
+        border-radius: 10px;
+        font-family:monospace;
+        text-decoration: none;
+    }}
+
+
+    .btn_disable {{
+        padding: 2px 10px 2px;
+        background-color: {style.item_true}; 
+        color: #FFFFFF;
+        font-weight: bold;
+        font-size: large;
+        border-radius: 10px;
+        font-family:monospace;
+        text-decoration: none;
+    }}
 
     """ + """
 
@@ -1637,28 +1660,7 @@ def TEMPLATES(style):
         text-decoration: none;
     }
 
-    .btn_enable {
-        padding: 2px 10px 2px;
-        background-color: #d30000; 
-        color: #FFFFFF;
-        font-weight: bold;
-        font-size: large;
-        border-radius: 10px;
-        font-family:monospace;
-        text-decoration: none;
-    }
 
-
-    .btn_disable {
-        padding: 2px 10px 2px;
-        background-color: #00d300; 
-        color: #FFFFFF;
-        font-weight: bold;
-        font-size: large;
-        border-radius: 10px;
-        font-family:monospace;
-        text-decoration: none;
-    }
 
 
     """
