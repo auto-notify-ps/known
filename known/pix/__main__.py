@@ -25,6 +25,7 @@ def _read_fl(parsed_put, parsed_io, check=False):
     if parsed_put:
         _put = os.path.abspath(parsed_put)
         if not parsed_io:           _puts = [_put] 
+        elif parsed_io == 'i':   _puts = [_put]
         elif parsed_io == 't':   _puts =_read_fl_from_text(_put)
         elif parsed_io == 'j':   _puts =_read_fl_from_json(_put)
         elif parsed_io == 'l':   _puts =_read_fl_from_linux(_put)
@@ -63,8 +64,10 @@ if _io == 'l':
     _inputs =   _read_fl(f'{parsed.files}',  _io, check=True) # assume existing files are passed
     _outputs =  _inputs
 else:
+
     _inputs =   _read_fl(f'{parsed.input}',  _io, check=True) # keep only existing files
     _outputs =  _read_fl(f'{parsed.output}', _io, check=False)
+    
     if not _outputs: _outputs = _inputs # if outputs are not provided, overwrite inputs
     if _inputs: assert len(_inputs) == len(_outputs), f'Mismatch inputs and outputs' # if inputs were provided, outputs must match them
 
