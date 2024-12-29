@@ -57,7 +57,8 @@ _action = getattr(Actions, _action)
 # ---------------------------------------------------------------------------------
 _args = f'{parsed.args}'.split(',')
 # ---------------------------------------------------------------------------------
-_io = f'{parsed.io}'.lower()[0]
+if not parsed.io: _io = 'i'
+else: _io = f'{parsed.io}'.lower()[0]
 if _io == 'l':
     _inputs =   _read_fl(f'{parsed.files}',  _io, check=True) # assume existing files are passed
     _outputs =  _inputs
