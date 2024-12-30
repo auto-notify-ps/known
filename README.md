@@ -120,6 +120,12 @@ python -m pip install Flask Flask-WTF waitress nbconvert
 
     * Note: Evaluators (with `X` access) cannot perform any admin actions except for resetting password through the `/x` url.
 
+* **Store Actions** : `store/subpath?`
+    * Create Folder : `store/subpath/my_folder??` (Only if not existing)
+    * Delete Folder : `store/subpath/my_folder?!` (Only if empty `os.removedirs`)
+    * Delete Folder : `store/subpath/my_folder?x` (Recursive Delete `shutils.rmtree`)
+    * Download File : `store/subpath/my_file?get`
+    * Delete File   : `store/subpath/my_file?del`
 
 
 * **App Routes** : All the `@app.route` are listed as follows:

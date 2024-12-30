@@ -953,6 +953,13 @@ def TEMPLATES(style):
                 <a href="{{ url_for('route_hidden_show', user_enable='01') }}" class="btn_enable">"""+f'{style.icon_hidden}'+"""</a>
             {% endif %}
             {% endif %}
+            {% if "X" in session.admind or "+" in session.admind %}
+            <form method='POST' enctype='multipart/form-data'>
+                {{form.hidden_tag()}}
+                {{form.file()}}
+                {{form.submit()}}
+            </form>
+            {% endif %}
             </div>
             <br>
             <hr>
@@ -2446,22 +2453,122 @@ def route_hidden_show(user_enable=''):
         session['hidden_storeuser'] = (user_enable[1]!='0')
         return redirect(url_for('route_storeuser'))
 # ------------------------------------------------------------------------------------------
-@app.route('/store', methods =['GET'])
-@app.route('/store/', methods =['GET'])
-@app.route('/store/<path:subpath>', methods =['GET'])
+@app.route('/store', methods =['GET', 'POST'])
+@app.route('/store/', methods =['GET', 'POST'])
+@app.route('/store/<path:subpath>', methods =['GET', 'POST'])
 def route_store(subpath=""):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if ('A' not in session['admind']) :  return abort(404)
+    form = UploadFileForm()
     abs_path = os.path.join(app.config['store'], subpath)
-    if not os.path.exists(abs_path): return abort(404)
+    can_admin = (('X' in session['admind']) or ('+' in session['admind']))
+    if form.validate_on_submit():
+        if not can_admin: return "You cannot perform this action"
+        dprint(f"● {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
+
+        result = []
+        n_success = 0
+        #---------------------------------------------------------------------------------
+        for file in form.file.data:
+            isvalid, sf = VALIDATE_FILENAME_SUBMIT(secure_filename(file.filename))
+        #---------------------------------------------------------------------------------
+            
+            if not isvalid:
+                why_failed =  f"✗ File not accepted [{sf}]"
+                result.append((0, why_failed))
+                continue
+
+            file_name = os.path.join(abs_path, sf)
+            #if not os.path.exists(file_name):
+            #    if len(session['filed'])>=app.config['muc']:
+            #        why_failed = f"✗ Upload limit reached [{sf}] "
+            #        result.append((0, why_failed))
+            #        continue
+            
+            try: 
+                file.save(file_name) 
+                why_failed = f"✓ Uploaded new file [{sf}] "
+                result.append((1, why_failed))
+                n_success+=1
+                #if sf not in session['filed']: session['filed'] = session['filed'] + [sf]
+            except FileNotFoundError: 
+                return redirect(url_for('route_logout'))
+
+
+            
+
+        #---------------------------------------------------------------------------------
+            
+        result_show = ''.join([f'\t{r[-1]}\n' for r in result])
+        result_show = result_show[:-1]
+        dprint(f'✓ {session["uid"]} ◦ {session["named"]} just stored {n_success} file(s)\n{result_show}') 
+        return redirect(url_for('route_store', subpath=subpath)) #render_template('home.html', submitted=submitted, score=score, form=form, status=result)
+    else:
+
+        if not os.path.exists(abs_path):
+            if not request.args: return abort(404)
+            else:
+                if not can_admin: return "You cannot perform this action"
+                if '?' in request.args: # create this dir
+
+                    if "." not in os.path.basename(abs_path):
+                        try:
+                            os.makedirs(abs_path)
+                            dprint(f"● {session['uid']} ◦ {session['named']} created new directory at {abs_path} # {subpath} via {request.remote_addr}")
+                            return redirect(url_for('route_store', subpath=subpath))
+                        except: return f"Error creating the directory"
+                    else: return f"Directory name cannot contain (.)"
+                else: return f"Invalid args for new directory"
+            
+
+        if os.path.isdir(abs_path):
+            if not request.args: 
+                dirs, files = list_store_dir(abs_path)
+                return render_template('store.html', dirs=dirs, files=files, subpath=subpath, form=form)
+            else:
+                if not can_admin: return "You cannot perform this action"
+                if "." not in os.path.basename(abs_path) and os.path.abspath(abs_path)!=os.path.abspath(app.config['store']): #delete this dir
+                    if '!' in request.args:
+                        try:
+                            os.removedirs(abs_path)
+                            dprint(f"● {session['uid']} ◦ {session['named']} deleted directory at {abs_path} # {subpath} via {request.remote_addr}")
+                            return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
+                        except:
+                            return f"Error deleting the directory"
+                    elif 'x' in request.args:
+                        try:
+                            import shutil
+                            shutil.rmtree(abs_path)
+                            dprint(f"● {session['uid']} ◦ {session['named']} purged directory at {abs_path} # {subpath} via {request.remote_addr}") 
+                            return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
+                        except:
+                            return f"Error deleting the directory"
+
+                    else: return f"Invalid args for store actions"
+                else: return f"Cannot Delete this directory"
+                            
+        elif os.path.isfile(abs_path):
+            if not request.args: 
+                dprint(f"● {session['uid']} ◦ {session['named']}  viewed {abs_path} via {request.remote_addr}")
+                return send_file(abs_path, as_attachment=False)
+            else:
+                if 'get' in request.args:
+                    dprint(f"● {session['uid']} ◦ {session['named']} downloaded file at {abs_path} # {subpath} via {request.remote_addr}")
+                             
+                    return send_file(abs_path, as_attachment=True)
+                
+                elif 'del' in request.args: #delete this file
+                    if not can_admin: return "You cannot perform this action"
+                    try:
+                        os.remove(abs_path)
+                        dprint(f"● {session['uid']} ◦ {session['named']} deleted file at {abs_path} # {subpath} via {request.remote_addr}") 
+                        return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
+                    except:return f"Error deleting the file"
+                    #else: return f"Directory name cannot contain (.)"
+                else: return f"Invalid args for store actions"
+                            
         
-    if os.path.isdir(abs_path):
-        dirs, files = list_store_dir(abs_path)
-        return render_template('store.html', dirs=dirs, files=files, subpath=subpath, )
-    elif os.path.isfile(abs_path): 
-        dprint(f"● {session['uid']} ◦ {session['named']}  downloaded {abs_path} via {request.remote_addr}")
-        return send_file(abs_path, as_attachment=("get" in request.args))
-    else: return abort(404)
+        else: return abort(404)
 # ------------------------------------------------------------------------------------------
 @app.route('/storeuser', methods =['GET'])
 @app.route('/storeuser/', methods =['GET'])
