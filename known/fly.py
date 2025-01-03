@@ -320,6 +320,7 @@ default = dict(
                         icon_eval=      '✴️',
                         icon_report=    '📜',
                         icon_getfile=   '⬇️',
+                        icon_delfile=   '❌',
                         icon_gethtml=   '🌐',
                         icon_hidden=    '👁️',
 
@@ -990,8 +991,12 @@ def TEMPLATES(style):
                 {% for (file, hfile) in files %}
                 {% if (session.hidden_store) or (not hfile) %}
                     <li>
+                    <a href="{{ url_for('route_store', subpath=subpath + '/' + file, del='') }}">"""+f'{style.icon_delfile}'+"""</a> 
+                    <span> . . . </span>
                     <a href="{{ url_for('route_store', subpath=subpath + '/' + file, get='') }}">"""+f'{style.icon_getfile}'+"""</a> 
                     <a href="{{ url_for('route_store', subpath=subpath + '/' + file) }}" target="_blank" >{{ file }}</a>
+                    
+                    
                 
                     </li>
                 {% endif %}
@@ -2518,7 +2523,7 @@ def route_store(subpath=""):
                             return redirect(url_for('route_store', subpath=subpath))
                         except: return f"Error creating the directory"
                     else: return f"Directory name cannot contain (.)"
-                else: return f"Invalid args for new directory"
+                else: return f"Invalid args for store actions"
             
 
         if os.path.isdir(abs_path):
@@ -2528,14 +2533,14 @@ def route_store(subpath=""):
             else:
                 if not can_admin: return "You cannot perform this action"
                 if "." not in os.path.basename(abs_path) and os.path.abspath(abs_path)!=os.path.abspath(app.config['store']): #delete this dir
+                    # if '!' in request.args:
+                    #     try:
+                    #         os.removedirs(abs_path)
+                    #         dprint(f"● {session['uid']} ◦ {session['named']} deleted directory at {abs_path} # {subpath} via {request.remote_addr}")
+                    #         return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
+                    #     except:
+                    #         return f"Error deleting the directory"
                     if '!' in request.args:
-                        try:
-                            os.removedirs(abs_path)
-                            dprint(f"● {session['uid']} ◦ {session['named']} deleted directory at {abs_path} # {subpath} via {request.remote_addr}")
-                            return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
-                        except:
-                            return f"Error deleting the directory"
-                    elif 'x' in request.args:
                         try:
                             import shutil
                             shutil.rmtree(abs_path)

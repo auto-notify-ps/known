@@ -122,8 +122,7 @@ python -m pip install Flask Flask-WTF waitress nbconvert
 
 * **Store Actions** : `store/subpath?`
     * Create Folder : `store/subpath/my_folder??` (Only if not existing)
-    * Delete Folder : `store/subpath/my_folder?!` (Only if empty `os.removedirs`)
-    * Delete Folder : `store/subpath/my_folder?x` (Recursive Delete `shutils.rmtree`)
+    * Delete Folder : `store/subpath/my_folder?!` (Recursive Delete)
     * Download File : `store/subpath/my_file?get`
     * Delete File   : `store/subpath/my_file?del`
 
