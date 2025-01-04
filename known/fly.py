@@ -173,7 +173,9 @@ def GET_SECRET_KEY(postfix):
     r3 = randx()
     for _ in range(datetime.datetime.now().minute): _ = randx()
     r4 = randx()
-    return ':{}:{}:{}:{}:{}:'.format(r1,r2,r3,r4,postfix)
+    for _ in range(datetime.datetime.now().microsecond % (datetime.datetime.now().second + 1)): _ = randx()
+    r5 = randx()
+    return ':{}:{}:{}:{}:{}:{}:'.format(r1,r2,r3,r4,r5,postfix)
 
 def READ_DB_FROM_DISK(path, key_at):
     try:    return CSV2DICT(path, key_at), True
@@ -611,7 +613,7 @@ def TEMPLATES(style):
         <!-- ---------------------------------------------------------->
         <div align="left" style="padding: 20px;">
             <div class="topic_mid">{{ config.topic }}</div>
-            <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
+            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -792,7 +794,7 @@ def TEMPLATES(style):
         
         <div align="center">
         <div>
-        <span style="font-size: xx-large;">{{ config.emoji }}</span>
+        <a href="https://github.com/auto-notify-ps/known" target="_blank"><span style="font-size: xx-large;">{{ config.emoji }}</span></a>
         <br>
         <a href="{{ url_for('route_login') }}" class="btn_login">""" + f'{style.login_}' +"""</a>
         
@@ -820,7 +822,7 @@ def TEMPLATES(style):
         
         <div align="left" style="padding: 20px;">
             <div class="topic_mid">{{ config.topic }}</div>
-            <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
+            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -863,7 +865,7 @@ def TEMPLATES(style):
         
         <div align="left" style="padding: 20px;">
             <div class="topic_mid">{{ config.topic }}</div>
-            <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
+            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -942,7 +944,7 @@ def TEMPLATES(style):
         
         <div align="left" style="padding: 20px;">
             <div class="topic_mid">{{ config.topic }}</div>
-            <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
+            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -1030,7 +1032,7 @@ def TEMPLATES(style):
         
         <div align="left" style="padding: 20px;">
             <div class="topic_mid">{{ config.topic }}</div>
-            <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
+            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -1073,7 +1075,7 @@ def TEMPLATES(style):
         
         <div align="left" style="padding: 20px;">
             <div class="topic_mid">{{ config.topic }}</div>
-            <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
+            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -1116,7 +1118,7 @@ def TEMPLATES(style):
         
         <div align="left" style="padding: 20px;">
             <div class="topic_mid">{{ config.topic }}</div>
-            <div class="userword">{{session.uid}} {{ session.emojid }} {{session.named}}</div>
+            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -1962,7 +1964,6 @@ def route_login():
                             session['has_login'] = False
                             session['uid'] = uid
                             session['named'] = named
-                            session['emojid'] = ''
                             return redirect(url_for('route_logout'))
                     
                         session['has_login'] = True
@@ -1970,7 +1971,6 @@ def route_login():
                         session['admind'] = admind + app.config['apac']
                         session['filed'] = os.listdir(folder_name)
                         session['reported'] = sorted(os.listdir(folder_report))
-                        session['emojid'] = in_emoji 
                         session['hidden_store'] = False
                         session['hidden_storeuser'] = True
                         
@@ -1983,7 +1983,7 @@ def route_login():
                             session['named'] = named
                             if in_name: dprint(f'⇒ {uid} ◦ {named} provided invalid name "{in_name}" (will not update)')  
 
-                        dprint(f'● {session["uid"]} {session["emojid"]} {session["named"]} has logged in via {request.remote_addr}') 
+                        dprint(f'● {session["uid"]} {app.config["emoji"]} {session["named"]} has logged in via {request.remote_addr}') 
                         return redirect(url_for('route_home'))
                     else:  
                         warn = LOGIN_FAIL_TEXT
@@ -2060,7 +2060,7 @@ def route_logout():
     r""" logout a user and redirect to login page """
     if not session.get('has_login', False):  return redirect(url_for('route_login'))
     if not session.get('uid', False): return redirect(url_for('route_login'))
-    if session['has_login']:  dprint(f'● {session["uid"]} {session["emojid"]} {session["named"]} has logged out via {request.remote_addr}') 
+    if session['has_login']:  dprint(f'● {session["uid"]} {app.config["emoji"]} {session["named"]} has logged out via {request.remote_addr}') 
     else: dprint(f'✗ {session["uid"]} ◦ {session["named"]} was removed due to invalid uid ({session["uid"]}) via {request.remote_addr}') 
     session.clear()
     return redirect(url_for('route_login'))

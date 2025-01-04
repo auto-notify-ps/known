@@ -46,40 +46,6 @@ python -m pip install Flask Flask-WTF waitress nbconvert
 * **Sessions** :
     * ShareFly uses only `http` protocol and not `https`. Sessions are managed on server-side. The location of the file containing the `secret` for flask app can be specified in the `__configs__.py` script. If not specified i.e., left blank, it will auto generate a random secret. Generating a random secret every time means that the users will not remain logged in if the server is restarted.
 
-    * To enable `https`, one can generate a self-signed certificate and use `nginx` reverse proxy (edit `/etc/nginx/nginx.conf`)
-
-      ```bash
-         http {
-            include       mime.types;
-            default_type  application/octet-stream;
-            sendfile        on;
-            keepalive_timeout  65;
-            types_hash_max_size 4096;
-            types_hash_bucket_size 256;
-            # HTTPS server
-            server {
-               # listen to default https port
-               listen       443 ssl; 
-               server_name  localhost;
-               
-               # provide self-signed certificates and private key here
-               ssl_certificate      /path/to/certificate;
-               ssl_certificate_key  /path/to/private-key;
-               ssl_protocols        TLSv1.2 TLSv1.3;
-               ssl_ciphers          HIGH:!aNULL:!MD5;
-               ssl_prefer_server_ciphers    on;
-
-            # set the proxy   
-            location / {
-               client_max_body_size 102400m; # (0 = no limit)
-               proxy_pass http://127.0.0.1:8888; # map to http server running on loopback
-               proxy_set_header Host $host;
-               proxy_set_header X-Real-IP $remote_addr;
-               proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            }}
-      ```
-
-
 * **Database** :
     * The database of users is fully loaded and operated from RAM, therefore the memory usage depends on the number of registered users.
     * The offline database is stored in `csv` format and provides no security or ACID guarantees. The database is loaded when the server starts and is committed back to disk when the server stops. This means that if the app crashes, the changes in the database will not reflect. 
@@ -88,10 +54,10 @@ python -m pip install Flask Flask-WTF waitress nbconvert
 * **Admin Commands** :
     * Admin users can issue commands through the `/x` route as follows:
         * Check admin access:        `/x`
-        * Persist database to disk:  `/x/?!`
-        * Reload database from disk: `/x/??`
-        * Refresh Download List:     `/downloads/??`
-        * Refresh Board:             `/board/??`
+        * Persist database to disk:  `/x?!`
+        * Reload database from disk: `/x??`
+        * Refresh Download List:     `/downloads??`
+        * Refresh Board:             `/board??`
 
     * User-Related: 
 
@@ -147,3 +113,18 @@ python -m pip install Flask Flask-WTF waitress nbconvert
     * Admin-Access (redirects to Evalution-Page): `/x`
 
 
+## Issue Tracking
+
+#### [ 1 ] mistune version 3.1
+
+* Reported: (Python3.10, ARM.aarch64)
+
+* Error: The board file is not converted from `.ipynb` to `.html` even when `nbconvert` package is installed. 
+```
+AttributeError: 'MathBlockParser' object has no attribute 'parse_axt_heading'. Did you mean: 'parse_atx_heading'?
+```
+
+* Solution: use mistune version lower than `3.1` - find one at [PyPi](https://pypi.org/project/mistune/#history)
+```bash
+python -m pip install mistune==3.0.2
+```
