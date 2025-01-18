@@ -1900,6 +1900,7 @@ app.config['topic'] =     args.topic
 app.config['dfl'] =       GET_FILE_LIST(DOWNLOAD_FOLDER_PATH)
 app.config['rename'] =    int(args.rename)
 app.config['muc'] =       MAX_UPLOAD_COUNT
+app.config['disableupload'] = False
 app.config['board'] =     (BOARD_FILE_MD is not None)
 app.config['reg'] =       (parsed.reg)
 app.config['repass'] =    bool(args.repass)
@@ -2319,7 +2320,7 @@ def route_home():
 
     if form.validate_on_submit() and ('U' in session['admind']):
         dprint(f"● {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
-        if app.config['muc']==0: 
+        if app.config['muc']==0 or app.config['disableupload']: 
             return render_template('home.html', submitted=submitted, score=score, form=form, status=[(0, f'✗ Uploads are disabled')])
         
         if EVAL_XL_PATH:
@@ -2630,6 +2631,13 @@ def reload_db():
     dprint(f"▶ {session['uid']} ◦ {session['named']} just reloaded the db from disk via {request.remote_addr}")
     return "Reloaded db from disk", True #  STATUS, SUCCESS
 
+def toggle_upload():
+    r""" disables uploads by setting app.config['disableupload']"""
+    app.config['disableupload'] = not app.config['disableupload']
+    if app.config['disableupload']: STATUS, SUCCESS =  f"Uploads are now disabled", True
+    else: STATUS, SUCCESS =  f"Uploads are now enabled", True
+    return STATUS, SUCCESS 
+
 @app.route('/x/', methods =['GET'], defaults={'req_uid': ''})
 @app.route('/x/<req_uid>')
 def route_repassx(req_uid):
@@ -2642,6 +2650,7 @@ def route_repassx(req_uid):
             if len(request.args)==1:
                 if '?' in request.args: STATUS, SUCCESS = reload_db()
                 elif '!' in request.args: STATUS, SUCCESS = persist_db()
+                elif '~' in request.args: STATUS, SUCCESS = toggle_upload()
                 else: STATUS, SUCCESS =  f'Invalid command ({next(iter(request.args.keys()))}) ... Hint: use (?) (!) ', False
             else: 
                 if len(request.args)>1: STATUS, SUCCESS =  f"Only one command is accepted ... Hint: use (?) (!) ", False

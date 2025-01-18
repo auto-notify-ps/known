@@ -123,6 +123,7 @@ python -m known.fly
         * Check admin access:        `/x`
         * Persist database to disk:  `/x?!`
         * Reload database from disk: `/x??`
+        * Enable/Disable Uploads:    `/x?~`
         * Refresh Download List:     `/downloads??`
         * Refresh Board:             `/board??`
 
