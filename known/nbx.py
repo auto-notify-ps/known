@@ -22,22 +22,25 @@ parser.add_argument('--dtext',          type=str, default='📥️',         hel
 parser.add_argument('--ttext',          type=str, default='🔝',         help="text for top link"                        )
 parser.add_argument('--htext',          type=str, default='🏠',         help="text for home link"                       )
 parser.add_argument('--ltext',          type=str, default='🔒',         help="text for logout link"                       )
+parser.add_argument('--halign',          type=str, default='left',    help="header alignment"                       )
 parser.add_argument('--header',         type=int, default=0,            help="shows text in the header"                 )
 
 # extra login
-parser.add_argument('--login',        type=str, default='',           help="path to login-file, keep blank to disbale authentication"     )
-parser.add_argument('--keyat',        type=int, default=0,            help="key-col index"                 )
-parser.add_argument('--valueat',      type=int, default=1,            help="value-col index"                 )
+parser.add_argument('--login',        type=str, default='',           help="path to login-dir, keep blank to disbale authentication"     )
+#parser.add_argument('--keyat',        type=int, default=0,            help="key-col index"                 )
+#parser.add_argument('--valueat',      type=int, default=1,            help="value-col index"                 )
 parser.add_argument('--case',         type=int, default=0,            help="uid case sensetivity -1, 0, 1 (to-lower, no-change, to-upper)"                 )
 parser.add_argument('--welcome',      type=str, default='Welcome',    help="welcome msg"                       )
-parser.add_argument('--reloadon',     type=str, default='',           help="when this UID logs in, reload the database"                       )
+#parser.add_argument('--reloadon',     type=str, default='',           help="when this UID logs in, reload the database"                       )
 parsed = parser.parse_args()
 
 if parsed.login:
     LOGIN_XL_PATH = os.path.abspath(parsed.login)
-    if not os.path.isfile(LOGIN_XL_PATH): exit(f'Login-file not found at {LOGIN_XL_PATH}')
-    KEY_AT, VALUE_AT = parsed.keyat, parsed.valueat
-    RELOAD_DB_UID = f'{parsed.reloadon}'.strip()
+    try:os.makedirs(LOGIN_XL_PATH, exist_ok=True)
+    except:pass
+    if not os.path.isdir(LOGIN_XL_PATH): exit(f'Login-dir not found at {LOGIN_XL_PATH}')
+    #KEY_AT, VALUE_AT = parsed.keyat, parsed.valueat
+    #RELOAD_DB_UID = f'{parsed.reloadon}'.strip()
 else: LOGIN_XL_PATH = None
 
 #%% Logging
@@ -105,33 +108,29 @@ def rematch(instr, pattern):  return \
 def VALIDATE_PASS(instr):     return rematch(instr, r'^[a-zA-Z0-9~!@#$%^&*()_+{}<>?`\-=\[\].]+$')
 def VALIDATE_UID(instr):      return rematch(instr, r'^[a-zA-Z0-9._@]+$') and instr[0]!="."
 
-CSV_DELIM = ','
-SSV_DELIM = '\n'
-def S2DICT(s, key_at, value_at):
-    lines = s.split(SSV_DELIM)
-    d = dict()
-    for line in lines[1:]:
-        if line:
-            cells = line.split(CSV_DELIM)
-            d[f'{cells[key_at]}'] = cells[value_at]
-    return d
-def CSV2DICT(path, key_at, value_at):
-    with open(path, 'r', encoding='utf-8') as f: s = f.read()
-    return S2DICT(s, key_at, value_at)
-def READ_DB_FROM_DISK(path, key_at, value_at):
-    try:    return CSV2DICT(path, key_at, value_at), True
-    except: return dict(), False
-def read_logindb_from_disk():
-    db_frame, res = READ_DB_FROM_DISK(LOGIN_XL_PATH, KEY_AT, VALUE_AT)
-    if res: sprint(f'⇒ Loaded login file: {LOGIN_XL_PATH}')
-    else: sprint(f'⇒ Failed reading login file: {LOGIN_XL_PATH}')
-    return db_frame
-db = read_logindb_from_disk() if LOGIN_XL_PATH else None
+
+def get_passwd(dir, user):
+    try:
+        f = open(os.path.join(dir, user), 'r')
+        passwd = f.read()
+        f.close()
+    except: passwd = None
+    return passwd
+
+def set_passwd(dir, user, passwd, create=False):
+    try:
+        p = os.path.join(dir, user)
+        if not os.path.isfile(p): assert create
+        f = open(p, 'w')
+        f.write(passwd)
+        f.close()
+        return True
+    except: return False
 
 LOGIN_NEED_TEXT =       '👤' 
 LOGIN_FAIL_TEXT =       '❌'     
 LOGIN_NEW_TEXT =        '🔥'
-#LOGIN_CREATE_TEXT =     '🔑' 
+LOGIN_CREATE_TEXT =     '🔑' 
 
 login = """
 <html>
@@ -274,6 +273,7 @@ app.config['dtext'] = parsed.dtext
 app.config['ttext'] = parsed.ttext
 app.config['htext'] = parsed.htext
 app.config['ltext'] = parsed.ltext
+app.config['halign'] = parsed.halign
 app.config['header'] = int(parsed.header)
 app.config['home'] = HOME
 app.config['title'] = os.path.basename(BASE)
@@ -333,7 +333,7 @@ def route_home(query):
                     hlink = app.config['htext'] if showdlink else None,
                     header = app.config['header'] if showdlink else None,
                     durl=f"{request.base_url}?{app.config['query_download']}", 
-                    align='left')
+                    align=app.config['halign'])
                 #with open('??.html','w') as f: f.write(loaded_pages[requested]) # save a copy to disk?
             if refresh: return redirect(url_for('route_home', query=query))
             else:
@@ -358,40 +358,34 @@ def route_login():
 
         uid = in_uid if not parsed.case else (in_uid.upper() if parsed.case>0 else in_uid.lower())
         valid_query = VALIDATE_UID(uid)
-        global db
         if not valid_query : passwd = None
-        else: passwd = db.get(uid, None)
+        else: passwd = get_passwd(LOGIN_XL_PATH, uid)
         if passwd is not None: 
             if not passwd: # fist login
-                warn = LOGIN_NEW_TEXT
-                msg = f'[{in_uid}] has not set their password'
+                #warn = LOGIN_NEW_TEXT
+                #msg = f'[{in_uid}] has not set their password'
                            
-                # if in_passwd: # new password provided
-                #     if VALIDATE_PASS(in_passwd): # new password is valid
-                #         db[uid]=in_passwd 
-                        
-                #         warn = LOGIN_CREATE_TEXT
-                #         msg = f'[{in_uid}] New password was created successfully'
-                #         sprint(f'● {in_uid} just joined via {request.remote_addr}')
+                if in_passwd: # new password provided
+                    if VALIDATE_PASS(in_passwd): # new password is valid
+                        set_passwd(LOGIN_XL_PATH, uid, in_passwd, create=False)
+                        warn = LOGIN_CREATE_TEXT
+                        msg = f'[{in_uid}] New password was created successfully'
+                        sprint(f'● {in_uid} just joined via {request.remote_addr}')
            
-                #     else: # new password is invalid valid 
-                #         warn = LOGIN_NEW_TEXT
-                #         msg=f'[{in_uid}] New password is invalid - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'
+                    else: # new password is invalid valid 
+                        warn = LOGIN_NEW_TEXT
+                        msg=f'[{in_uid}] New password is invalid - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'
                         
                                                
-                # else: #new password not provided                
-                #     warn = LOGIN_NEW_TEXT
-                #     msg = f'[{in_uid}] New password required - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'
+                else: #new password not provided                
+                    warn = LOGIN_NEW_TEXT
+                    msg = f'[{in_uid}] New password required - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'
                                                      
             else: # re login
                 if in_passwd: # password provided 
                     if in_passwd==passwd:
                         session['has_login'], session['uid'] = True, uid
                         sprint(f'● {session["uid"]} has logged in via {request.remote_addr}') 
-                        # also reload db
-                        if RELOAD_DB_UID == uid: 
-                            db = read_logindb_from_disk()
-                            sprint(f'● Reloaded login database') 
                         return redirect(url_for('route_home'))
                     else:  
                         warn = LOGIN_FAIL_TEXT
