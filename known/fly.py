@@ -1161,7 +1161,7 @@ def TEMPLATES(style):
                 </div>
                 <br>
                 {% if submitted<1 %}
-                    {% if config.muc!=0 %}
+                    {% if config.muc!=0 and not config.disableupload %}
                     <form method='POST' enctype='multipart/form-data'>
                         {{form.hidden_tag()}}
                         {{form.file()}}
@@ -1175,7 +1175,7 @@ def TEMPLATES(style):
                     
                 <div> <span class="upword">Uploads</span> 
                     
-                {% if submitted<1 and config.muc!=0 %}
+                {% if submitted<1 and config.muc!=0 and not config.disableupload %}
                     <a href="{{ url_for('route_uploadf') }}" class="btn_refresh_small">Refresh</a>
                     <button class="btn_purge" onclick="confirm_purge()">Purge</button>
                     <script>
@@ -2388,7 +2388,7 @@ def route_purge():
     if 'U' not in session['admind']:  return redirect(url_for('route_home'))
     if EVAL_XL_PATH:
         #global dbsub
-        if session['uid'] in dbsub: return redirect(url_for('route_home'))
+        if session['uid'] in dbsub or app.config['disableupload']: return redirect(url_for('route_home'))
 
     folder_name = os.path.join( app.config['uploads'], session['uid']) 
     if os.path.exists(folder_name):
@@ -2634,8 +2634,15 @@ def reload_db():
 def toggle_upload():
     r""" disables uploads by setting app.config['disableupload']"""
     app.config['disableupload'] = not app.config['disableupload']
-    if app.config['disableupload']: STATUS, SUCCESS =  f"Uploads are now disabled", True
-    else: STATUS, SUCCESS =  f"Uploads are now enabled", True
+
+    
+    if app.config['disableupload']: 
+        STATUS, SUCCESS =  f"Uploads are now disabled", True
+        dowhat = 'disabled'
+    else: 
+        STATUS, SUCCESS =  f"Uploads are now enabled", True
+        dowhat = 'enabled'
+    dprint(f"▶ {session['uid']} ◦ {session['named']} has {dowhat} uploads via {request.remote_addr}")
     return STATUS, SUCCESS 
 
 @app.route('/x/', methods =['GET'], defaults={'req_uid': ''})

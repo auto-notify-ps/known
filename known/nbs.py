@@ -152,10 +152,10 @@ login = """
             <br>
             <div style="font-size: x-large; font-family: monospace">{{ msg }}</div>
             <br>
-            <input id="uid" name="uid" type="text" placeholder=" user-id " />
+            <input id="uid" name="uid" type="text"  style="font-size: medium; font-family: monospace; text-align: center;" placeholder=" user-id " />
             <br>
             <br>
-            <input id="passwd" name="passwd" type="password" placeholder=" password " />
+            <input id="passwd" name="passwd"   style="font-size: medium; font-family: monospace; text-align: center;" type="password" placeholder=" password " />
             <br>
             <br>
             <input type="submit" style="font-size: large;" value=""" + f'"{parsed.ltext}"' +"""> 
