@@ -42,13 +42,10 @@ try:
     from werkzeug.utils import secure_filename
     from wtforms.validators import InputRequired
     from waitress import serve
-except: exit(f'[!] The required Flask packages missing:\tFlask>=3.0.2, Flask-WTF>=1.2.1\twaitress>=3.0.0\n  ⇒ pip install Flask Flask-WTF waitress')
-try: 
+    #from bs4 import BeautifulSoup
     from nbconvert import HTMLExporter 
-    has_nbconvert_package=True
-except:
-    print(f'[!] IPYNB to HTML rending will not work since nbconvert>=7.16.2 is missing\n  ⇒ pip install nbconvert')
-    has_nbconvert_package = False
+except: exit(f'[!] The required Flask packages missing:\tFlask>=3.0.2, Flask-WTF>=1.2.1\twaitress>=3.0.0\n  ⇒ pip install Flask Flask-WTF nbconvert waitress')
+
 # ------------------------------------------------------------------------------------------
 # Logging
 # ------------------------------------------------------------------------------------------
@@ -834,7 +831,10 @@ def TEMPLATES(style):
             <div class="files_list_down">
                 <ol>
                 {% for file in config.dfl %}
-                <li><a href="{{ (request.path + '/' if request.path != '/' else '') + file }}"" >{{ file }}</a></li>
+                <li>
+                <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}"" >{{ file }}</a>
+                <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}?html"" target="_blank">"""+f'{style.icon_gethtml}'+"""</a>
+                </li>
                 <br>
                 {% endfor %}
                 </ol>
@@ -908,10 +908,10 @@ def TEMPLATES(style):
                 {% for (file, hfile) in files %}
                 {% if (session.hidden_storeuser) or (not hfile) %}
                     <li>
-                    <a href="{{ url_for('route_storeuser', subpath=subpath + '/' + file, get='') }}">"""+f'{style.icon_getfile}'+"""</a> 
+                    <a href="{{ url_for('route_storeuser', subpath=subpath + '/' + file, get='') }}" target="_blank">"""+f'{style.icon_getfile}'+"""</a> 
                     <a href="{{ url_for('route_storeuser', subpath=subpath + '/' + file) }}" target="_blank">{{ file }}</a>
                     {% if file.lower().endswith('.ipynb') %}
-                    <a href="{{ url_for('route_storeuser', subpath=subpath + '/' + file, html='') }}">"""+f'{style.icon_gethtml}'+"""</a> 
+                    <a href="{{ url_for('route_storeuser', subpath=subpath + '/' + file, html='') }}" target="_blank">"""+f'{style.icon_gethtml}'+"""</a> 
                     {% endif %}
                     </li>
                 {% endif %}
@@ -997,6 +997,9 @@ def TEMPLATES(style):
                     <span> . . . </span>
                     <a href="{{ url_for('route_store', subpath=subpath + '/' + file, get='') }}">"""+f'{style.icon_getfile}'+"""</a> 
                     <a href="{{ url_for('route_store', subpath=subpath + '/' + file) }}" target="_blank" >{{ file }}</a>
+                    {% if file.lower().endswith('.ipynb') %}
+                    <a href="{{ url_for('route_store', subpath=subpath + '/' + file, html='') }}" target="_blank">"""+f'{style.icon_gethtml}'+"""</a> 
+                    {% endif %}
                     
                     
                 
@@ -1044,7 +1047,10 @@ def TEMPLATES(style):
             <div class="files_list_down">
                 <ol>
                 {% for file in session.filed %}
-                <li><a href="{{ (request.path + '/' if request.path != '/' else '') + file }}">{{ file }}</a></li>
+                <li>
+                <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}">{{ file }}</a>
+                <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}?html"" target="_blank">"""+f'{style.icon_gethtml}'+"""</a>
+                </li>
                 <br>
                 {% endfor %}
                 </ol>
@@ -1787,18 +1793,16 @@ del HTML_TEMPLATES, CSS_TEMPLATES_KEYS
 BOARD_FILE_MD = None
 BOARD_PAGE = ""
 if args.board:
-    if has_nbconvert_package:
-        BOARD_FILE_MD = os.path.join(BASEDIR, f'{args.board}')
-        if  os.path.isfile(BOARD_FILE_MD): sprint(f'⚙ Board File: {BOARD_FILE_MD}')
-        else: 
-            sprint(f'⚙ Board File: {BOARD_FILE_MD} not found - trying to create...')
-            try:
-                with open(BOARD_FILE_MD, 'w', encoding='utf-8') as f: f.write(NEW_NOTEBOOK_STR(f'# {args.topic}'))
-                sprint(f'⚙ Board File: {BOARD_FILE_MD} was created successfully!')
-            except:
-                BOARD_FILE_MD = None
-                sprint(f'⚙ Board File: {BOARD_FILE_MD} could not be created - Board will not be available!')
-    else: sprint(f'[!] Board will not be enabled since it requires nbconvert')
+    BOARD_FILE_MD = os.path.join(BASEDIR, f'{args.board}')
+    if  os.path.isfile(BOARD_FILE_MD): sprint(f'⚙ Board File: {BOARD_FILE_MD}')
+    else: 
+        sprint(f'⚙ Board File: {BOARD_FILE_MD} not found - trying to create...')
+        try:
+            with open(BOARD_FILE_MD, 'w', encoding='utf-8') as f: f.write(NEW_NOTEBOOK_STR(f'# {args.topic}'))
+            sprint(f'⚙ Board File: {BOARD_FILE_MD} was created successfully!')
+        except:
+            BOARD_FILE_MD = None
+            sprint(f'⚙ Board File: {BOARD_FILE_MD} could not be created - Board will not be available!')
 if not BOARD_FILE_MD:   sprint(f'⚙ Board: Not Available')
 else: sprint(f'⚙ Board: Is Available')
 # ------------------------------------------------------------------------------------------
@@ -1818,6 +1822,8 @@ def update_board():
     return res
 
 _ = update_board()
+
+
 # ------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------
 # Database Read/Write
@@ -2096,8 +2102,17 @@ def route_downloads(req_path):
             dprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
             return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
         if os.path.isfile(abs_path):  #(f"◦ sending file ")
-            dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
-            return send_file(abs_path) # Check if path is a file and serve
+            if ("html" in request.args): 
+                dprint(f"● {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
+                try:
+                    hstatus, hmsg = HConv.convertx(abs_path)
+                except: hstatus, hmsg = False, f"Exception while converting {req_path} to a web-page"
+                
+                #dprint(f"{TABLINE}{'... ✓' if hstatus else '... ✗'} {hmsg}")
+                return hmsg #if hstatus else  send_file(abs_path, as_attachment=True)
+            else: 
+                dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
+                return send_file(abs_path, as_attachment=False) # Check if path is a file and serve
     return render_template('downloads.html')
 # ------------------------------------------------------------------------------------------
 # uploads
@@ -2112,8 +2127,18 @@ def route_uploads(req_path):
         dprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
         return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
     if os.path.isfile(abs_path):  #(f"◦ sending file ")
-        dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
-        return send_file(abs_path) # Check if path is a file and serve
+        if ("html" in request.args): 
+            dprint(f"● {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
+            try:
+                hstatus, hmsg = HConv.convertx(abs_path)
+            except: hstatus, hmsg = False, f"Exception while converting {req_path} to a web-page"
+            
+            #dprint(f"{TABLINE}{'... ✓' if hstatus else '... ✗'} {hmsg}")
+            return hmsg #if hstatus else  send_file(abs_path, as_attachment=True)
+        else: 
+            dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
+            return send_file(abs_path, as_attachment=False) # Check if path is a file and serve
+        
     return render_template('uploads.html')
 # ------------------------------------------------------------------------------------------
 # reports
@@ -2410,7 +2435,17 @@ class HConv: # html converter
                 with open(new_abs_path, 'w') as f: f.write(x)
                 return True, (f"rendered Notebook to HTML @ {new_abs_path}")
             except: return False, (f"failed to rendered Notebook to HTML @ {new_abs_path}") 
-        else: return False, (f"no renderer exists for {abs_path}")
+        else: return False, (f"Cannot render this file as HTML: {os.path.basename(abs_path)}")
+
+    @staticmethod
+    def convertx(abs_path):
+        new_abs_path = f'{abs_path}.html'
+        if abs_path.lower().endswith(".ipynb"):
+            try:
+                x = __class__.nb2html( abs_path )
+                return True, x #(f"rendered Notebook to HTML @ {new_abs_path}")
+            except: return False, (f"failed to rendered Notebook to HTML @ {new_abs_path}") 
+        else: return False, (f"Cannot render this file as HTML: {os.path.basename(abs_path)}")
 
     @staticmethod
     def remove_tag(page, tag): # does not work on nested tags
@@ -2424,7 +2459,6 @@ class HConv: # html converter
     
     @staticmethod
     def nb2html(source_notebook, template_name='lab', no_script=True, html_title=None, parsed_title='Notebook',):
-        #if not has_nbconvert_package: return f'<div>Requires nbconvert: python -m pip install nbconvert</div>'
         if html_title is None: # auto infer
             html_title = os.path.basename(source_notebook)
             iht = html_title.rfind('.')
@@ -2571,6 +2605,14 @@ def route_store(subpath=""):
                         return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
                     except:return f"Error deleting the file"
                     #else: return f"Directory name cannot contain (.)"
+                elif ("html" in request.args): 
+                    dprint(f"● {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
+                    try:
+                        hstatus, hmsg = HConv.convertx(abs_path)
+                    except: hstatus, hmsg = False, f"Exception while converting notebook to web-page"
+                    return hmsg
+                    #dprint(f"{TABLINE}{'... ✓' if hstatus else '... ✗'} {hmsg}")
+                    #return redirect(url_for('route_storeuser', subpath=os.path.dirname(subpath))) 
                 else: return f"Invalid args for store actions"
                             
         
@@ -2592,11 +2634,12 @@ def route_storeuser(subpath=""):
         
         if ("html" in request.args): 
             dprint(f"● {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
-            if has_nbconvert_package: hstatus, hmsg = HConv.convert(abs_path)
-            else: hstatus, hmsg = False, f"missing package - nbconvert"
-            
-            dprint(f"{TABLINE}{'... ✓' if hstatus else '... ✗'} {hmsg}")
-            return redirect(url_for('route_storeuser', subpath=os.path.dirname(subpath))) 
+            try:
+                hstatus, hmsg = HConv.convertx(abs_path)
+            except: hstatus, hmsg = False, f"Exception while converting notebook to web-page"
+            return hmsg
+            #dprint(f"{TABLINE}{'... ✓' if hstatus else '... ✗'} {hmsg}")
+            #return redirect(url_for('route_storeuser', subpath=os.path.dirname(subpath))) 
         else: 
             dprint(f"● {session['uid']} ◦ {session['named']} downloaded {subpath} from user-store via {request.remote_addr}")
             return send_file(abs_path, as_attachment=("get" in request.args))
