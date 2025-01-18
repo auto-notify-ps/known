@@ -131,7 +131,7 @@ db = read_logindb_from_disk() if LOGIN_XL_PATH else None
 LOGIN_NEED_TEXT =       '👤' 
 LOGIN_FAIL_TEXT =       '❌'     
 LOGIN_NEW_TEXT =        '🔥'
-LOGIN_CREATE_TEXT =     '🔑' 
+#LOGIN_CREATE_TEXT =     '🔑' 
 
 login = """
 <html>
@@ -363,23 +363,26 @@ def route_login():
         else: passwd = db.get(uid, None)
         if passwd is not None: 
             if not passwd: # fist login
-                if in_passwd: # new password provided
-                    if VALIDATE_PASS(in_passwd): # new password is valid
-                        db[uid]=in_passwd 
+                warn = LOGIN_NEW_TEXT
+                msg = f'[{in_uid}] has not set their password'
+                           
+                # if in_passwd: # new password provided
+                #     if VALIDATE_PASS(in_passwd): # new password is valid
+                #         db[uid]=in_passwd 
                         
-                        warn = LOGIN_CREATE_TEXT
-                        msg = f'[{in_uid}] New password was created successfully'
-                        sprint(f'● {in_uid} just joined via {request.remote_addr}')
+                #         warn = LOGIN_CREATE_TEXT
+                #         msg = f'[{in_uid}] New password was created successfully'
+                #         sprint(f'● {in_uid} just joined via {request.remote_addr}')
            
-                    else: # new password is invalid valid 
-                        warn = LOGIN_NEW_TEXT
-                        msg=f'[{in_uid}] New password is invalid - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'
+                #     else: # new password is invalid valid 
+                #         warn = LOGIN_NEW_TEXT
+                #         msg=f'[{in_uid}] New password is invalid - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'
                         
                                                
-                else: #new password not provided                
-                    warn = LOGIN_NEW_TEXT
-                    msg = f'[{in_uid}] New password required - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'
-                                           
+                # else: #new password not provided                
+                #     warn = LOGIN_NEW_TEXT
+                #     msg = f'[{in_uid}] New password required - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'
+                                                     
             else: # re login
                 if in_passwd: # password provided 
                     if in_passwd==passwd:
