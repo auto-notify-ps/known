@@ -36,7 +36,7 @@ from math import inf
 import datetime
 def fnow(format): return datetime.datetime.strftime(datetime.datetime.now(), format)
 try:
-    from flask import Flask, render_template, request, redirect, url_for, session, abort, send_file
+    from flask import Flask, render_template, render_template_string, request, redirect, url_for, session, abort, send_file
     from flask_wtf import FlaskForm
     from wtforms import SubmitField, MultipleFileField
     from werkzeug.utils import secure_filename
@@ -2174,22 +2174,34 @@ def route_generate_submit_report():
     msg = f"Total [{len(dbevalset)}]"
     if len(dbevalset) != len(finished_uids) + len(pending_uids) + len(absent_uids): msg+=f" [!] Count Mismatch!"
     pending_uids, absent_uids, finished_uids = sorted(list(pending_uids)), sorted(list(absent_uids)), sorted(list(finished_uids))
-    #{NEWLINE.join(finished_uids)}
-    htable=f"""
+    #{NEWLINE.join(finished_uids)} {NEWLINE.join(pending_uids)} {NEWLINE.join(absent_uids)}
+    htable0=f"""
     <style>
     td {{padding: 10px;}}
     th {{padding: 5px;}}
     tr {{vertical-align: top;}}
     </style>
     <h3> {msg} </h3>
-    <table border="1" style="color: navy;">
+    <table border="1" style="color: black;">
         <tr> <th>Pending [{len(pending_uids)}]</th> </tr>
-        <tr> <td><pre>{NEWLINE.join(pending_uids)}</pre></td> </tr>
+    """
+    htable1='<tr><td>'
+    for pu in pending_uids:
+        htable1+=f""" 
+        <a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank"><pre>{pu} [{db[pu][2]}]</pre></a>
+        """
+    htable1+=f"""</td></tr>
     </table>
     <br>
     <table border="1" style="color: maroon;">
         <tr> <th>Absent [{len(absent_uids)}]</th> </tr>
-        <tr> <td><pre>{NEWLINE.join(absent_uids)}</pre></td> </tr>
+    """
+    htable2 = '<tr><td>'
+    for pu in absent_uids:
+        htable2+=f""" 
+        <pre>{pu} [{db[pu][2]}]</pre>
+        """
+    htable2+=f"""</td></tr>
     </table>
     <h3> Evaluated [{len(finished_uids)}] </h3>
     <table border="1" style="color: black;">
@@ -2201,21 +2213,21 @@ def route_generate_submit_report():
             <th>BY</th>
         </tr>
     """
-    hpart = ''
+    htable3 = ''
     #EVAL_ORD = ['UID', 'NAME', 'SCORE', 'REMARK', 'BY']
     for k in sorted(list(dbsub.keys())):
         v = dbsub[k]
-        hpart+=f"""
+        htable3+=f"""
         <tr>
-            <td><pre>{v[0]}</pre></td>
+            <td><a href="{ url_for('route_storeuser', subpath=v[0]) }" target="_blank"><pre>{v[0]}</pre></a></td>
             <td><pre>{v[1]}</pre></td>
             <td><pre>{v[2]}</pre></td>
             <td><pre>{v[3]}</pre></td>
             <td><pre>{v[4]}</pre></td>
         </tr>
         """
-    hpart+="</table><br><hr>"
-    return htable+hpart
+    htable3+="</table><br><hr>"
+    return render_template_string( htable0+htable1+htable2+htable3)
 
     
 
