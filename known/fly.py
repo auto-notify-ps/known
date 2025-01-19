@@ -1,6 +1,6 @@
 __doc__=f""" 
 -------------------------------------------------------------
-Fly - Flask-based web app for sharing files 
+Fly - Flask-based web app for sharing files contained in a single script
 -------------------------------------------------------------
 """
 #-----------------------------------------------------------------------------------------
@@ -252,6 +252,7 @@ default = dict(
     emoji        = "🦋",                   # emoji shown of login page and seperates uid - name
     rename       = 0,                      # if rename=1, allows users to update their names when logging in
     repass       = 1,                      # if repass=1, allows admins and Xs to reset passwords for users - should be enabled in only one session (for multi-session)
+    reeval       = 1,                      # if reeval=1, allows evaluators to reset evaluation
     case         = 0,                      # case-sentivity level in uid
                                             #   (if case=0 uids are not converted           when matching in database)
                                             #   (if case>0 uids are converted to upper-case when matching in database)
@@ -905,7 +906,7 @@ def TEMPLATES(style):
             <div class="files_list_down">
                 <p class="files_status">Files</p>
                 <ol>
-                {% for (file, hfile) in files %}
+                {% for (i, file, hfile) in files %}
                 {% if (session.hidden_storeuser) or (not hfile) %}
                     <li>
                     <a href="{{ url_for('route_storeuser', subpath=subpath + '/' + file, get='') }}" target="_blank">"""+f'{style.icon_getfile}'+"""</a> 
@@ -990,10 +991,18 @@ def TEMPLATES(style):
             <div class="files_list_down">
                 <p class="files_status">Files</p>
                 <ol>
-                {% for (file, hfile) in files %}
+                {% for i, file, hfile in files %}
                 {% if (session.hidden_store) or (not hfile) %}
                     <li>
-                    <a href="{{ url_for('route_store', subpath=subpath + '/' + file, del='') }}">"""+f'{style.icon_delfile}'+"""</a> 
+                    <button class="btn_del" onclick="confirm_del_{{ i }}()">"""+f'{style.icon_delfile}'+"""</button>
+                    <script>
+                        function confirm_del_{{ i }}() {
+                        let res = confirm("Delete File?\\n\\n\\t {{ file }}");
+                        if (res == true) {
+                            location.href = "{{ url_for('route_store', subpath=subpath + '/' + file, del='') }}";
+                            }
+                        }
+                    </script>
                     <span> . . . </span>
                     <a href="{{ url_for('route_store', subpath=subpath + '/' + file, get='') }}">"""+f'{style.icon_getfile}'+"""</a> 
                     <a href="{{ url_for('route_store', subpath=subpath + '/' + file) }}" target="_blank" >{{ file }}</a>
@@ -1527,6 +1536,18 @@ def TEMPLATES(style):
         text-decoration: none;
     }
 
+    
+    .btn_del {
+        padding: 2px 2px 2px;
+         background-color: transparent;
+        border-style: none;
+        color: #FFFFFF;
+        font-size: small;
+        border-radius: 2px;
+        font-family:monospace;
+        text-decoration: none;
+    }
+
     .btn_purge {
         padding: 2px 10px 2px;
         background-color: #9a0808; 
@@ -1910,6 +1931,7 @@ app.config['disableupload'] = False
 app.config['board'] =     (BOARD_FILE_MD is not None)
 app.config['reg'] =       (parsed.reg)
 app.config['repass'] =    bool(args.repass)
+app.config['reeval'] =    bool(args.reeval)
 app.config['eip'] =       bool(parsed.eip)
 app.config['apac'] =    f'{parsed.access}'.strip().upper()
 # ------------------------------------------------------------------------------------------
@@ -2234,12 +2256,14 @@ def route_generate_submit_report():
 # ------------------------------------------------------------------------------------------
 # eval
 # ------------------------------------------------------------------------------------------
-@app.route('/eval', methods =['GET', 'POST'])
-def route_eval():
+@app.route('/eval', methods =['GET', 'POST'], defaults={'req_uid': ''})
+@app.route('/eval/<req_uid>')
+def route_eval(req_uid):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     form = UploadFileForm()
     submitter = session['uid']
     results = []
+    global db, dbsub
     if form.validate_on_submit():
         dprint(f"● {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
         if  not ('X' in session['admind']): status, success =  "You are not allow to evaluate.", False
@@ -2361,10 +2385,39 @@ def route_eval():
         else: status, success = f"You posted nothing!", False
         if success and app.config['eip']: persist_subdb()
     else:
-        if ('+' in session['admind']) or ('X' in session['admind']):
-            status, success = f"Eval Access is Enabled", True
-        else: status, success = f"Eval Access is Disabled", False
+        if not req_uid:
+            if ('+' in session['admind']) or ('X' in session['admind']):
+                status, success = f"Eval Access is Enabled", True
+            else: status, success = f"Eval Access is Disabled", False
+        else:
+            iseval = ('X' in session['admind']) or ('+' in session['admind'])
+            if app.config['reeval']:
+                if iseval:
+                    in_uid = f'{req_uid}'
+                    if in_uid: 
+                    
+
+                        in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
+                        record = db.get(in_query, None)
+                        if record is not None: 
+                            erecord = dbsub.get(in_query, None)
+                            if erecord is not None:
+                                del dbsub[in_query]
+                                dprint(f"▶ {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {erecord[1]} (already evaluated by [{erecord[-1]}] with score [{erecord[2]}]) via {request.remote_addr}")
+                                status, success =  f"Evaluation was reset for {in_query} ", True
+                            else: status, success =  f"User '{in_query}' has not been evaluated", False
+                        else: status, success =  f"User '{in_query}' not found", False
+                    else: status, success =  f"User-id was not provided", False
+                else: status, success =  "You are not allow to reset evaluation", False
+            else: status, success =  "Evaluation reset is disabled for this session", False
+            if success: persist_subdb()
+
+
     return render_template('evaluate.html', success=success, status=status, form=form, results=results)
+
+# ------------------------------------------------------------------------------------------
+
+
 # ------------------------------------------------------------------------------------------
 # home - upload
 # ------------------------------------------------------------------------------------------
@@ -2511,8 +2564,8 @@ class HConv: # html converter
 def list_store_dir(abs_path):
     dirs, files = [], []
     with os.scandir(abs_path) as it:
-        for item in it:
-            if item.is_file(): files.append((item.name, item.name.startswith(".")))
+        for i,item in enumerate(it):
+            if item.is_file(): files.append((i, item.name, item.name.startswith(".")))
             elif item.is_dir(): dirs.append((item.name, item.name.startswith(".")))
             else: pass
     return dirs, files
@@ -2722,6 +2775,7 @@ def toggle_upload():
         dowhat = 'enabled'
     dprint(f"▶ {session['uid']} ◦ {session['named']} has {dowhat} uploads via {request.remote_addr}")
     return STATUS, SUCCESS 
+
 
 @app.route('/x/', methods =['GET'], defaults={'req_uid': ''})
 @app.route('/x/<req_uid>')
