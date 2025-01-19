@@ -2174,28 +2174,51 @@ def route_generate_submit_report():
     msg = f"Total [{len(dbevalset)}]"
     if len(dbevalset) != len(finished_uids) + len(pending_uids) + len(absent_uids): msg+=f" [!] Count Mismatch!"
     pending_uids, absent_uids, finished_uids = sorted(list(pending_uids)), sorted(list(absent_uids)), sorted(list(finished_uids))
-    return \
-    f"""
+    #{NEWLINE.join(finished_uids)}
+    htable=f"""
     <style>
     td {{padding: 10px;}}
     th {{padding: 5px;}}
     tr {{vertical-align: top;}}
     </style>
     <h3> {msg} </h3>
-    <table border="1">
-        <tr>
-            <th>Pending [{len(pending_uids)}]</th>
-            <th>Absent [{len(absent_uids)}]</th>
-            <th>Finished [{len(finished_uids)}]</th>
-        </tr>
-        <tr>
-            <td><pre>{NEWLINE.join(pending_uids)}</pre></td>
-            <td><pre>{NEWLINE.join(absent_uids)}</pre></td>
-            <td><pre>{NEWLINE.join(finished_uids)}</pre></td>
-        </tr>
-        
+    <table border="1" style="color: navy;">
+        <tr> <th>Pending [{len(pending_uids)}]</th> </tr>
+        <tr> <td><pre>{NEWLINE.join(pending_uids)}</pre></td> </tr>
     </table>
+    <br>
+    <table border="1" style="color: maroon;">
+        <tr> <th>Absent [{len(absent_uids)}]</th> </tr>
+        <tr> <td><pre>{NEWLINE.join(absent_uids)}</pre></td> </tr>
+    </table>
+    <h3> Evaluated [{len(finished_uids)}] </h3>
+    <table border="1" style="color: black;">
+        <tr>
+            <th>UID</th>
+            <th>NAME</th>
+            <th>SCORE</th>
+            <th>REMARK</th>
+            <th>BY</th>
+        </tr>
     """
+    hpart = ''
+    #EVAL_ORD = ['UID', 'NAME', 'SCORE', 'REMARK', 'BY']
+    for k in sorted(list(dbsub.keys())):
+        v = dbsub[k]
+        hpart+=f"""
+        <tr>
+            <td><pre>{v[0]}</pre></td>
+            <td><pre>{v[1]}</pre></td>
+            <td><pre>{v[2]}</pre></td>
+            <td><pre>{v[3]}</pre></td>
+            <td><pre>{v[4]}</pre></td>
+        </tr>
+        """
+    hpart+="</table><br><hr>"
+    return htable+hpart
+
+    
+
 # ------------------------------------------------------------------------------------------
 # eval
 # ------------------------------------------------------------------------------------------
