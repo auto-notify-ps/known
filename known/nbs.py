@@ -36,8 +36,6 @@ if parsed.login:
     try:os.makedirs(LOGIN_XL_PATH, exist_ok=True)
     except:pass
     if not os.path.isdir(LOGIN_XL_PATH): exit(f'Login-dir not found at {LOGIN_XL_PATH}')
-    #KEY_AT, VALUE_AT = parsed.keyat, parsed.valueat
-    #RELOAD_DB_UID = f'{parsed.reloadon}'.strip()
 else: LOGIN_XL_PATH = None
 
 #%% Logging
