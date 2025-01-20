@@ -16,17 +16,16 @@ import argparse
 # ------------------------------------------------------------------------------------------
 parser = argparse.ArgumentParser()
 # python -m known.fly --help
-parser.add_argument('--dir', type=str, default='', help="path of workspace directory")
-parser.add_argument('--verbose', type=int, default=2, help="verbose level in logging")
-parser.add_argument('--favicon', type=str, default='', help="path of favicon, keep blank to use inbuilt favicon (favicon can be directly placed inside html dir as well)")
-parser.add_argument('--log', type=str, default='', help="name of logfile as date-time-formated string e.g. fly_%Y_%m_%d_%H_%M_%S_%f_log.txt [Note: keep blank to disable logging]")
-parser.add_argument('--con', type=str, default='', help="config name - if not provided, uses 'default'")
-parser.add_argument('--reg', type=str, default='', help="if specified, allow users to register with specified access string such as DABU or DABUS+")
-parser.add_argument('--cos', type=int, default=1, help="use 1 to create-on-start - create (overwrites) pages")
-parser.add_argument('--coe', type=int, default=0, help="use 1 to clean-on-exit - deletes pages")
+parser.add_argument('--dir', type=str, default='', help="path of workspace directory [DEFAULT]: current diretory")
+parser.add_argument('--verbose', type=int, default=2, help="verbose level in logging (0,1,2) [DEFAULT]: 2")
+parser.add_argument('--log', type=str, default='', help="name of logfile as date-time-formated string, blank by default [Note: keep blank to disable logging]") #e.g. fly_%Y_%m_%d_%H_%M_%S_%f_log.txt
+parser.add_argument('--con', type=str, default='', help="config name (refers to a dict in __configs__.py - if not provided, uses 'default'")
+parser.add_argument('--reg', type=str, default='', help="if specified, allow users to register with that access string such as DABU or DABUS+")
+parser.add_argument('--cos', type=int, default=1, help="use 1 to create-on-start - create (overwrites) pages [DEFAULT]: 1")
+parser.add_argument('--coe', type=int, default=0, help="use 1 to clean-on-exit - deletes pages [DEFAULT]: 0")
 parser.add_argument('--access', type=str, default='', help="if specified, adds extra premissions to access string for this session only")
-parser.add_argument('--msl', type=int, default=100, help="Max String Length for UID/NAME/PASSWORDS")
-parser.add_argument('--eip', type=int, default=1, help="Evaluate Immediate Persis. If True, persist the eval-db after each single evaluation (eval-db in always persisted after update from template)")
+parser.add_argument('--msl', type=int, default=100, help="Max String Length for UID/NAME/PASSWORDS [DEFAULT]: 100")
+parser.add_argument('--eip', type=int, default=1, help="Evaluate Immediate Persis. If True (by-default), persist the eval-db after each single evaluation (eval-db in always persisted after update from template)")
 parsed = parser.parse_args()
 # ------------------------------------------------------------------------------------------
 # imports
@@ -2125,7 +2124,7 @@ db =    read_logindb_from_disk()  #<----------- Created database here
 dbsub = read_evaldb_from_disk()  #<----------- Created database here 
 sprint('↷ persisted eval-db [{}]'.format(write_evaldb_to_disk(dbsub)))
 dbevalset = set([k for k,v in db.items() if '-' not in v[0]])
-dbevaluatorset = set([k for k,v in db.items() if 'X' in v[0]])
+dbevaluatorset = sorted(list(set([k for k,v in db.items() if 'X' in v[0]])))
 # ------------------------------------------------------------------------------------------
 # Check user upload requirements
 # ------------------------------------------------------------------------------------------
