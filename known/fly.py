@@ -235,15 +235,15 @@ def merged(a:dict, b:dict): return {**a, **b}
 
 default = dict(    
 
-    # -------------------------------------# general info
-    topic        = "Fly",             # topic text (main banner text)
-    welcome      = "Login to Continue",    # msg shown on login page
-    register     = "Register User",        # msg shown on register (new-user) page
-    emoji        = "🦋",                   # emoji shown of login page and seperates uid - name
-    rename       = 0,                      # if rename=1, allows users to update their names when logging in
-    repass       = 1,                      # if repass=1, allows admins and Xs to reset passwords for users - should be enabled in only one session (for multi-session)
-    reeval       = 1,                      # if reeval=1, allows evaluators to reset evaluation
-    case         = 0,                      # case-sentivity level in uid
+    # --------------------------------------# general info
+    topic        = "Fly",                   # topic text (main banner text)
+    welcome      = "Login to Continue",     # msg shown on login page
+    register     = "Register User",         # msg shown on register (new-user) page
+    emoji        = "🦋",                    # emoji shown of login page and seperates uid - name
+    rename       = 0,                       # if rename=1, allows users to update their names when logging in
+    repass       = 1,                       # if repass=1, allows admins and evaluators to reset passwords for users - should be enabled in only one session
+    reeval       = 1,                       # if reeval=1, allows evaluators to reset evaluation
+    case         = 0,                       # case-sentivity level in uid
                                             #   (if case=0 uids are not converted           when matching in database)
                                             #   (if case>0 uids are converted to upper-case when matching in database)
                                             #   (if case<0 uids are converted to lower-case when matching in database)

@@ -56,21 +56,22 @@ python -m known.fly
 * One can edit this configuration file and start the server again. config file includes various options described as follows:
 
 ```python
-    # -------------------------------------# general info
-    topic        = "Fly",                  # topic text (main banner text)
-    welcome      = "Login to Continue",    # msg shown on login page
-    register     = "Register User",        # msg shown on register (new-user) page
-    emoji        = "🦋",                   # emoji shown of login page and seperates uid - name
-    rename       = 0,                      # if rename=1, allows users to update their names when logging in
-    repass       = 1,                      # if repass=1, allows admins and evaluators to reset passwords for users - should be enabled in only one session (for multi-session)
-    case         = 0,                      # case-sentivity level in uid
-                                            #   (if case=0 uids are not converted when matching in database)
+    # --------------------------------------# general info
+    topic        = "Fly",                   # topic text (main banner text)
+    welcome      = "Login to Continue",     # msg shown on login page
+    register     = "Register User",         # msg shown on register (new-user) page
+    emoji        = "🦋",                    # emoji shown of login page and seperates uid - name
+    rename       = 0,                       # if rename=1, allows users to update their names when logging in
+    repass       = 1,                       # if repass=1, allows admins and evaluators to reset passwords for users - should be enabled in only one session
+    reeval       = 1,                       # if reeval=1, allows evaluators to reset evaluation
+    case         = 0,                       # case-sentivity level in uid
+                                            #   (if case=0 uids are not converted           when matching in database)
                                             #   (if case>0 uids are converted to upper-case when matching in database)
                                             #   (if case<0 uids are converted to lower-case when matching in database)
     
     # -------------------------------------# validation
     required     = "",                     # csv list of file-names that are required to be uploaded e.g., required = "a.pdf,b.png,c.exe" (keep blank to allow all file-names)
-    extra        = 1,                      # if true, allows uploading extra file (other than required files)
+    extra        = 1,                      # if true, allows uploading extra file (other tna required)
     maxupcount   = -1,                     # maximum number of files that can be uploaded by a user (keep -1 for no limit and 0 to disable uploading)
     maxupsize    = "40GB",                 # maximum size of uploaded file (html_body_size)
     
@@ -78,34 +79,39 @@ python -m known.fly
     maxconnect   = 50,                     # maximum number of connections allowed to the server
     threads      = 4,                      # no. of threads used by waitress server
     port         = "8888",                 # port
-    host         = "0.0.0.0",              # ip (keep 0.0.0.0 for all interfaces)
+    host         = "0.0.0.0",              # ip
 
     # ------------------------------------# file and directory information
-    base         = "__base__",            # (auto create) the base directory - contains all other directories except html
-    html         = "__pycache__",         # (auto create) use pycache dir to store flask html templates
-    secret       = "secret.txt",      # (auto create) flask app secret is contained in this file
-    login        = "login.csv",       # (auto create) login database in CSV format having four coloumns as (ADMIN, UID, NAME, PASS)
-    eval         = "eval.csv",        # (auto create) evaluation database - created if not existing - reloads if exists
-    uploads      = "uploads",         # (auto create) uploads folder (uploaded files by users go here)
-    reports      = "reports",         # (auto create) reports folder (user read-only access files go here)
-    downloads    = "downloads",       # (auto create) downloads folder (only files)
-    store        = "store",           # (auto create) store folder (files and directory browsing)
-    board        = "board.ipynb",     # (auto create) board file (a notebook file displayed as a web-page)
+    base         = "__base__",            # the base directory 
+    html         = "__pycache__",         # use pycache dir to store flask html
+    secret       = "secret.txt",      # flask app secret
+    login        = "login.csv",       # login database
+    eval         = "eval.csv",        # evaluation database - created if not existing - reloads if exists
+    uploads      = "uploads",         # uploads folder (uploaded files by users go here)
+    reports      = "reports",         # reports folder (personal user access files by users go here)
+    downloads    = "downloads",       # downloads folder
+    store        = "store",           # store folder
+    board        = "board.ipynb",     # board file
 ```
 
 * Additional Arguments can be passed while launching the server as follows:
-```python
-# python -m known.fly --help
-('--dir', type=str, default='', help="path of workspace directory, config file is located in here")
-('--verbose', type=int, default=2, help="verbose level in logging")
-('--log', type=str, default='', help="name of logfile as date-time-formated string e.g. fly_%Y_%m_%d_%H_%M_%S_%f_log.txt [Note: keep blank to disable logging]")
-('--con', type=str, default='', help="config name - if not provided, uses 'default'")
-('--reg', type=str, default='', help="if specified, allow users to register with specified access string such as DABU or DABUS+")
-('--cos', type=int, default=1, help="use 1 to create-on-start - create (overwrites) pages")
-('--coe', type=int, default=0, help="use 1 to clean-on-exit - deletes pages")
-('--access', type=str, default='', help="if specified, adds extra premissions to access string for this session only")
-('--msl', type=int, default=100, help="Max String Length for UID/NAME/PASSWORDS")
-('--eip', type=int, default=1, help="Immediate Persists. If True, persist the eval-db after each single evaluation (eval-db in always persisted after update from template)")
+```bash
+python -m known.fly --help
+
+usage: fly.py [-h] [--dir DIR] [--verbose VERBOSE] [--log LOG] [--con CON] [--reg REG] [--cos COS] [--coe COE] [--access ACCESS] [--msl MSL] [--eip EIP]
+
+options:
+  -h, --help         show this help message and exit
+  --dir DIR          path of workspace directory [DEFAULT]: current diretory
+  --verbose VERBOSE  verbose level in logging (0,1,2) [DEFAULT]: 2
+  --log LOG          name of logfile as date-time-formated string, blank by default [Note: keep blank to disable logging]
+  --con CON          config name (refers to a dict in __configs__.py - if not provided, uses 'default'
+  --reg REG          if specified, allow users to register with that access string such as DABU or DABUS+
+  --cos COS          use 1 to create-on-start - create (overwrites) pages [DEFAULT]: 1
+  --coe COE          use 1 to clean-on-exit - deletes pages [DEFAULT]: 0
+  --access ACCESS    if specified, adds extra premissions to access string for this session only
+  --msl MSL          Max String Length for UID/NAME/PASSWORDS [DEFAULT]: 100
+  --eip EIP          Evaluate Immediate Persis. If True (by-default), persist the eval-db after each single evaluation (eval-db in always persisted after update from template)
 ```
 
 ## Notes
