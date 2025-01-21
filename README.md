@@ -17,7 +17,8 @@ The package is frequently updated by adding new functionality, make sure to have
 The github version is always upto-date. To install from github, use the following:
 ```bash
 git clone https://github.com/auto-notify-ps/known.git
-python -m pip install ./known
+cd known
+python -m pip install .
 ```
 Cloned repo can be deleted after installation.
 
@@ -39,7 +40,6 @@ Flask based web app for sharing files and quiz evaluation
 ```bash
 python -m pip install Flask Flask-WTF waitress nbconvert 
 ```
-* `nbconvert` package is *optional* - required only for the **Board** Page
 
 * Start the server
 
@@ -71,7 +71,7 @@ python -m known.fly
     
     # -------------------------------------# validation
     required     = "",                     # csv list of file-names that are required to be uploaded e.g., required = "a.pdf,b.png,c.exe" (keep blank to allow all file-names)
-    extra        = 1,                      # if true, allows uploading extra file (other tna required)
+    extra        = 1,                      # if true, allows uploading extra file (other than required)
     maxupcount   = -1,                     # maximum number of files that can be uploaded by a user (keep -1 for no limit and 0 to disable uploading)
     maxupsize    = "40GB",                 # maximum size of uploaded file (html_body_size)
     
@@ -84,14 +84,14 @@ python -m known.fly
     # ------------------------------------# file and directory information
     base         = "__base__",            # the base directory 
     html         = "__pycache__",         # use pycache dir to store flask html
-    secret       = "secret.txt",      # flask app secret
-    login        = "login.csv",       # login database
+    secret       = "secret.txt",      # file containing flask app secret (keep blank to generate random secret every time)
+    login        = "login.csv",       # login database having four cols ADMIN, UID, NAME, PASS
     eval         = "eval.csv",        # evaluation database - created if not existing - reloads if exists
     uploads      = "uploads",         # uploads folder (uploaded files by users go here)
-    reports      = "reports",         # reports folder (personal user access files by users go here)
-    downloads    = "downloads",       # downloads folder
-    store        = "store",           # store folder
-    board        = "board.ipynb",     # board file
+    reports      = "reports",         # reports folder (read-only files that are private to a user go here)
+    downloads    = "downloads",       # downloads folder (public read-only access)
+    store        = "store",           # store folder (public read-only, evaluators can upload and delete files)
+    board        = "board.ipynb",     # board file (public read-only, a notebook displayed as a web-page)
 ```
 
 * Additional Arguments can be passed while launching the server as follows:
@@ -117,7 +117,7 @@ options:
 ## Notes
 
 * **Sessions** :
-    * ShareFly uses only `http` protocol and not `https`. Sessions are managed on server-side. The location of the file containing the `secret` for flask app can be specified in the `__configs__.py` script. If not specified i.e., left blank, it will auto generate a random secret. Generating a random secret every time means that the users will not remain logged in if the server is restarted.
+    * `known.fly` uses only `http` protocol and not `https`. Sessions are managed on server-side. The location of the file containing the `secret` for flask app can be specified in the `__configs__.py` script. If not specified i.e., left blank, it will auto generate a random secret. Generating a random secret every time means that the users will not remain logged in if the server is restarted.
 
 * **Database** :
     * The database of users is fully loaded and operated from RAM, therefore the memory usage depends on the number of registered users.
@@ -156,7 +156,7 @@ options:
         * `X`   Eval access enabled
         * `-`   Not included in evaluation
         * `+`   Admin access enabled
-    * The access string can contain multiple permissions and is specified in the `ADMIN` column of the `__login__.csv` file.
+    * The access string can contain multiple permissions and is specified in the `ADMIN` column of the `login.csv` file.
 
     * Note: Evaluators (with `X` access) cannot perform any admin actions except for resetting password through the `/x` url.
 
