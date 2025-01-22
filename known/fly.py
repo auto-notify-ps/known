@@ -2,7 +2,7 @@ __doc__=f"""
 -----------------------------------------------------------------------------------------------
 Fly - Flask-based web app for sharing files and quiz evaluation in a single script
 -----------------------------------------------------------------------------------------------
-REQUIREMENTS: pip install Flask Flask-WTF waitress nbconvert beautifulsoup4
+REQUIREMENTS: pip install Flask Flask-WTF waitress nbconvert
 
 """
 #-----------------------------------------------------------------------------------------
@@ -28,7 +28,7 @@ parser.add_argument('--coe', type=int, default=0, help="use 1 to clean-on-exit -
 parser.add_argument('--access', type=str, default='', help="if specified, adds extra premissions to access string for this session only")
 parser.add_argument('--msl', type=int, default=100, help="Max String Length for UID/NAME/PASSWORDS [DEFAULT]: 100")
 parser.add_argument('--eip', type=int, default=1, help="Evaluate Immediate Persis. If True (by-default), persist the eval-db after each single evaluation (eval-db in always persisted after update from template)")
-parser.add_argument('--nos', type=int, default=0, help="NoScript, use 1 to disable javascript in board files [DEFAULT]: 0")
+#parser.add_argument('--nos', type=int, default=0, help="NoScript, use 1 to disable javascript in board files [DEFAULT]: 0")
 parsed = parser.parse_args()
 # ------------------------------------------------------------------------------------------
 # imports
@@ -46,8 +46,8 @@ try:
     from wtforms.validators import InputRequired
     from waitress import serve
     from nbconvert import HTMLExporter 
-    from bs4 import BeautifulSoup
-except: exit(f'[!] The required Flask packages missing:\n  ⇒ pip install Flask Flask-WTF waitress nbconvert beautifulsoup4')
+    #from bs4 import BeautifulSoup
+except: exit(f'[!] The required Flask packages missing:\n  ⇒ pip install Flask Flask-WTF waitress nbconvert')
 
 # ------------------------------------------------------------------------------------------
 # Logging
@@ -314,7 +314,6 @@ default = dict(
                         icon_delfile=   '❌',
                         icon_gethtml=   '🌐',
                         icon_hidden=    '👁️',
-                        icon_gotop=     '🔝',
                                                               
                         # -------------# board style ('lab'  'classic' 'reveal')
                         template_board = 'lab', 
@@ -2743,141 +2742,39 @@ def route_purge():
 # ------------------------------------------------------------------------------------------
 
 class HConv: # html converter
-    TEMPLATE = style.template_board
-    NOSCRIPT = bool(parsed.nos)
-
-
-    # @staticmethod
-    # def convert(abs_path):
-    #     new_abs_path = f'{abs_path}.html'
-    #     if abs_path.lower().endswith(".ipynb"):
-    #         try:
-    #             x = __class__.nb2html( abs_path, __class__.TEMPLATE ,  __class__.NOSCRIPT )
-    #             return True, x #(f"rendered Notebook to HTML @ {new_abs_path}")
-    #         except: return False, (f"failed to rendered Notebook to HTML @ {new_abs_path}") 
-    #     else: return False, (f"Cannot render this file as HTML: {os.path.basename(abs_path)}")
 
     @staticmethod
     def convertx(abs_path):
         new_abs_path = f'{abs_path}.html'
         if abs_path.lower().endswith(".ipynb"):
             try:
-                x = __class__.nb2htmlx(abs_path, __class__.TEMPLATE, __class__.NOSCRIPT, 
-                tlink=style.icon_gotop, dlink=style.icon_getfile, durl='#', align='left' )
+                x = __class__.nb2html(abs_path)
                 return True, x #(f"rendered Notebook to HTML @ {new_abs_path}")
             except: return False, (f"failed to rendered Notebook to HTML @ {new_abs_path}") 
         else: return False, (f"Cannot render this file as HTML: {os.path.basename(abs_path)}")
 
-    @staticmethod
-    def remove_tag(page, tag): # does not work on nested tags
-        fstart, fstop = f'<{tag}', f'/{tag}>'
-        while True:
-            istart = page.find(fstart)
-            if istart<0: break
-            istop = page[istart:].find(fstop)
-            page = f'{page[:istart]}{page[istart+istop+len(fstop):]}'
-        return page
-    
     # @staticmethod
-    # def nb2html(source_notebook, template_name='lab', no_script=True, html_title=None, parsed_title='Notebook',):
-    #     if html_title is None: # auto infer
-    #         html_title = os.path.basename(source_notebook)
-    #         iht = html_title.rfind('.')
-    #         if not iht<0: html_title = html_title[:iht]
-    #         if not html_title: html_title = (parsed_title if parsed_title else os.path.basename(os.path.dirname(source_notebook)))
-    #     try:    
-    #         page, _ = HTMLExporter(template_name=template_name).from_file(source_notebook,  dict(  metadata = dict( name = f'{html_title}' )    )) 
-    #         if no_script: page = __class__.remove_tag(page, 'script') # force removing any scripts
-    #     except: page = None
-    #     return  page
-
-
-        
-    STYLE_ACTIONS = """
-    .btn_header {
-        background-color: #FFFFFF; 
-        margin: 0px 0px 0px 6px;
-        padding: 12px 6px 12px 6px;
-        border-style: solid;
-        border-width: thin;
-        border-color: #000000;
-        color: #000000;
-        font-weight: bold;
-        font-size: medium;
-        border-radius: 5px;
-    }
-
-    .btn_actions {
-        background-color: #FFFFFF; 
-        padding: 2px 2px 2px 2px;
-        margin: 5px 5px 5px 5px;
-        border-style: solid;
-        border-color: silver;
-        border-width: thin;
-        color: #000000;
-        font-weight: bold;
-        font-size: medium;
-        border-radius: 2px;
-    }
-
-
-    """
+    # def remove_tag(page, tag): # does not work on nested tags
+    #     fstart, fstop = f'<{tag}', f'/{tag}>'
+    #     while True:
+    #         istart = page.find(fstart)
+    #         if istart<0: break
+    #         istop = page[istart:].find(fstop)
+    #         page = f'{page[:istart]}{page[istart+istop+len(fstop):]}'
+    #     return page
+    
     @staticmethod
-    def nb2htmlx(source_notebook, 
-                template_name='lab', no_script=False, 
-                html_title=None, favicon=True, 
-                header=1, tlink='top', dlink='download', durl='#', align='left'):
-        # ==============================================================
-        if html_title is None:
+    def nb2html(source_notebook, html_title=None, parsed_title='Notebook',): # icon_gotop=     '🔝',
+        if html_title is None: # auto infer
             html_title = os.path.basename(source_notebook)
-            if html_title.lower().endswith(".ipynb"): html_title = html_title[:-6]
-        page, _ = HTMLExporter(template_name=template_name) \
-                .from_file(source_notebook, dict(metadata=dict(name = f'{html_title}')),) 
-        soup = BeautifulSoup(page, 'html.parser')
-        # ==============================================================
-        
-        if no_script:
-            for script in soup.find_all('script'): script.decompose()  # Find all script tags and remove them
-        
-        if favicon:
-            link_tag = soup.new_tag('link')
-            link_tag['rel'] = 'icon'
-            link_tag['href'] = 'favicon.ico'
-            soup.head.insert(0, link_tag)
-
-        #if tlink or hlink or dlink or header: 
-        style_tag = soup.new_tag('style')
-        style_tag['type'] = 'text/css'
-        style_tag.string = __class__.STYLE_ACTIONS
-        soup.head.insert(0, style_tag)
-
-
-        #if hlink or dlink or header:
-        ndiv = soup.new_tag('div')
-        ndiv['align'] = f'{align}'
-        html_string = ""
-        #if auth: html_string += f'<a class="btn_actions" href="/logout">{llink}</a>'
-        #if hlink: html_string += f'<a class="btn_actions" href="/">{hlink}</a>' 
-        if dlink: html_string += f'<a class="btn_actions" href="{durl}">{dlink}</a>' 
-        if header: html_string += f'<span class="btn_header">{html_title} @ ./{os.path.relpath(source_notebook, app.config["base"])}</span>'
-        html_string += f'<br>'
-        nstr = BeautifulSoup(html_string, 'html.parser')
-        ndiv.append(nstr) 
-        soup.body.insert(0, ndiv)
-
-        if tlink:
-            ndiv = soup.new_tag('div')
-            ndiv['align'] = f'{align}'
-            html_string = f'<hr><a class="btn_actions" href="#">{tlink}</a><br>'
-            nstr = BeautifulSoup(html_string, 'html.parser')
-            ndiv.append(nstr) 
-            soup.body.append(ndiv)
-
-        # ==============================================================
-        # final_page = soup.prettify()
-        # ==============================================================
-        return soup.prettify()
-
+            iht = html_title.rfind('.')
+            if not iht<0: html_title = html_title[:iht]
+            if not html_title: html_title = (parsed_title if parsed_title else os.path.basename(os.path.dirname(source_notebook)))
+        try:    
+            page, _ = HTMLExporter(template_name=style.template_board).from_file(source_notebook,  dict(  metadata = dict( name = f'{html_title}' )    )) 
+            #if no_script: page = __class__.remove_tag(page, 'script') # force removing any scripts
+        except: page = None
+        return  page
 
 
 
