@@ -294,8 +294,8 @@ default = dict(
                         item_normal  = "#e6e6e6",
                         item_true    = "#47ff6f",
                         item_false   = "#ff6565",
-                        flup_bgcolor = "#ebebeb",
-                        flup_fgcolor = "#232323",
+                        flu_bgcolor  = "#ebebeb",
+                        flu_fgcolor  = "#232323",
                         fld_bgcolor  = "#ebebeb",
                         fld_fgcolor  = "#232323",
                         msgcolor     = "#060472",
@@ -956,28 +956,27 @@ def TEMPLATES(style):
                 <p class="files_status">Files</p>
                 <ol>
                 {% for i, file, hfile in files %}
-                {% if (session.hidden_store) or (not hfile) %}
-                    <li>
-                    <button class="btn_del" onclick="confirm_del_{{ i }}()">"""+f'{style.icon_delfile}'+"""</button>
-                    <script>
-                        function confirm_del_{{ i }}() {
-                        let res = confirm("Delete File?\\n\\n\\t {{ file }}");
-                        if (res == true) {
-                            location.href = "{{ url_for('route_store', subpath=subpath + '/' + file, del='') }}";
+                    {% if (session.hidden_store) or (not hfile) %}
+                        <li>
+                        {% if '+' in session.admind or 'X' in session.admind %}
+                        <button class="btn_del" onclick="confirm_del_{{ i }}()">"""+f'{style.icon_delfile}'+"""</button>
+                        <script>
+                            function confirm_del_{{ i }}() {
+                            let res = confirm("Delete File?\\n\\n\\t {{ file }}");
+                            if (res == true) {
+                                location.href = "{{ url_for('route_store', subpath=subpath + '/' + file, del='') }}";
+                                }
                             }
-                        }
-                    </script>
-                    <span> . . . </span>
-                    <a href="{{ url_for('route_store', subpath=subpath + '/' + file, get='') }}">"""+f'{style.icon_getfile}'+"""</a> 
-                    <a href="{{ url_for('route_store', subpath=subpath + '/' + file) }}" target="_blank" >{{ file }}</a>
-                    {% if file.lower().endswith('.ipynb') %}
-                    <a href="{{ url_for('route_store', subpath=subpath + '/' + file, html='') }}" target="_blank">"""+f'{style.icon_gethtml}'+"""</a> 
+                        </script>
+                        <span> . . . </span>
+                        {% endif %}
+                        <a href="{{ url_for('route_store', subpath=subpath + '/' + file, get='') }}">"""+f'{style.icon_getfile}'+"""</a> 
+                        <a href="{{ url_for('route_store', subpath=subpath + '/' + file) }}" target="_blank" >{{ file }}</a>
+                        {% if file.lower().endswith('.ipynb') %}
+                        <a href="{{ url_for('route_store', subpath=subpath + '/' + file, html='') }}" target="_blank">"""+f'{style.icon_gethtml}'+"""</a> 
+                        {% endif %}
+                        </li>
                     {% endif %}
-                    
-                    
-                
-                    </li>
-                {% endif %}
                 
                 {% endfor %}
                 </ol>
@@ -1206,8 +1205,8 @@ def TEMPLATES(style):
 
     .files_list_up{{
         padding: 10px 10px;
-        background-color: {style.flup_bgcolor}; 
-        color: {style.flup_fgcolor};
+        background-color: {style.flu_bgcolor}; 
+        color: {style.flu_fgcolor};
         font-size: medium;
         border-radius: 10px;
         font-family:monospace;
