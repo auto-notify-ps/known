@@ -1,8 +1,8 @@
 __doc__=f""" 
 -----------------------------------------------------------------------------------------------
-Fly - Flask-based web app for sharing files and quiz evaluation contained in a single script
+Fly - Flask-based web app for sharing files and quiz evaluation in a single script
 -----------------------------------------------------------------------------------------------
-REQUIREMENTS: pip install Flask Flask-WTF nbconvert waitress
+REQUIREMENTS: pip install Flask Flask-WTF waitress nbconvert beautifulsoup4
 
 """
 #-----------------------------------------------------------------------------------------
@@ -28,6 +28,7 @@ parser.add_argument('--coe', type=int, default=0, help="use 1 to clean-on-exit -
 parser.add_argument('--access', type=str, default='', help="if specified, adds extra premissions to access string for this session only")
 parser.add_argument('--msl', type=int, default=100, help="Max String Length for UID/NAME/PASSWORDS [DEFAULT]: 100")
 parser.add_argument('--eip', type=int, default=1, help="Evaluate Immediate Persis. If True (by-default), persist the eval-db after each single evaluation (eval-db in always persisted after update from template)")
+parser.add_argument('--nos', type=int, default=0, help="NoScript, use 1 to disable javascript in board files [DEFAULT]: 0")
 parsed = parser.parse_args()
 # ------------------------------------------------------------------------------------------
 # imports
@@ -44,9 +45,9 @@ try:
     from werkzeug.utils import secure_filename
     from wtforms.validators import InputRequired
     from waitress import serve
-    #from bs4 import BeautifulSoup
     from nbconvert import HTMLExporter 
-except: exit(f'[!] The required Flask packages missing:\n  ⇒ pip install Flask Flask-WTF nbconvert waitress')
+    from bs4 import BeautifulSoup
+except: exit(f'[!] The required Flask packages missing:\n  ⇒ pip install Flask Flask-WTF waitress nbconvert beautifulsoup4')
 
 # ------------------------------------------------------------------------------------------
 # Logging
@@ -250,7 +251,7 @@ default = dict(
     
     # -------------------------------------# validation
     required     = "",                     # csv list of file-names that are required to be uploaded e.g., required = "a.pdf,b.png,c.exe" (keep blank to allow all file-names)
-    extra        = 1,                      # if true, allows uploading extra file (other tna required)
+    extra        = 1,                      # if true, allows uploading extra file (other than required)
     maxupcount   = -1,                     # maximum number of files that can be uploaded by a user (keep -1 for no limit and 0 to disable uploading)
     maxupsize    = "40GB",                 # maximum size of uploaded file (html_body_size)
     
@@ -263,14 +264,14 @@ default = dict(
     # ------------------------------------# file and directory information
     base         = "__base__",            # the base directory 
     html         = "__pycache__",         # use pycache dir to store flask html
-    secret       = "secret.txt",      # flask app secret
-    login        = "login.csv",       # login database
+    secret       = "secret.txt",      # file containing flask app secret (keep blank to generate random secret every time)
+    login        = "login.csv",       # login database having four cols ADMIN, UID, NAME, PASS
     eval         = "eval.csv",        # evaluation database - created if not existing - reloads if exists
     uploads      = "uploads",         # uploads folder (uploaded files by users go here)
-    reports      = "reports",         # reports folder (personal user access files by users go here)
-    downloads    = "downloads",       # downloads folder
-    store        = "store",           # store folder
-    board        = "board.ipynb",     # board file
+    reports      = "reports",         # reports folder (read-only files that are private to a user go here)
+    downloads    = "downloads",       # downloads folder (public read-only access)
+    store        = "store",           # store folder (public read-only, evaluators can upload and delete files)
+    board        = "board.ipynb",     # board file (public read-only, a notebook displayed as a web-page)
     # --------------------------------------# style dict
     style        = dict(                   
                         # -------------# labels
@@ -295,9 +296,9 @@ default = dict(
                         item_false   = "#ff6565",
                         flup_bgcolor = "#ebebeb",
                         flup_fgcolor = "#232323",
-                        fldown_bgcolor = "#ebebeb",
-                        fldown_fgcolor = "#232323",
-                        msgcolor =     "#060472",
+                        fld_bgcolor  = "#ebebeb",
+                        fld_fgcolor  = "#232323",
+                        msgcolor     = "#060472",
                         
                         # -------------# icons 
                         icon_board =    '🔰',
@@ -313,7 +314,8 @@ default = dict(
                         icon_delfile=   '❌',
                         icon_gethtml=   '🌐',
                         icon_hidden=    '👁️',
-
+                        icon_gotop=     '🔝',
+                                                              
                         # -------------# board style ('lab'  'classic' 'reveal')
                         template_board = 'lab', 
                     )
@@ -1215,8 +1217,8 @@ def TEMPLATES(style):
 
     .files_list_down{{
         padding: 10px 10px;
-        background-color: {style.fldown_bgcolor}; 
-        color: {style.fldown_fgcolor};
+        background-color: {style.fld_bgcolor}; 
+        color: {style.fld_fgcolor};
         font-size: large;
         font-weight: bold;
         border-radius: 10px;
@@ -2741,24 +2743,27 @@ def route_purge():
 # ------------------------------------------------------------------------------------------
 
 class HConv: # html converter
-   
-    @staticmethod
-    def convert(abs_path):
-        new_abs_path = f'{abs_path}.html'
-        if abs_path.lower().endswith(".ipynb"):
-            try:
-                x = __class__.nb2html( abs_path )
-                with open(new_abs_path, 'w') as f: f.write(x)
-                return True, (f"rendered Notebook to HTML @ {new_abs_path}")
-            except: return False, (f"failed to rendered Notebook to HTML @ {new_abs_path}") 
-        else: return False, (f"Cannot render this file as HTML: {os.path.basename(abs_path)}")
+    TEMPLATE = style.template_board
+    NOSCRIPT = bool(parsed.nos)
+
+
+    # @staticmethod
+    # def convert(abs_path):
+    #     new_abs_path = f'{abs_path}.html'
+    #     if abs_path.lower().endswith(".ipynb"):
+    #         try:
+    #             x = __class__.nb2html( abs_path, __class__.TEMPLATE ,  __class__.NOSCRIPT )
+    #             return True, x #(f"rendered Notebook to HTML @ {new_abs_path}")
+    #         except: return False, (f"failed to rendered Notebook to HTML @ {new_abs_path}") 
+    #     else: return False, (f"Cannot render this file as HTML: {os.path.basename(abs_path)}")
 
     @staticmethod
     def convertx(abs_path):
         new_abs_path = f'{abs_path}.html'
         if abs_path.lower().endswith(".ipynb"):
             try:
-                x = __class__.nb2html( abs_path )
+                x = __class__.nb2htmlx(abs_path, __class__.TEMPLATE, __class__.NOSCRIPT, 
+                tlink=style.icon_gotop, dlink=style.icon_getfile, durl='#', align='left' )
                 return True, x #(f"rendered Notebook to HTML @ {new_abs_path}")
             except: return False, (f"failed to rendered Notebook to HTML @ {new_abs_path}") 
         else: return False, (f"Cannot render this file as HTML: {os.path.basename(abs_path)}")
@@ -2773,18 +2778,112 @@ class HConv: # html converter
             page = f'{page[:istart]}{page[istart+istop+len(fstop):]}'
         return page
     
+    # @staticmethod
+    # def nb2html(source_notebook, template_name='lab', no_script=True, html_title=None, parsed_title='Notebook',):
+    #     if html_title is None: # auto infer
+    #         html_title = os.path.basename(source_notebook)
+    #         iht = html_title.rfind('.')
+    #         if not iht<0: html_title = html_title[:iht]
+    #         if not html_title: html_title = (parsed_title if parsed_title else os.path.basename(os.path.dirname(source_notebook)))
+    #     try:    
+    #         page, _ = HTMLExporter(template_name=template_name).from_file(source_notebook,  dict(  metadata = dict( name = f'{html_title}' )    )) 
+    #         if no_script: page = __class__.remove_tag(page, 'script') # force removing any scripts
+    #     except: page = None
+    #     return  page
+
+
+        
+    STYLE_ACTIONS = """
+    .btn_header {
+        background-color: #FFFFFF; 
+        margin: 0px 0px 0px 6px;
+        padding: 12px 6px 12px 6px;
+        border-style: solid;
+        border-width: thin;
+        border-color: #000000;
+        color: #000000;
+        font-weight: bold;
+        font-size: medium;
+        border-radius: 5px;
+    }
+
+    .btn_actions {
+        background-color: #FFFFFF; 
+        padding: 2px 2px 2px 2px;
+        margin: 5px 5px 5px 5px;
+        border-style: solid;
+        border-color: silver;
+        border-width: thin;
+        color: #000000;
+        font-weight: bold;
+        font-size: medium;
+        border-radius: 2px;
+    }
+
+
+    """
     @staticmethod
-    def nb2html(source_notebook, template_name='lab', no_script=True, html_title=None, parsed_title='Notebook',):
-        if html_title is None: # auto infer
+    def nb2htmlx(source_notebook, 
+                template_name='lab', no_script=False, 
+                html_title=None, favicon=True, 
+                header=1, tlink='top', dlink='download', durl='#', align='left'):
+        # ==============================================================
+        if html_title is None:
             html_title = os.path.basename(source_notebook)
-            iht = html_title.rfind('.')
-            if not iht<0: html_title = html_title[:iht]
-            if not html_title: html_title = (parsed_title if parsed_title else os.path.basename(os.path.dirname(source_notebook)))
-        try:    
-            page, _ = HTMLExporter(template_name=template_name).from_file(source_notebook,  dict(  metadata = dict( name = f'{html_title}' )    )) 
-            if no_script: page = __class__.remove_tag(page, 'script') # force removing any scripts
-        except: page = None
-        return  page
+            if html_title.lower().endswith(".ipynb"): html_title = html_title[:-6]
+        page, _ = HTMLExporter(template_name=template_name) \
+                .from_file(source_notebook, dict(metadata=dict(name = f'{html_title}')),) 
+        soup = BeautifulSoup(page, 'html.parser')
+        # ==============================================================
+        
+        if no_script:
+            for script in soup.find_all('script'): script.decompose()  # Find all script tags and remove them
+        
+        if favicon:
+            link_tag = soup.new_tag('link')
+            link_tag['rel'] = 'icon'
+            link_tag['href'] = 'favicon.ico'
+            soup.head.insert(0, link_tag)
+
+        #if tlink or hlink or dlink or header: 
+        style_tag = soup.new_tag('style')
+        style_tag['type'] = 'text/css'
+        style_tag.string = __class__.STYLE_ACTIONS
+        soup.head.insert(0, style_tag)
+
+
+        #if hlink or dlink or header:
+        ndiv = soup.new_tag('div')
+        ndiv['align'] = f'{align}'
+        html_string = ""
+        #if auth: html_string += f'<a class="btn_actions" href="/logout">{llink}</a>'
+        #if hlink: html_string += f'<a class="btn_actions" href="/">{hlink}</a>' 
+        if dlink: html_string += f'<a class="btn_actions" href="{durl}">{dlink}</a>' 
+        if header: html_string += f'<span class="btn_header">{html_title} @ ./{os.path.relpath(source_notebook, app.config["base"])}</span>'
+        html_string += f'<br>'
+        nstr = BeautifulSoup(html_string, 'html.parser')
+        ndiv.append(nstr) 
+        soup.body.insert(0, ndiv)
+
+        if tlink:
+            ndiv = soup.new_tag('div')
+            ndiv['align'] = f'{align}'
+            html_string = f'<hr><a class="btn_actions" href="#">{tlink}</a><br>'
+            nstr = BeautifulSoup(html_string, 'html.parser')
+            ndiv.append(nstr) 
+            soup.body.append(ndiv)
+
+        # ==============================================================
+        # final_page = soup.prettify()
+        # ==============================================================
+        return soup.prettify()
+
+
+
+
+
+
+
 
 # ------------------------------------------------------------------------------------------
 # store
