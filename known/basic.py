@@ -264,10 +264,28 @@ class BaseConvert:
         S = [ ss[i]  for i in __class__.int2base(num, base, ndigs) ]
         return joiner.join(S[::-1])
 
-
     @staticmethod
     def int2hex(num:int, joiner=''): return __class__.from_base_10(__class__.SYM_HEX, num, joiner)
-  
+
+    @staticmethod
+    def int2bases(integer, bases): # Generalized Case: (int=i, bases=[b1,...,bn]) -> digits=[d1,...,dn]
+        r""" converts integer to n digits, each from n bases """
+        digits = []
+        q = int(integer)
+        for b in bases:
+            q, r = divmod(q, b)
+            digits.append(r)
+        return digits
+
+    @staticmethod
+    def bases2int(bases, digits): # Generalized Case: (bases=[b1,...,bn], digits=[d1,...,dn])
+        r""" converts n digits, each from n bases to a integer """
+        m,n = 1,0
+        for b,d in zip(bases, digits):
+            n+=(d*m)
+            m*=b
+        return n
+
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 class IndexedDict(UserDict):
@@ -588,6 +606,7 @@ class Symbols:
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 class Table:
+    r""" a simple table data-structure implement using python dict with disk IO """
 
     @staticmethod
     def _Create(*columns):
@@ -771,12 +790,11 @@ class Fuzz:
         name, _ = __class__.SplitName(f'{filename}')
         return os.path.join(dirname, f'{name}.{new_ext}')
 
-    def Zip(nested:bool, zip:str, *paths):
-
-        assert paths, f'no paths provided to zip'
-        assert zip,   f'zip path not provided'
-        if not zip.lower().endswith('.zip'): zip = f'{zip}.zip'  # append .zip to the end of path
-        zipn = zip[:-4]
+    @staticmethod
+    def Zip(nested:bool, zpath:str, *paths):
+        if not (paths and zpath): return None
+        if not zpath.lower().endswith('.zip'): zpath = f'{zpath}.zip' 
+        zipn = zpath[:-4]
         paths = list(paths)
         tozip = {}
         while paths:
@@ -799,7 +817,7 @@ class Fuzz:
                     assert arc not in tozip, f'Duplicate names detected {arc} from {path}'
                     tozip[arc] = l[1]
 
-        with ZipFile(zip, 'w') as zip_object:
+        with ZipFile(zpath, 'w') as zip_object:
             if nested: zip_object.mkdir(zipn)
             for arc_path, file_path in tozip.items():
                 if nested: arc_path = os.path.join(zipn, arc_path)
@@ -887,8 +905,7 @@ class Mailer:
         Attached:list=None,
         url='smtp.gmail.com', port='587', tls=True,
     ): return __class__.Send(__class__.Compose(username, Subject, To, Cc, Body, Attached=Attached), 
-            username, password, url=url, port=port, tls=True)
+            username, password, url=url, port=port, tls=tls)
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
 
