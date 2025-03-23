@@ -348,6 +348,121 @@ class IndexedDict(UserDict):
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+class Table:
+    r""" a simple table data-structure implement using python dict with disk IO """
+
+    @staticmethod
+    def _Create(*columns):
+        data = {None:[f'{col}' for col in columns]} # this is to make sure that col names are always on top
+        return data
+
+    @staticmethod
+    def Create(columns:tuple, primary_key:str, cell_delimiter=',', record_delimiter='\n'):
+        # should be called on a new object after init\
+        table = __class__()
+        table.data = __class__._Create(*columns)
+        table.pk = primary_key
+        table.pkat = table.data[None].index(table.pk)
+        table.cell_delimiter, table.record_delimiter = cell_delimiter, record_delimiter
+        return table
+
+
+    @staticmethod
+    def _Import(path, key_at, cell_delimiter, record_delimiter): 
+        with open(path, 'r', encoding='utf-8') as f: 
+            s = f.read()
+            lines = s.split(record_delimiter)
+            cols = lines[0].split(cell_delimiter) #<--- only if None:cols was added as a first entry (using Create method)
+            data = {None:cols}
+            if isinstance(key_at, str): key_at = cols.index(key_at)
+            assert key_at>=0,f'Invlaid key {key_at}'
+            for line in lines[1:]:
+                if line:
+                    cells = line.split(cell_delimiter)
+                    data[f'{cells[key_at]}'] = cells
+        return data
+    
+    @staticmethod
+    def Import(path, key_at, cell_delimiter=',', record_delimiter='\n'): 
+        table = __class__()
+        table.data = __class__._Import(path, key_at, cell_delimiter, record_delimiter)
+        if isinstance(key_at, str): key_at = table[None].index(key_at)
+        table.pk = table.data[None][key_at]
+        table.pkat = key_at
+        table.cell_delimiter, table.record_delimiter = cell_delimiter, record_delimiter
+        return table
+
+
+    @staticmethod
+    def _Export(data, path, cell_delimiter, record_delimiter): 
+        with open(path, 'w', encoding='utf-8') as f: 
+            for v in data.values(): f.write(cell_delimiter.join(v)+record_delimiter)
+
+    @staticmethod
+    def Export(table, path): 
+        __class__._Export(table.data, path, table.cell_delimiter, table.record_delimiter)
+
+    @property
+    def cols(self): return self[None]
+
+    @property
+    def keys(self): return set([k for k in self.data.keys() if k is not None])
+
+    # get row as dict
+    def __call__(self, key): return {k:v for k,v in zip(self[None], self[key])}
+
+    # get row as it is (list)
+    def __getitem__(self, key): return self.data[key]
+
+    # set row based on if its a dict or a list (note: key is irrelavant here)
+    def __setitem__(self, key, row):
+        assert key is not None, f'Cannot set `None` key'
+        assert isinstance(key, str), f'Expected string type keys but got {type(key)}'
+        if isinstance(row, dict):
+            # dict does not require to match exact length
+            assert self.pk not in row , f'Cannot change primary key' 
+            indexof = {k:self[None].index(k) for k in row}
+            if not key in self.data: self[key] = None 
+            self.data[key][self.pkat] = key
+            for k,v in row.items(): self.data[key][indexof[k]] = str(v)
+            
+
+        elif isinstance(row, (list, tuple)):
+            # must exactly match no of cols, 
+            # use ... to keep values unchanged 
+            # value are initialized to None
+            assert len(row) == len(self[None]), f'Rows are expected to have length {len(self[None])} but got {len(row)}'
+            assert row[self.pkat] is ... , f'Cannot change primary key'
+            if not key in self.data: self[key] = None 
+            self.data[key][self.pkat] = key
+            for i,v in enumerate(row):
+                if not (v is ...) : self.data[key][i] = str(v)
+        elif row is None: 
+            # (re)initializes the row
+            self.data[key] = ['' for _ in self[None]]
+            self.data[key][self.pkat] = key
+        else: raise AssertionError(f'Excepting a dict/list/tuple/None but got {type(row)}')
+
+    # del row based on key
+    def __delitem__(self, key):
+        if key is not None: del self.data[key]
+
+    def __contains__(self, key): return key in self.data
+
+    # quick export > file
+    def __gt__(self, other):__class__._Export(self.data, f'{other}', self.cell_delimiter, self.record_delimiter)
+
+    # quick import < file
+    def __lt__(self, other): self.data = __class__._Import(f'{other}', self.pkat, self.cell_delimiter, self.record_delimiter)
+
+    # total number of rows
+    def __len__(self): return len(self.data)-1
+
+    def __str__(self):
+        return ...
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
 class Verbose:
     r""" Contains shorthand helper functions for printing outputs and representing objects as strings.
             Methods ending with '_' in name return Strings instead of printing them
@@ -576,148 +691,33 @@ class Verbose:
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 class Symbols:
-        CORRECT =       '✓'
-        INCORRECT =     '✗'
-        ALPHA =         'α'
-        BETA =          'β'
-        GAMMA =         'γ'
-        DELTA =         'δ'
-        EPSILON =       'ε'
-        ZETA =          'ζ'
-        ETA =           'η'
-        THETA =         'θ'
-        KAPPA =         'κ'
-        LAMBDA =        'λ'
-        MU =            'μ' 
-        XI =            'ξ'
-        PI =            'π'
-        ROH =           'ρ'
-        SIGMA =         'σ'
-        PHI =           'φ'
-        PSI =           'Ψ'
-        TAU =           'τ'
-        OMEGA =         'Ω'
-        TRI =           'Δ'
-        DOT=            '●'
-        SUN=            '⚙'
-        ARROW1=         '↦'
-        ARROW2=         '⇒'
-        ARROW3=         '↪'
-
-#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
-class Table:
-    r""" a simple table data-structure implement using python dict with disk IO """
-
-    @staticmethod
-    def _Create(*columns):
-        data = {None:[f'{col}' for col in columns]} # this is to make sure that col names are always on top
-        return data
-
-    @staticmethod
-    def Create(columns:tuple, primary_key:str, cell_delimiter=',', record_delimiter='\n'):
-        # should be called on a new object after init\
-        table = __class__()
-        table.data = __class__._Create(*columns)
-        table.pk = primary_key
-        table.pkat = table.data[None].index(table.pk)
-        table.cell_delimiter, table.record_delimiter = cell_delimiter, record_delimiter
-        return table
-
-
-    @staticmethod
-    def _Import(path, key_at, cell_delimiter, record_delimiter): 
-        with open(path, 'r', encoding='utf-8') as f: 
-            s = f.read()
-            lines = s.split(record_delimiter)
-            cols = lines[0].split(cell_delimiter) #<--- only if None:cols was added as a first entry (using Create method)
-            data = {None:cols}
-            if isinstance(key_at, str): key_at = cols.index(key_at)
-            assert key_at>=0,f'Invlaid key {key_at}'
-            for line in lines[1:]:
-                if line:
-                    cells = line.split(cell_delimiter)
-                    data[f'{cells[key_at]}'] = cells
-        return data
-    
-    @staticmethod
-    def Import(path, key_at, cell_delimiter=',', record_delimiter='\n'): 
-        table = __class__()
-        table.data = __class__._Import(path, key_at, cell_delimiter, record_delimiter)
-        if isinstance(key_at, str): key_at = table[None].index(key_at)
-        table.pk = table.data[None][key_at]
-        table.pkat = key_at
-        table.cell_delimiter, table.record_delimiter = cell_delimiter, record_delimiter
-        return table
-
-
-    @staticmethod
-    def _Export(data, path, cell_delimiter, record_delimiter): 
-        with open(path, 'w', encoding='utf-8') as f: 
-            for v in data.values(): f.write(cell_delimiter.join(v)+record_delimiter)
-
-    @staticmethod
-    def Export(table, path): 
-        __class__._Export(table.data, path, table.cell_delimiter, table.record_delimiter)
-
-    @property
-    def cols(self): return self[None]
-
-    @property
-    def keys(self): return set([k for k in self.data.keys() if k is not None])
-
-    # get row as dict
-    def __call__(self, key): return {k:v for k,v in zip(self[None], self[key])}
-
-    # get row as it is (list)
-    def __getitem__(self, key): return self.data[key]
-
-    # set row based on if its a dict or a list (note: key is irrelavant here)
-    def __setitem__(self, key, row):
-        assert key is not None, f'Cannot set `None` key'
-        assert isinstance(key, str), f'Expected string type keys but got {type(key)}'
-        if isinstance(row, dict):
-            # dict does not require to match exact length
-            assert self.pk not in row , f'Cannot change primary key' 
-            indexof = {k:self[None].index(k) for k in row}
-            if not key in self.data: self[key] = None 
-            self.data[key][self.pkat] = key
-            for k,v in row.items(): self.data[key][indexof[k]] = str(v)
-            
-
-        elif isinstance(row, (list, tuple)):
-            # must exactly match no of cols, 
-            # use ... to keep values unchanged 
-            # value are initialized to None
-            assert len(row) == len(self[None]), f'Rows are expected to have length {len(self[None])} but got {len(row)}'
-            assert row[self.pkat] is ... , f'Cannot change primary key'
-            if not key in self.data: self[key] = None 
-            self.data[key][self.pkat] = key
-            for i,v in enumerate(row):
-                if not (v is ...) : self.data[key][i] = str(v)
-        elif row is None: 
-            # (re)initializes the row
-            self.data[key] = ['' for _ in self[None]]
-            self.data[key][self.pkat] = key
-        else: raise AssertionError(f'Excepting a dict/list/tuple/None but got {type(row)}')
-
-    # del row based on key
-    def __delitem__(self, key):
-        if key is not None: del self.data[key]
-
-    def __contains__(self, key): return key in self.data
-
-    # quick export > file
-    def __gt__(self, other):__class__._Export(self.data, f'{other}', self.cell_delimiter, self.record_delimiter)
-
-    # quick import < file
-    def __lt__(self, other): self.data = __class__._Import(f'{other}', self.pkat, self.cell_delimiter, self.record_delimiter)
-
-    # total number of rows
-    def __len__(self): return len(self.data)-1
-
-    def __str__(self):
-        return ...
+    CORRECT =       '✓'
+    INCORRECT =     '✗'
+    ALPHA =         'α'
+    BETA =          'β'
+    GAMMA =         'γ'
+    DELTA =         'δ'
+    EPSILON =       'ε'
+    ZETA =          'ζ'
+    ETA =           'η'
+    THETA =         'θ'
+    KAPPA =         'κ'
+    LAMBDA =        'λ'
+    MU =            'μ' 
+    XI =            'ξ'
+    PI =            'π'
+    ROH =           'ρ'
+    SIGMA =         'σ'
+    PHI =           'φ'
+    PSI =           'Ψ'
+    TAU =           'τ'
+    OMEGA =         'Ω'
+    TRI =           'Δ'
+    DOT=            '●'
+    SUN=            '⚙'
+    ARROW1=         '↦'
+    ARROW2=         '⇒'
+    ARROW3=         '↪'
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -1017,6 +1017,8 @@ class Notifier(Mailer):
 
     #--------------------------------------------------------------
 
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

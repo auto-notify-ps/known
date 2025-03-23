@@ -25,11 +25,174 @@ Cloned repo can be deleted after installation.
 ---
 ---
 ---
+
+# 📦 Modules
+
 ---
 ---
 <br>
 
-# known.fly
+
+# 🧩 known.Mailer
+
+* Send emails from within your python code.
+
+* Note: Implements sending functionality only, cannot read emails.
+
+Usage:
+
+```
+known.Mailer.Mail(
+    username = "sender@gmail.com",     # sender's userid - must be @gmail 
+    password = "aaa bbb ccc ddd",      # sender's password - use app password
+    Subject = "this is the subject line", 
+    To = "person1@domain1.com,person2@domain2.com",  # csv list of email addresses
+    Cc = "person3@domain3.com,person4@domain4.com",  # csv list of email addresses
+    Body = "this is the body of the message", 
+    Attached = ['attach.txt', '/home/attach.pdf'], # python list of attached files
+    )
+
+```
+
+---
+---
+<br>
+
+
+# 🧩 known.pix
+
+Basic Image manupulation from the command line, 
+
+```
+python -m knwon.pix --help
+
+options:
+  -h, --help         show this help message and exit
+  --action ACTION    (str) one of the static-methods inside the Actions class, 
+                           can be - ['new', 'crop', 'extend', 'flip', 'rotate', 'convert', 'autoconvert']
+  --args ARGS        (str) csv args accepted by the specified action - each action takes different args
+  --input INPUT      (str) input image-file or a text/json-file containing multiple input image-file names
+  --output OUTPUT    (str) output image-file or a text/json-file containing multiple output image-file names
+  --files FILES      (str) multiple input image-file names - for custom action -- works only with --io=linux
+  --io IO            (str) can be 'text' or 'json' or 'linux' - keep blank to io as 'image' - used if providing 
+                           input/output file-names in a text/json file
+  --verbose VERBOSE  (int) verbose level - 0 or 1
+
+```
+
+## Functionality
+
+#### 1. Create a new image
+
+* creates new images of given size and color 
+
+* args is (int) 7-tuple (height, width, channels, blue, green, red, alpha)
+    * `--args=h,w,c,b,g,r,a`
+
+* fill-color (blue, green, red, alpha) depends on the specified number of channels
+    * `--args=h,w,4,b,g,r,a`
+    * `--args=h,w,3,b,g,r`
+    * `--args=h,w,1,i`                  
+
+Example - creating 32 x 64 image with 4 channels named 'new.jpg'
+```
+python -m known.pix --action=new --args=32,64,4,100,150,200,170 --output=new.jpg
+```
+
+#### 2. Crop an image
+
+* crops an image using bounding box (y, x, h, w) 
+
+* args is (int) 4-tuple (y-cord, x-coord, height, width) indicating a bounding box
+    * `--args=y,x,h,w`
+
+Example - 
+```
+python -m known.pix --action=crop --args=8,16,16,32 --input=new.jpg --output=cropped.jpg
+```
+
+#### 3. Extend an image
+
+* extends an image using boundary distance 
+
+* args is (int) 8-tuple (north, south, east, west, blue, green, red, alpha)
+    * `--args=n,s,e,w,b,g,r,a`
+
+* fill-color (blue, green, red, alpha) depends on the specified number of channels
+    * `--args=n,s,e,w,b,g,r,a`
+    * `--args=n,s,e,w,b,g,r`    
+    * `--args=n,s,e,w,i`
+
+Example - 
+```
+python -m known.pix --action=extend --args=10,5,6,12,123,123,0,100 --input=new.jpg --output=extended.jpg
+```
+
+
+#### 4. Flip an image
+
+* flip an image (horizontally, vertically)
+
+* args is (int) 2-tuple (horizontally, vertically) 
+
+    * Flip horizontally          `--args=1,0`
+    * Flip vertically            `--args=0,1`
+    * Flip corners               `--args=1,1`
+    * Flip nothing               `--args=0,0`
+
+Example - 
+```
+python -m known.pix --action=flip --args=1,1 --input=extended.jpg --output=flipped.jpg
+```
+
+#### 5. Rotate an image
+
+* rotate an image (clockwise or couter-clockwise)
+
+* args is (int) 1-tuple (clockwise) 
+    
+    * Rotate clockwise               `--args=1`
+    * Rotate counter-clockwise       `--args=0`
+
+Example - 
+```
+python -m known.pix --action=rotate --args=1 --input=flipped.jpg --output=rotated.jpg
+```
+
+#### 6. Convert an image to a format
+
+* converts between image formats *(as per output)*
+
+* args is not used, target file type is infered from the output file extension
+
+Example - 
+```
+python -m known.pix --action=convert --input=rotated.jpg --output=rotated.png
+```
+
+#### 7. Convert an image to multiple formats
+
+* converts between image formats *(as per args)*
+
+* args is (str) n-tuple specifying the extensions to be converted to
+
+* output filenames are not used, the file-names are taken from input files
+
+* the extensions are added as specified in args
+
+* e.g., Convert png to jpg and webp      `--input=input.png --args=jpg,webp`
+the output files will be `input.png` and `input.webp`
+
+Example - 
+```
+python -m known.pix --action=autoconvert --input=rotated.png --args=jpeg,webp
+```
+
+---
+---
+<br>
+
+# 🧩 known.fly
 
 Flask based web app for sharing files and quiz evaluation
 

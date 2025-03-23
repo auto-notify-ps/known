@@ -218,10 +218,8 @@ def GraphFromImage(img_path:str, pixel_choice:str='first', dtype=None):
     if dtype is None: dtype=np.float_
     return np.array([ imgmax-px(np.where(j[:,i]==1)[0]) for i in range(j.shape[1]) ], dtype=dtype)
 
-
-
 def File2Int(file, col=None):
-    r""" Reads a file and converts bytes to a list of integers """
+    r""" Reads a file and converts bytes to a list of integers - this is useful for harcoding small files"""
     with open(file, 'rb') as f: B = f.read()
     I = [int(b) for b in B]
     if col:
