@@ -35,7 +35,23 @@ Cloned repo can be deleted after installation.
 
 # 🧩 known.Mailer
 
-* Send emails from within your python code.
+
+* Use gmail account to send mails from within your python code.
+
+* Use `Mail` static method to send mail which requires username and password
+    * username must be a gmail address from which mail will be sent 
+    * password can be either one of:
+        * google (account) password
+        * app password
+
+* Its recomended to use app password, to generate one visit 
+    * https://myaccount.google.com/apppasswords
+
+* App passwords requires enabling 2-step verification first, to enable it visit
+    * https://myaccount.google.com/signinoptions/twosv
+
+
+* On the reciver side - mark incoming mails will be usually treated as spam and must be marked as'not spam' at least once
 
 * Note: Implements sending functionality only, cannot read emails.
 
@@ -103,7 +119,7 @@ python -m known.pix --action=new --args=32,64,4,100,150,200,170 --output=new.jpg
 
 * crops an image using bounding box (y, x, h, w) 
 
-* args is (int) 4-tuple (y-cord, x-coord, height, width) indicating a bounding box
+* args is (int) 4-tuple (y-coord, x-coord, height, width) indicating a bounding box
     * `--args=y,x,h,w`
 
 Example - 
