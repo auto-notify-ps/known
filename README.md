@@ -51,7 +51,7 @@ Cloned repo can be deleted after installation.
     * https://myaccount.google.com/signinoptions/twosv
 
 
-* On the reciver side - mark incoming mails will be usually treated as spam and must be marked as'not spam' at least once
+* On the reciver side, incoming mails will be usually treated as spam and must be marked as 'not spam' at least once
 
 * Note: Implements sending functionality only, cannot read emails.
 
