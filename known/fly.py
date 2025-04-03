@@ -2134,7 +2134,6 @@ app.config['apac'] =    f'{parsed.access}'.strip().upper()
 # ------------------------------------------------------------------------------------------
 
 
-
 #%% [ROUTES] @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 
 # ------------------------------------------------------------------------------------------
 # login
@@ -2159,14 +2158,14 @@ def route_login():
                         db[uid][3]=in_passwd 
                         if in_name!=named and valid_name and (app.config['rename']>0) : 
                             db[uid][2]=in_name
-                            dprint(f'⇒ {uid} ◦ {named} updated name to "{in_name}" via {request.remote_addr}') 
+                            dprint(f'💬 {uid} ◦ {named} updated name to "{in_name}" via {request.remote_addr}') 
                             named = in_name
-                        else:
-                            if in_name: dprint(f'⇒ {uid} ◦ {named} provided invalid name "{in_name}" (will not update)') 
+                        else: 
+                            if in_name: sprint(f'⇒ {uid} ◦ {named} provided name "{in_name}" could not be updated') 
 
                         warn = LOGIN_CREATE_TEXT
                         msg = f'[{in_uid}] ({named}) New password was created successfully'
-                        dprint(f'● {in_uid} {in_emoji} {named} just joined via {request.remote_addr}')
+                        dprint(f'🤗 {in_uid} ◦ {named} just joined via {request.remote_addr}')
            
                     else: # new password is invalid valid 
                         warn = LOGIN_NEW_TEXT
@@ -2186,7 +2185,7 @@ def route_login():
                             os.makedirs(folder_name, exist_ok=True)
                             os.makedirs(folder_report, exist_ok=True)
                         except:
-                            dprint(f'✗ directory could not be created @ {folder_name} :: Force logout user {uid}')
+                            sprint(f'✗ directory could not be created @ {folder_name} :: Force logout user {uid}')
                             session['has_login'] = False
                             session['uid'] = uid
                             session['named'] = named
@@ -2203,13 +2202,13 @@ def route_login():
                         if in_name!=named and  valid_name and  (app.config['rename']>0): 
                             session['named'] = in_name
                             db[uid][2] = in_name
-                            dprint(f'⇒ {uid} ◦ {named} updated name to "{in_name}" via {request.remote_addr}') 
+                            dprint(f'💬 {uid} ◦ {named} updated name to "{in_name}" via {request.remote_addr}') 
                             named = in_name
                         else: 
                             session['named'] = named
-                            if in_name: dprint(f'⇒ {uid} ◦ {named} provided invalid name "{in_name}" (will not update)')  
+                            if in_name: sprint(f'⇒ {uid} ◦ {named} provided name "{in_name}" could not be updated')  
 
-                        dprint(f'● {session["uid"]} {app.config["emoji"]} {session["named"]} has logged in via {request.remote_addr}') 
+                        dprint(f'🌝 {session["uid"]} ◦ {session["named"]} has logged in via {request.remote_addr}') 
                         return redirect(url_for('route_home'))
                     else:  
                         warn = LOGIN_FAIL_TEXT
@@ -2257,7 +2256,7 @@ def route_new():
                             db[uid] = [admind, uid, named, in_passwd]
                             warn = LOGIN_CREATE_TEXT
                             msg = f'[{in_uid}] ({named}) New password was created successfully'
-                            dprint(f'● {in_uid} {in_emoji} {named} just joined via {request.remote_addr}')
+                            dprint(f'🫣 {in_uid} ◦ {named} just registered via {request.remote_addr}')
             
                         else: # new password is invalid valid  
                             warn = LOGIN_NEW_TEXT
@@ -2286,8 +2285,8 @@ def route_logout():
     r""" logout a user and redirect to login page """
     if not session.get('has_login', False):  return redirect(url_for('route_login'))
     if not session.get('uid', False): return redirect(url_for('route_login'))
-    if session['has_login']:  dprint(f'● {session["uid"]} {app.config["emoji"]} {session["named"]} has logged out via {request.remote_addr}') 
-    else: dprint(f'✗ {session["uid"]} ◦ {session["named"]} was removed due to invalid uid ({session["uid"]}) via {request.remote_addr}') 
+    if session['has_login']:    dprint(f'🌚 {session["uid"]} ◦ {session["named"]} has logged out via {request.remote_addr}') 
+    else:                       dprint(f'💀 {session["uid"]} ◦ {session["named"]} was removed due to invalid uid via {request.remote_addr}') 
     session.clear()
     return redirect(url_for('route_login'))
 # ------------------------------------------------------------------------------------------
@@ -2299,7 +2298,7 @@ def route_board():
     if 'B' not in session['admind']:  return redirect(url_for('route_home'))
     if '?' in (request.args) and '+' in session['admind']: 
         if update_board(): 
-            dprint(f"▶ {session['uid']} ◦ {session['named']} just refreshed the board via {request.remote_addr}")
+            dprint(f"🔰 {session['uid']} ◦ {session['named']} just refreshed the board via {request.remote_addr}")
             return redirect(url_for('route_board'))
     return BOARD_PAGE
 # ------------------------------------------------------------------------------------------
@@ -2314,23 +2313,21 @@ def route_downloads(req_path):
     if not req_path:
         if '?' in request.args and '+' in session['admind']: 
             app.config['dfl'] = GET_FILE_LIST(DOWNLOAD_FOLDER_PATH)
-            dprint(f"▶ {session['uid']} ◦ {session['named']} just refreshed the download list via {request.remote_addr}")
+            dprint(f"🔃 {session['uid']} ◦ {session['named']} just refreshed the download list via {request.remote_addr}")
             return redirect(url_for('route_downloads'))
     else:
         if not os.path.exists(abs_path): 
-            dprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
+            sprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
             return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
         if os.path.isfile(abs_path):  #(f"◦ sending file ")
             if ("html" in request.args): 
-                dprint(f"● {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
+                dprint(f"🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
                 try:
                     hstatus, hmsg = HConv.convertx(abs_path)
                 except: hstatus, hmsg = False, f"Exception while converting {req_path} to a web-page"
-                
-                #dprint(f"{TABLINE}{'... ✓' if hstatus else '... ✗'} {hmsg}")
                 return hmsg #if hstatus else  send_file(abs_path, as_attachment=True)
             else: 
-                dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
+                dprint(f'⬇️ {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
                 return send_file(abs_path, as_attachment=False) # Check if path is a file and serve
     return render_template('downloads.html')
 # ------------------------------------------------------------------------------------------
@@ -2343,19 +2340,17 @@ def route_uploads(req_path):
     if 'S' not in session['admind']:  return redirect(url_for('route_home'))
     abs_path = os.path.join(os.path.join( app.config['uploads'], session['uid']) , req_path)# Joining the base and the requested path
     if not os.path.exists(abs_path): 
-        dprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
+        sprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
         return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
     if os.path.isfile(abs_path):  #(f"◦ sending file ")
         if ("html" in request.args): 
-            dprint(f"● {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
+            dprint(f"🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
             try:
                 hstatus, hmsg = HConv.convertx(abs_path)
             except: hstatus, hmsg = False, f"Exception while converting {req_path} to a web-page"
-            
-            #dprint(f"{TABLINE}{'... ✓' if hstatus else '... ✗'} {hmsg}")
             return hmsg #if hstatus else  send_file(abs_path, as_attachment=True)
         else: 
-            dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
+            dprint(f'⬇️ {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
             return send_file(abs_path, as_attachment=False) # Check if path is a file and serve
         
     return render_template('uploads.html')
@@ -2369,10 +2364,10 @@ def route_reports(req_path):
     if 'R' not in session['admind']:  return redirect(url_for('route_home'))
     abs_path = os.path.join(os.path.join( app.config['reports'], session['uid']) , req_path)# Joining the base and the requested path
     if not os.path.exists(abs_path): 
-        dprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
+        sprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
         return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
     if os.path.isfile(abs_path):  #(f"◦ sending file ")
-        dprint(f'● {session["uid"]} ◦ {session["named"]} just downloaded the report {req_path} via {request.remote_addr}')
+        dprint(f'⬇️ {session["uid"]} ◦ {session["named"]} just downloaded the report {req_path} via {request.remote_addr}')
         return send_file(abs_path) # Check if path is a file and serve
     return render_template('reports.html')
 # ------------------------------------------------------------------------------------------
@@ -2493,8 +2488,8 @@ def route_eval(req_uid):
     results = []
     global db, dbsub
     if form.validate_on_submit():
-        dprint(f"● {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
-        if  not ('X' in session['admind']): status, success =  "You are not allow to evaluate.", False
+        dprint(f"⬆️ {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
+        if  not ('X' in session['admind']): status, success =  "You are not allowed to evaluate.", False
         else: 
             if not EVAL_XL_PATH: status, success =  "Evaluation is disabled.", False
             else:
@@ -2541,7 +2536,7 @@ def route_eval(req_uid):
                                                     if has_req_files:
                                                         dbsub[in_query] = [uid, named, in_score, in_remark, submitter]
                                                         results.append((in_uid,f'Score/Remark Created for [{in_uid}] {named}, current score is {in_score}.', True))
-                                                        dprint(f"▶ {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} via {request.remote_addr}")
+                                                        dprint(f"🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} via {request.remote_addr}")
                                                     else:
                                                         results.append((in_uid,f'User [{in_uid}] {named} has not uploaded the required files yet.', False))
                                             else:
@@ -2551,10 +2546,10 @@ def route_eval(req_uid):
                                                     dbsub[in_query][-1] = submitter # incase of inf score
                                                     if in_score or in_remark : results.append((in_uid,f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsub[in_query][2]}. Remark is [{dbsub[in_query][3]}].', True))
                                                     else: results.append((in_uid,f'Nothing was updated for [{in_uid}] {named}, current score is {dbsub[in_query][2]}. Remark is [{dbsub[in_query][3]}].', False))
-                                                    dprint(f"▶ {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} via {request.remote_addr}")
+                                                    dprint(f"🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} via {request.remote_addr}")
                                                 else:
                                                     results.append((in_uid,f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information. Hint: Set the score to "inf".', False))
-                                                    dprint(f"▶ {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
+                                                    dprint(f"🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
                             vsu = [vv for nn,kk,vv in results]
                             vsuc = vsu.count(True)
                             success = (vsuc > 0)
@@ -2594,7 +2589,7 @@ def route_eval(req_uid):
                                         if has_req_files:
                                             dbsub[in_query] = [uid, named, in_score, in_remark, submitter]
                                             status, success = f'Score/Remark Created for [{in_uid}] {named}, current score is {in_score}.', True
-                                            dprint(f"▶ {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} via {request.remote_addr}")
+                                            dprint(f"🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} via {request.remote_addr}")
                                         else:
                                             status, success = f'User [{in_uid}] {named} has not uploaded the required files yet.', False
                                 else:
@@ -2604,10 +2599,10 @@ def route_eval(req_uid):
                                         dbsub[in_query][-1] = submitter # incase of inf score
                                         if in_score or in_remark : status, success =    f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsub[in_query][2]}. Remark is [{dbsub[in_query][3]}].', True
                                         else: status, success =                         f'Nothing was updated for [{in_uid}] {named}, current score is {dbsub[in_query][2]}. Remark is [{dbsub[in_query][3]}].', False
-                                        dprint(f"▶ {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} via {request.remote_addr}")
+                                        dprint(f"🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} via {request.remote_addr}")
                                     else:
                                         status, success = f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information. Hint: Set the score to "inf".', False
-                                        dprint(f"▶ {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
+                                        dprint(f"🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
                 else: status, success =  "You are not allow to evaluate.", False
             else: status, success =  "Evaluation is disabled.", False
         else: status, success = f"You posted nothing!", False
@@ -2631,7 +2626,7 @@ def route_eval(req_uid):
                             erecord = dbsub.get(in_query, None)
                             if erecord is not None:
                                 del dbsub[in_query]
-                                dprint(f"▶ {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {erecord[1]} (already evaluated by [{erecord[-1]}] with score [{erecord[2]}]) via {request.remote_addr}")
+                                dprint(f"🎓 {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {erecord[1]} (already evaluated by [{erecord[-1]}] with score [{erecord[2]}]) via {request.remote_addr}")
                                 status, success =  f"Evaluation was reset for {record[1]} ◦ {record[2]}", True
                             else: status, success =  f"User {record[1]} ◦ {record[2]} has not been evaluated", False
                         else: status, success =  f"User '{in_query}' not found", False
@@ -2660,7 +2655,7 @@ def route_home():
     else: submitted, score = -1, -1
 
     if form.validate_on_submit() and ('U' in session['admind']):
-        dprint(f"● {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
+        dprint(f"⬆️ {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
         if app.config['muc']==0 or app.config['disableupload']: 
             return render_template('home.html', submitted=submitted, score=score, form=form, status=[(0, f'✗ Uploads are disabled')])
         
@@ -2703,7 +2698,7 @@ def route_home():
             
         result_show = ''.join([f'\t{r[-1]}\n' for r in result])
         result_show = result_show[:-1]
-        dprint(f'✓ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s)\n{result_show}') 
+        dprint(f'✅ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s)\n{result_show}') 
         return render_template('home.html', submitted=submitted, score=score, form=form, status=result)
     
     return render_template('home.html', submitted=submitted, score=score, form=form, status=(INITIAL_UPLOAD_STATUS if app.config['muc']!=0 else [(-1, f'Uploads are disabled')]))
@@ -2735,7 +2730,7 @@ def route_purge():
     if os.path.exists(folder_name):
         file_list = os.listdir(folder_name)
         for f in file_list: os.remove(os.path.join(folder_name, f))
-        dprint(f'● {session["uid"]} ◦ {session["named"]} used purge via {request.remote_addr}')
+        dprint(f'🔥 {session["uid"]} ◦ {session["named"]} used purge via {request.remote_addr}')
         session['filed']=[]
     return redirect(url_for('route_home'))
 # ------------------------------------------------------------------------------------------
@@ -2815,44 +2810,29 @@ def route_store(subpath=""):
     can_admin = (('X' in session['admind']) or ('+' in session['admind']))
     if form.validate_on_submit():
         if not can_admin: return "You cannot perform this action"
-        dprint(f"● {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
-
+        dprint(f"⬆️ {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
         result = []
         n_success = 0
         #---------------------------------------------------------------------------------
         for file in form.file.data:
             isvalid, sf = VALIDATE_FILENAME_SUBMIT(secure_filename(file.filename))
         #---------------------------------------------------------------------------------
-            
             if not isvalid:
                 why_failed =  f"✗ File not accepted [{sf}]"
                 result.append((0, why_failed))
                 continue
-
-            file_name = os.path.join(abs_path, sf)
-            #if not os.path.exists(file_name):
-            #    if len(session['filed'])>=app.config['muc']:
-            #        why_failed = f"✗ Upload limit reached [{sf}] "
-            #        result.append((0, why_failed))
-            #        continue
-            
+            file_name = os.path.join(abs_path, sf)            
             try: 
                 file.save(file_name) 
                 why_failed = f"✓ Uploaded new file [{sf}] "
                 result.append((1, why_failed))
                 n_success+=1
-                #if sf not in session['filed']: session['filed'] = session['filed'] + [sf]
-            except FileNotFoundError: 
-                return redirect(url_for('route_logout'))
-
-
-            
-
+            except FileNotFoundError:  return redirect(url_for('route_logout'))
         #---------------------------------------------------------------------------------
             
         result_show = ''.join([f'\t{r[-1]}\n' for r in result])
         result_show = result_show[:-1]
-        dprint(f'✓ {session["uid"]} ◦ {session["named"]} just stored {n_success} file(s)\n{result_show}') 
+        dprint(f'✅ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s) to the store\n{result_show}') 
         return redirect(url_for('route_store', subpath=subpath)) #render_template('home.html', submitted=submitted, score=score, form=form, status=result)
     else:
 
@@ -2865,13 +2845,11 @@ def route_store(subpath=""):
                     if "." not in os.path.basename(abs_path):
                         try:
                             os.makedirs(abs_path)
-                            dprint(f"● {session['uid']} ◦ {session['named']} created new directory at {abs_path} # {subpath} via {request.remote_addr}")
+                            dprint(f"📁 {session['uid']} ◦ {session['named']} created new directory at {abs_path} # {subpath} via {request.remote_addr}")
                             return redirect(url_for('route_store', subpath=subpath))
                         except: return f"Error creating the directory"
                     else: return f"Directory name cannot contain (.)"
                 else: return f"Invalid args for store actions"
-            
-
         if os.path.isdir(abs_path):
             if not request.args: 
                 dirs, files = list_store_dir(abs_path)
@@ -2879,18 +2857,11 @@ def route_store(subpath=""):
             else:
                 if not can_admin: return "You cannot perform this action"
                 if "." not in os.path.basename(abs_path) and os.path.abspath(abs_path)!=os.path.abspath(app.config['store']): #delete this dir
-                    # if '!' in request.args:
-                    #     try:
-                    #         os.removedirs(abs_path)
-                    #         dprint(f"● {session['uid']} ◦ {session['named']} deleted directory at {abs_path} # {subpath} via {request.remote_addr}")
-                    #         return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
-                    #     except:
-                    #         return f"Error deleting the directory"
                     if '!' in request.args:
                         try:
                             import shutil
                             shutil.rmtree(abs_path)
-                            dprint(f"● {session['uid']} ◦ {session['named']} purged directory at {abs_path} # {subpath} via {request.remote_addr}") 
+                            dprint(f"❌ {session['uid']} ◦ {session['named']} deleted the directory at {abs_path} # {subpath} via {request.remote_addr}") 
                             return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
                         except:
                             return f"Error deleting the directory"
@@ -2900,11 +2871,11 @@ def route_store(subpath=""):
                             
         elif os.path.isfile(abs_path):
             if not request.args: 
-                dprint(f"● {session['uid']} ◦ {session['named']}  viewed {abs_path} via {request.remote_addr}")
+                dprint(f"👁️‍🗨️ {session['uid']} ◦ {session['named']}  viewed {abs_path} via {request.remote_addr}")
                 return send_file(abs_path, as_attachment=False)
             else:
                 if 'get' in request.args:
-                    dprint(f"● {session['uid']} ◦ {session['named']} downloaded file at {abs_path} # {subpath} via {request.remote_addr}")
+                    dprint(f"⬇️ {session['uid']} ◦ {session['named']} downloaded file at {abs_path} # {subpath} via {request.remote_addr}")
                              
                     return send_file(abs_path, as_attachment=True)
                 
@@ -2912,18 +2883,16 @@ def route_store(subpath=""):
                     if not can_admin: return "You cannot perform this action"
                     try:
                         os.remove(abs_path)
-                        dprint(f"● {session['uid']} ◦ {session['named']} deleted file at {abs_path} # {subpath} via {request.remote_addr}") 
+                        dprint(f"❌ {session['uid']} ◦ {session['named']} deleted file at {abs_path} # {subpath} via {request.remote_addr}") 
                         return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
                     except:return f"Error deleting the file"
                     #else: return f"Directory name cannot contain (.)"
                 elif ("html" in request.args): 
-                    dprint(f"● {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
+                    dprint(f"🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
                     try:
                         hstatus, hmsg = HConv.convertx(abs_path)
                     except: hstatus, hmsg = False, f"Exception while converting notebook to web-page"
                     return hmsg
-                    #dprint(f"{TABLINE}{'... ✓' if hstatus else '... ✗'} {hmsg}")
-                    #return redirect(url_for('route_storeuser', subpath=os.path.dirname(subpath))) 
                 else: return f"Invalid args for store actions"
                             
         
@@ -2944,15 +2913,13 @@ def route_storeuser(subpath=""):
     elif os.path.isfile(abs_path): 
         
         if ("html" in request.args): 
-            dprint(f"● {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
+            dprint(f"🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
             try:
                 hstatus, hmsg = HConv.convertx(abs_path)
             except: hstatus, hmsg = False, f"Exception while converting notebook to web-page"
             return hmsg
-            #dprint(f"{TABLINE}{'... ✓' if hstatus else '... ✗'} {hmsg}")
-            #return redirect(url_for('route_storeuser', subpath=os.path.dirname(subpath))) 
         else: 
-            dprint(f"● {session['uid']} ◦ {session['named']} downloaded {subpath} from user-store via {request.remote_addr}")
+            dprint(f"⬇️ {session['uid']} ◦ {session['named']} downloaded {subpath} from user-store via {request.remote_addr}")
             return send_file(abs_path, as_attachment=("get" in request.args))
     else: return abort(404)
 # ------------------------------------------------------------------------------------------
@@ -2965,7 +2932,7 @@ def persist_db():
     r""" writes both dbs to disk """
     global db, dbsub
     if write_logindb_to_disk(db) and write_evaldb_to_disk(dbsub): #if write_db_to_disk(db, dbsub):
-        dprint(f"▶ {session['uid']} ◦ {session['named']} just persisted the db to disk via {request.remote_addr}")
+        dprint(f"📥 {session['uid']} ◦ {session['named']} just persisted the db to disk via {request.remote_addr}")
         STATUS, SUCCESS = "Persisted db to disk", True
     else: STATUS, SUCCESS =  f"Write error, file might be open", False
     return STATUS, SUCCESS 
@@ -2982,7 +2949,7 @@ def reload_db():
     global db, dbsub
     db = read_logindb_from_disk()
     dbsub = read_evaldb_from_disk()
-    dprint(f"▶ {session['uid']} ◦ {session['named']} just reloaded the db from disk via {request.remote_addr}")
+    dprint(f"📤 {session['uid']} ◦ {session['named']} just reloaded the db from disk via {request.remote_addr}")
     return "Reloaded db from disk", True #  STATUS, SUCCESS
 
 def toggle_upload():
@@ -2996,7 +2963,7 @@ def toggle_upload():
     else: 
         STATUS, SUCCESS =  f"Uploads are now enabled", True
         dowhat = 'enabled'
-    dprint(f"▶ {session['uid']} ◦ {session['named']} has {dowhat} uploads via {request.remote_addr}")
+    dprint(f"❗ {session['uid']} ◦ {session['named']} has {dowhat} uploads via {request.remote_addr}")
     return STATUS, SUCCESS 
 
 
@@ -3039,7 +3006,7 @@ def route_repassx(req_uid):
                                     if not valid_name: STATUS, SUCCESS = f'[{named}] Requires a valid name' , False
                                     else:
                                         db[in_query] = [admind, in_query, named, '']
-                                        dprint(f"▶ {session['uid']} ◦ {session['named']} just added a new user {in_query} ◦ {named} via {request.remote_addr}")
+                                        dprint(f"👤 {session['uid']} ◦ {session['named']} just added a new user {in_query} ◦ {named} via {request.remote_addr}")
                                         STATUS, SUCCESS =  f"New User Created {in_query} {named}", True
                                 else: STATUS, SUCCESS = f'Missing Arguments to create new user "{in_query}": use (name) (access)' , False
                             else:
@@ -3047,7 +3014,7 @@ def route_repassx(req_uid):
                                 radmind, _, rnamed, _ = record
                                 if admind and admind!=radmind: # trying to update access
                                     db[in_query][0] = admind
-                                    dprint(f"▶ {session['uid']} ◦ {session['named']} just updated access for {in_query} from {radmind} to {admind} via {request.remote_addr}")
+                                    dprint(f"👤 {session['uid']} ◦ {session['named']} just updated access for {in_query} from {radmind} to {admind} via {request.remote_addr}")
                                     STATUS, SUCCESS =  f"Updated Access for {in_query} from [{radmind}] to [{admind}]", True
 
                                 if named and named!=rnamed: # trying to rename
@@ -3056,7 +3023,7 @@ def route_repassx(req_uid):
                                         STATUS, SUCCESS = f'[{named}] Requires a valid name' , False
                                     else:
                                         db[in_query][2] = named
-                                        dprint(f"▶ {session['uid']} ◦ {session['named']} just updated name for {in_query} from {rnamed} to {named} via {request.remote_addr}")
+                                        dprint(f"👤 {session['uid']} ◦ {session['named']} just updated name for {in_query} from {rnamed} to {named} via {request.remote_addr}")
                                         STATUS, SUCCESS =  f"Updated Name for {in_query} from [{rnamed}] to [{named}]", True
                                 
                                 
@@ -3078,7 +3045,7 @@ def route_repassx(req_uid):
                             admind, uid, named, _ = record
                             if (('X' not in admind) and ('+' not in admind)) or isadmin or (session['uid']==uid):
                                 db[uid][3]='' ## 3 for PASS
-                                dprint(f"▶ {session['uid']} ◦ {session['named']} just reset the password for {uid} ◦ {named} via {request.remote_addr}")
+                                dprint(f"👤 {session['uid']} ◦ {session['named']} just reset the password for {uid} ◦ {named} via {request.remote_addr}")
                                 STATUS, SUCCESS =  f"Password was reset for {uid} {named}", True
                             else: STATUS, SUCCESS =  f"You cannot reset password for account '{in_query}'", False
                         else: STATUS, SUCCESS =  f"User '{in_query}' not found", False
