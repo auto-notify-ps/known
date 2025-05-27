@@ -24,13 +24,13 @@ def _read_fl_from_linux(F): # parses --files="%F"
 def _read_fl(parsed_put, parsed_io, check=False):
     if parsed_put:
         _put = os.path.abspath(parsed_put)
-        if not parsed_io:           _puts = [_put] 
+        if not parsed_io:        _puts = [_put] 
         elif parsed_io == 'i':   _puts = [_put]
         elif parsed_io == 't':   _puts =_read_fl_from_text(_put)
         elif parsed_io == 'j':   _puts =_read_fl_from_json(_put)
         elif parsed_io == 'l':   _puts =_read_fl_from_linux(_put)
-        else:                       _puts = [] 
-    else:                           _puts = []
+        else:                    _puts = [] 
+    else:                        _puts = []
     if check: _puts = [p for p in _puts if os.path.isfile(p)]
     return _puts
 

@@ -731,8 +731,10 @@ class Fuzz:
     
     @staticmethod
     def Scan(path, exclude_hidden=False, include_size=False, include_extra=False):
+        #if not os.path.exists(path): return []
         r""" Scans a directory using os.scandir call 
              returns a list of 6 or 9 tuple (name, path, isdir, isfile, islink, size, parent, fname, ext) """
+        #print(f'\t{path=}\n\t{exclude_hidden=}\n\t{include_size=}\n\t{include_extra=}\n')
         if exclude_hidden:  
             if include_size: 
                 if include_extra:   return [(x.name, os.path.abspath(x.path), x.is_dir(), x.is_file(), x.is_symlink(), x.stat().st_size, os.path.dirname(os.path.abspath(x.path)), *__class__.SplitName(x.name)) for x in os.scandir(path) if not x.name.startswith(".")]
@@ -750,15 +752,17 @@ class Fuzz:
                 else:               return [(x.name, os.path.abspath(x.path), x.is_dir(), x.is_file(), x.is_symlink(), -1              ) for x in os.scandir(path)]
 
     @staticmethod
-    def ReScan(path, exclude_hidden=False, include_size=False, expand_links=False, include_extra=False):
+    def ReScan(path, exclude_hidden=False, include_size=False, include_extra=False):
         r""" Recursively Scans a directory using os.scandir """
         res = []
         pending = [path]
         while pending:
-            ls = __class__.Scan(pending.pop(0), exclude_hidden=exclude_hidden, include_size=include_size, include_extra=include_extra)
-            for l in ls: # name, path, isdir, isfile, islink, size, parent, (fname, ext)
-                res.append(l)
-                if l[2]: (pending.append(l[1]) if not l[4] else (pending.append(l[1]) if expand_links else None))  
+            try:
+                ls = __class__.Scan(pending.pop(0), exclude_hidden=exclude_hidden, include_size=include_size, include_extra=include_extra)
+                for l in ls: # name, path, isdir, isfile, islink, size, parent, (fname, ext)
+                    res.append(l)
+                    if l[2]: (pending.append(l[1]) if not l[4] else None)  #if l[2]: (pending.append(l[1]) if not l[4] else (pending.append(l[1]) if expand_links else None))  
+            except: pass
         return res
 
     @staticmethod
