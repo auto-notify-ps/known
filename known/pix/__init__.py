@@ -88,7 +88,7 @@ class Actions:
         (channels) can be 4, 3 or 1 - the color tuple depends on the channels in the image
     """
     @staticmethod
-    def new(inputs, outputs, args, verbose=0):
+    def new(inputs, outputs, args, verbose=0, dry=False):
         
         """ creates new images of given size and color 
         
@@ -111,13 +111,14 @@ class Actions:
                 if verbose: print(f'\t● {ip} ⇒ {op}')
                 img = create(*args[0:3])
                 fill(img, 0, 0, ..., ..., color=args[3:], channel=None)
-                save(img, op)
+                if dry: print(f'\n[DRY ~ SAVE]\n\t\n\tIMAGE: {img.shape}\n\tOUTPUT: {op}\n')
+                else: save(img, op)
             if verbose: print(f'✓ Success!')
         except:
             if verbose: print(f'✗ Failed!')
         
     @staticmethod
-    def crop(inputs, outputs, args, verbose=0):
+    def crop(inputs, outputs, args, verbose=0, dry=False):
         """ crops an image using bounding box (y, x, h, w) 
 
         args is (int) 4-tuple (y-cord, x-coord, height, width) indicating a bounding box
@@ -133,13 +134,14 @@ class Actions:
                 org = load(ip)
                 img = create(h, w, org.shape[-1])
                 region_copy(org, y, x, h, w, img, 0, 0)
-                save(img, op)
+                if dry: print(f'\n[DRY ~ SAVE]\n\tINPUT: {ip}\n\tIMAGE: {org.shape} --> {img.shape}\n\tOUTPUT: {op}\n')
+                else: save(img, op)
             if verbose: print(f'✓ Success!')
         except:
             if verbose: print(f'✗ Failed!')
 
     @staticmethod
-    def extend(inputs, outputs, args, verbose=0):
+    def extend(inputs, outputs, args, verbose=0, dry=False):
         """ extends an image using boundary distance 
 
         args is (int) 8-tuple (north, south, east, west, blue, green, red, alpha)
@@ -159,13 +161,15 @@ class Actions:
             if verbose: print(f'● Directions {north=} {south=} {east=} {west=}')
             for ip,op in zip(inputs,outputs):
                 if verbose: print(f'\t● {ip} ⇒ {op}')
-                save(extend(load(ip), north, south, east, west, filler=args[4:]), op)
+                img = extend(load(ip), north, south, east, west, filler=args[4:])
+                if dry: print(f'\n[DRY ~ SAVE]\n\tINPUT: {ip}\n\tIMAGE: {img.shape}\n\tOUTPUT: {op}\n')
+                else: save(img, op)
             if verbose: print(f'✓ Success!')
         except:
             if verbose: print(f'✗ Failed!')
 
     @staticmethod
-    def flip(inputs, outputs, args, verbose=0):
+    def flip(inputs, outputs, args, verbose=0, dry=False):
         """ flip an image (horizontally, vertically)
 
         args is (int) 2-tuple (horizontally, vertically) 
@@ -183,13 +187,14 @@ class Actions:
                 if verbose: print(f'\t● {ip} ⇒ {op}')
                 org = load(ip)
                 img = flip(org, horizontal=h, vertical=v)
-                save(img, op)
+                if dry: print(f'\n[DRY ~ SAVE]\n\tINPUT: {ip}\n\tIMAGE: {org.shape} --> {img.shape}\n\tOUTPUT: {op}\n')
+                else: save(img, op)
             if verbose: print(f'✓ Success!')
         except:
             if verbose: print(f'✗ Failed!')
 
     @staticmethod
-    def rotate(inputs, outputs, args, verbose=0):
+    def rotate(inputs, outputs, args, verbose=0, dry=False):
         """ rotate an image (clockwise or couter-clockwise)
 
         args is (int) 1-tuple (clockwise) 
@@ -205,13 +210,14 @@ class Actions:
                 if verbose: print(f'\t● {ip} ⇒ {op}')
                 org = load(ip)
                 img = rotate(org, clockwise=c)
-                save(img, op)
+                if dry: print(f'\n[DRY ~ SAVE]\n\tINPUT: {ip}\n\tIMAGE: {org.shape} --> {img.shape}\n\tOUTPUT: {op}\n')
+                else: save(img, op)
             if verbose: print(f'✓ Success!')
         except:
             if verbose: print(f'✗ Failed!')
     
     @staticmethod
-    def convert(inputs, outputs, args, verbose=0):
+    def convert(inputs, outputs, args, verbose=0, dry=False):
         """ converts an image (as per output)
         
         args is not used, target file type is infered from the output file-name (extension)
@@ -223,13 +229,15 @@ class Actions:
         try:
             for ip,op in zip(inputs,outputs): 
                 if verbose: print(f'\t● {ip} ⇒ {op}')
-                save(load(ip), op)
+                img = load(ip)
+                if dry: print(f'\n[DRY ~ SAVE]\n\tINPUT: {ip}\n\tIMAGE: {img.shape}\n\tOUTPUT: {op}\n')
+                else: save(img, op)
             if verbose: print(f'✓ Success!')
         except:
             if verbose: print(f'✗ Failed!')
 
     @staticmethod
-    def autoconvert(inputs, outputs, args, verbose=0):
+    def autoconvert(inputs, outputs, args, verbose=0, dry=False):
         """ converts an image (as per args)
         
         args is (str) n-tuple specifying the extensions to be converted to
@@ -237,7 +245,7 @@ class Actions:
         the extensions are added as specified in args
 
         e.g., Convert png to jpg and webp      --input=input.png --args=jpg,webp
-        the output files will be `input.png` and `input.webp`
+        the output files will be `input.jpg` and `input.webp`
 
         """
         if verbose: print(f'⚙ [AUTOCONVERT] {len(inputs)}')
@@ -249,8 +257,50 @@ class Actions:
                 for ext in args:
                     op = os.path.join(dirname, f'{name}.{ext}')
                     if verbose: print(f'\t● {ip} ⇒ {op}')
-                    save(load(ip), op)
+                    img = load(ip)
+                    if dry: print(f'\n[DRY ~ SAVE]\n\tINPUT: {ip}\n\tIMAGE: {img.shape}\n\tOUTPUT: {op}\n')
+                    else: save(img, op)
             if verbose: print(f'✓ Success!')
+            return True
         except:
             if verbose: print(f'✗ Failed!')
+            return False
 
+    @staticmethod
+    def multiconvert(inputs, outputs, args, verbose=0, dry=False):
+        """ converts all the images in a directory (as per args)
+        
+        input is a directory name
+        args is csv source extension and target extension ending with .
+
+        e.g., Convert png and bmp to jpg and webp      --input=/home/user --args=.,png,bmp,jpg.,webp.
+
+        """
+        args = set(args)
+        remove_after_convert = False
+        if "." in args: 
+            remove_after_convert=True
+            args.remove(".")
+        tgt_ext = tuple(set([e[:-1] for e in args if e.endswith('.')]))
+        src_ext = tuple(set([e      for e in args if not e.endswith('.')]))
+        
+        if verbose: print(f'⚙ [MULTICONVERT] {inputs}')
+        for in_dir in inputs:
+            input_files = [os.path.join(in_dir, f) for f in os.listdir(in_dir) if f'{f}'.lower().endswith(src_ext)]
+            res = __class__.autoconvert(
+                inputs= input_files,
+                outputs=None,
+                args=tgt_ext,
+                verbose=verbose,
+                dry=dry,
+            )
+            if res:
+                if verbose: print(f'✓ [MULTICONVERT] Success for {in_dir}')
+                if remove_after_convert: 
+                    if verbose: print(f'\t ~ Deleting {len(input_files)} Files...')
+                    if dry:
+                        for f in input_files: print(f'Delete file {f}')
+                    else: 
+                        for f in input_files: os.remove(f)
+            else:
+                if verbose: print(f'✗ [MULTICONVERT] Failed for {in_dir}')

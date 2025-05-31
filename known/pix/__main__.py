@@ -46,11 +46,14 @@ parser.add_argument('--output',  type=str,  default='', help='(str) output image
 parser.add_argument('--files',  type=str,   default='', help='(str) multiple input image-file names - for custom action -- works only with --io=linux') 
 parser.add_argument('--io',      type=str,  default='', help="(str) can be 'text' or 'json' or 'linux' - keep blank to io as 'image' - used if providing input/output file-names in a text/json file")
 parser.add_argument('--verbose', type=int,  default=0,  help="(int) verbose level - 0 or 1")
-
+parser.add_argument('--dry',    type=int,  default=0,  help="(int) if true - does a dry run")
+parser.add_argument('--check',    type=int,  default=1,  help="(int) if true - checks existance of input files")
 parsed = parser.parse_args()
 
 # ---------------------------------------------------------------------------------
 _verbose = int(parsed.verbose)
+_dry = bool(parsed.dry)
+_check = bool(parsed.check)
 _action = f'{parsed.action}'
 if not _action: exit(f'[!] Action not provided')
 if not hasattr(Actions, _action): exit(f'[!] Action [{_action}] not found')
@@ -61,16 +64,21 @@ _args = f'{parsed.args}'.split(',')
 if not parsed.io: _io = 'i'
 else: _io = f'{parsed.io}'.lower()[0]
 if _io == 'l':
-    _inputs =   _read_fl(f'{parsed.files}',  _io, check=True) # assume existing files are passed
+    #print(f'1-----')
+    _inputs =   _read_fl(f'{parsed.files}',  _io, check=_check) # assume existing files are passed
     _outputs =  _inputs
 else:
-
-    _inputs =   _read_fl(f'{parsed.input}',  _io, check=True) # keep only existing files
+    #print(f'2-----')
+    _inputs =   _read_fl(f'{parsed.input}',  _io, check=_check) # keep only existing files
     _outputs =  _read_fl(f'{parsed.output}', _io, check=False)
     
-    if not _outputs: _outputs = _inputs # if outputs are not provided, overwrite inputs
+    if not _outputs: 
+        #print(f'3-----')
+        _outputs = _inputs # if outputs are not provided, overwrite inputs
     if _inputs: assert len(_inputs) == len(_outputs), f'Mismatch inputs and outputs' # if inputs were provided, outputs must match them
 
 # ---------------------------------------------------------------------------------
-_action(_inputs, _outputs, _args, _verbose)
+#print(f'{_inputs=}')
+#print(f'{_outputs=}')
+_action(_inputs, _outputs, _args, _verbose, _dry)
 # ---------------------------------------------------------------------------------
