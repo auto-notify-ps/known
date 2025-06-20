@@ -52,7 +52,14 @@ class Infinity:
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 class Kio:
-    r""" provides input/out methods for loading saving python objects using json and pickle """
+    r""" provides input/out methods for loading saving python objects using json and pickle 
+    Use methods:
+        save_as_json(object, path)
+        object = load_as_json(path)
+        save_as_pickle(object, path)
+        object = load_as_pickle(path)
+
+    """
 
     import json, pickle
     IOFLAG = dict(

@@ -2,14 +2,13 @@ __doc__=""" Helper Functions and Utils """
 
 import os, requests
 
-__all__ =['ParseLinuxFiles', 'ConfigParser', 'ImportCustomModule', 'GraphFromImage', 'Int2File', 'File2Int']
+__all__ =['PublicIPv4', 'ParseLinuxFiles', 'ConfigParser', 'ImportCustomModule', 'GraphFromImage', 'Int2File', 'File2Int']
 
 
 def PublicIPv4():
-    try:
-        public_ip = requests.get('https://api.ipify.org').text
-    except requests.exceptions.RequestException as e:
-        public_ip = None
+    r""" gets your public IPv4 from api.ipify.org"""
+    try:public_ip = requests.get('https://api.ipify.org').text
+    except requests.exceptions.RequestException as e: public_ip = None
     return public_ip
 
 def ParseLinuxFiles(F, check=False): # parses --files="%F"
@@ -104,12 +103,12 @@ def ConfigParser(dict_to_object=True):
         # the `dict_to_object` argument is only valid when user returns a dict (instead of class or object or callable)
         # if user returns anything other than a dict, it will be passed as it is - value of `dict_to_object` will not matter
         
-        # if `dict_to_object==True`,    converts a dict (returned by user) to an object (this object is an instance of class 'Fake') 
+        # if `dict_to_object==True`,    converts a dict (returned by user) to an object (this object is an instance of class 'FakeConfig') 
         # otherwise,                    it will pass the dict as it is, which can be accessed by keys only
 
         # this provides flexibility to users as they can define arguments and access them in both possible ways
         # a noteable case is when the arguments names are not valid variable names in python  
-        # access the dict using `fake.__dict__` from a `fake` object
+        # access the dict using `FakeConfig.__dict__` from a `FakeConfig` object
         
     """
 
@@ -150,7 +149,7 @@ def ConfigParser(dict_to_object=True):
         except: raise RuntimeError(f'Error calling {CONFIG_MODULE_NAME}.{CONFIG_MEMBER} - is the config correct?')
 
     if dict_to_object and isinstance(CONFIG_OBJECT, dict):
-        class Fake:
+        class FakeConfig:
             def __len__(self): return len(self.__dict__)
             def __contains__(self, x): return x in self.__dict__
             def _get_kwargs(self): return self.__dict__.items() # mimic inbuilt ArgumentParser
@@ -158,7 +157,7 @@ def ConfigParser(dict_to_object=True):
             def __init__(self, **kwargs):
                 for k,v in kwargs.items(): setattr(self, k, v)
 
-        try:    CONFIG_OBJECT = Fake(**CONFIG_OBJECT)
+        try:    CONFIG_OBJECT = FakeConfig(**CONFIG_OBJECT)
         except: raise RuntimeError(f'Could not create python-object from dict {CONFIG_MODULE_NAME}.{CONFIG_MEMBER}.{CONFIG_OBJECT} - are the arguments named properly?')
 
     return CONFIG_OBJECT #<---- this can return a dict as well (set the argument dict_to_object = False )

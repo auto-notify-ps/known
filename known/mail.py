@@ -1,11 +1,17 @@
 __doc__=r"""email tools"""
 
+__all__ = [ 
+    'Mailer', 
+    'Fancy', 
+    'Mailbox', 
+    'AutoFetcher',  
+    ]
+
 import os, time
 import smtplib, mimetypes, imaplib
 from email import message_from_bytes
 from email.message import EmailMessage
 from email.header import decode_header
-from .basic import Table
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -342,12 +348,17 @@ class Fancy(Mailer):
 class Mailbox:
     r""" Email Reader based on imap.gmail """
 
+    def __str__(self):return f'[{self.alias}] ({self.username})'
+    def __repr__(self):return str(self)
+
     def Setup(self,
         username, 
         password,
+        alias="",
         server='imap.gmail.com',
         port='993',
     ):
+        self.alias=f'{alias}'
         self.username=f'{username}'
         self.password=f'{password}'
         self.server=server
@@ -439,6 +450,7 @@ class Mailbox:
         'Subject': subject,
         'Body': body,
         'Attachements': attachments,
+        'Alias' : self.alias,
         }
         # ----------------------------------------------------
 
@@ -468,34 +480,17 @@ class Mailbox:
 class AutoFetcher:
     r""" Fetches emails from a folder in gmail and transfers them to a Queue, then processes this Queue """
 
-    @staticmethod
-    def newdb(export=""): 
-        db = Table.Create(
-                columns=('alias', 'username', 'password'),
-                primary_key='alias',
-                cell_delimiter=",", 
-                record_delimiter='\n',)
-        if export: Table.Export(db, os.path.abspath(f'{export}'))
-        return db
-        
-    def __init__(self, dbpath):
-        dbpath = os.path.abspath(dbpath)
-        assert os.path.isfile(dbpath), f'File Not Found "{dbpath}" \n Use newdb(export=path) to create one'
-        self.dbpath=dbpath
-        self.db = self.newdb()
-        self.db < self.dbpath
-        self.mailboxes = {}
-        self.Q = [] # processing queue
+    def __init__(self):
+        self.mailboxes =                        {} # mailboxes to monitor
+        self.Q =                                [] # processing queue
 
-    def Create(self, name):
-        alias, username, password = self.db[name]
-        if alias != name: print(f'Alias mismatch, provided:{name} database:{alias}, will use latter')
-        self.mailboxes[alias] = Mailbox().Setup(username=username, password=password)
+    def Create(self, alias, username, password):
+        self.mailboxes[alias] = Mailbox().Setup(username=username, password=password, alias=alias)
         return self
-    
-    def Fetch(self, name, folder, delete=False):
+
+    def Fetch(self, alias, folder, delete=False):
         # get all messages from given folder (and flag as well)
-        mailbox = self.mailboxes[name]
+        mailbox = self.mailboxes[alias]
         try:    _= mailbox.Login()
         except: return False, f'Cannot open connection'
         
@@ -514,19 +509,24 @@ class AutoFetcher:
         mailbox.Logout()
         return True, f'Added {mcount} tasks'
 
-    def Work(self, popat=0):
-        if not self.Q: return False, None
-        msgargs = self.Q.pop(popat)
-        result = self.Callback(**msgargs)
-        return True, result
     
     def Callback(self, **kwargs): return ...
-    def Callback(self, From, To, Cc, Bcc, Subject, Body, Attachements, **kwargs): return ...
+    #def Callback(self, From, To, Cc, Bcc, Subject, Body, Attachements, Alias, **kwargs): return ...
 
-    def __call__(self, name_folder_pairs, interval, verbose=0, popat=0, delete=False):
+    def __call__(self, name_folder_pairs, interval, repeate=0, verbose=0, popat=0, delete=False):
         r""" name_folder_pairs is a list of 2-tuples (alias_in_db, folder_in_mail)"""
-        while True:
-            if verbose: print(f'\nFetching ... ')
+        #print("entered call")
+        count=0
+        repeate=int(abs(repeate))
+        if not repeate: # repeate=0 means loop infinitly
+            def condition(): return True
+        else: # repeate=any integer means loop that many times
+            def condition(): return (count<repeate)
+
+        #print(f"starting llop...{condition()}")
+        while condition():
+            count+=1
+            if verbose: print(f'\n#[{count}] Fetching ... ')
             for name, folder in name_folder_pairs: 
                 if verbose: print(f' ... {name=} {folder=}')
                 success, state = self.Fetch(name, folder, delete=delete)
@@ -534,10 +534,12 @@ class AutoFetcher:
 
             while self.Q:
                 if verbose: print(f'\nWorking ... {len(self.Q)} tasks in queue')
-                status, result = self.Work(popat=popat)
-                if verbose: print(f'{name=} {folder=} {status=}\n{result}\n')
+                status = self.Callback(**self.Q.pop(popat))
+                if verbose: print(f'{name=} {folder=} {status=}')
 
             if verbose: print(f'Going to sleep for {interval} seconds ... ')
             time.sleep(interval)
+            if verbose: print(f'Woke up from sleep ... {count}|{repeate} \n')
+            
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

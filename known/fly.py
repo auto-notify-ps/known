@@ -46,7 +46,6 @@ try:
     from wtforms.validators import InputRequired
     from waitress import serve
     from nbconvert import HTMLExporter 
-    #from bs4 import BeautifulSoup
 except: exit(f'[!] The required Flask packages missing:\n  ⇒ pip install Flask Flask-WTF waitress nbconvert')
 
 # ------------------------------------------------------------------------------------------
