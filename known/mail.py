@@ -7,7 +7,7 @@ __all__ = [
     'AutoFetcher',  
     ]
 
-import os, time
+import os
 import smtplib, mimetypes, imaplib
 from email import message_from_bytes
 from email.message import EmailMessage
@@ -478,7 +478,11 @@ class Mailbox:
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 class AutoFetcher:
-    r""" Fetches emails from a folder in gmail and transfers them to a Queue, then processes this Queue """
+    r""" Fetches emails from a folder in gmail and transfers them to a Queue, 
+        then processes this Queue using user-defined Callback 
+        A callback can be defined in the child class
+        def Callback(self, From, To, Cc, Bcc, Subject, Body, Attachements, Alias, **kwargs): return ...
+        """
 
     def __init__(self):
         self.mailboxes =                        {} # mailboxes to monitor
@@ -509,37 +513,10 @@ class AutoFetcher:
         mailbox.Logout()
         return True, f'Added {mcount} tasks'
 
-    
+    def Work(self, popat=0):
+        while self.Q: status = self.Callback(**self.Q.pop(popat))
+            
     def Callback(self, **kwargs): return ...
     #def Callback(self, From, To, Cc, Bcc, Subject, Body, Attachements, Alias, **kwargs): return ...
-
-    def __call__(self, name_folder_pairs, interval, repeate=0, verbose=0, popat=0, delete=False):
-        r""" name_folder_pairs is a list of 2-tuples (alias_in_db, folder_in_mail)"""
-        #print("entered call")
-        count=0
-        repeate=int(abs(repeate))
-        if not repeate: # repeate=0 means loop infinitly
-            def condition(): return True
-        else: # repeate=any integer means loop that many times
-            def condition(): return (count<repeate)
-
-        #print(f"starting llop...{condition()}")
-        while condition():
-            count+=1
-            if verbose: print(f'\n#[{count}] Fetching ... ')
-            for name, folder in name_folder_pairs: 
-                if verbose: print(f' ... {name=} {folder=}')
-                success, state = self.Fetch(name, folder, delete=delete)
-                if verbose: print(f' ...... {success=} {state=}')
-
-            while self.Q:
-                if verbose: print(f'\nWorking ... {len(self.Q)} tasks in queue')
-                status = self.Callback(**self.Q.pop(popat))
-                if verbose: print(f'{name=} {folder=} {status=}')
-
-            if verbose: print(f'Going to sleep for {interval} seconds ... ')
-            time.sleep(interval)
-            if verbose: print(f'Woke up from sleep ... {count}|{repeate} \n')
-            
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
