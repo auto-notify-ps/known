@@ -1,8 +1,16 @@
 __doc__=""" Helper Functions and Utils """
 
-import os 
+import os, requests
 
 __all__ =['ParseLinuxFiles', 'ConfigParser', 'ImportCustomModule', 'GraphFromImage', 'Int2File', 'File2Int']
+
+
+def PublicIPv4():
+    try:
+        public_ip = requests.get('https://api.ipify.org').text
+    except requests.exceptions.RequestException as e:
+        public_ip = None
+    return public_ip
 
 def ParseLinuxFiles(F, check=False): # parses --files="%F"
     Fl = [fi.strip() for fi in F.split("'/")]

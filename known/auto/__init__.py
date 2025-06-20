@@ -2,125 +2,11 @@ __doc__=r"""automation tools"""
 
 import os
 from ..basic import Table, Mailer, Symbols
-import subprocess
+from ..utils import PublicIPv4
 
-
-import os
-import smtplib, imaplib, email
-from email.message import EmailMessage
+import imaplib, email
 from email.header import decode_header
-import time
-
-
-
-class feMailer(Mailer):
-    r""" A fancy email notifier that uses operators to send mail in one line
-
-    example:
-    (__class__() \
-        / 'from@gmail.com' \
-        // 'password' \
-        * 'subject' \
-        @ 'to@gmail.com' \
-        % 'cc@gmail.com' \
-        - 'Email Msg Body' \
-        + 'attachment.txt')()
-
-    # NOTE: to read sender credentials from env-variables start the script using custom env as:
-    # env "USERNAME=username@gmail.com" "PASSWORD=???? ???? ???? ????" python run.py
-
-    # NOTE: the "joiner" arg specifies the char used to join list items in body
-
-    # NOTE: Operator preceedence 
-    # * @ / // %
-    # + -
-    # << >>
-    # & ^ | 
-
-    """
-    def __init__(self, joiner='\n'): 
-        self.joiner = joiner
-        self.subject, self.to, self.cc, self.username, self.password  = '', '', '', '', ''
-        self.content, self.attached = [], set([])
-        self._status = False
-        
-    def write(self, *lines): 
-        self.content.extend(lines)
-        return self
-
-    def attach(self, *files):
-        self.attached = self.attached.union(set(files))
-        return self
-    
-    # Level 1 --------------------------------------------------------------
-
-    def __truediv__(self, username):     # username/FROM     nf / 'from_mail@gmail.com'
-        self.username = username  
-        return self
-    
-    def __floordiv__(self, password):    # password         nf // 'pass word'
-        self.password = password 
-        return self
-    
-    def __mul__(self, subject):  # subject      nf * "subject"
-        self.subject = subject   
-        return self
-
-    def __matmul__(self, to_csv):  # TO         nf @ 'to_mail@gmail.com,...'
-        self.to = to_csv  
-        return self
-    
-    def __mod__(self, cc_csv):      # CC       nf % 'cc_mail@gmail.com,...'
-        self.cc = cc_csv
-        return self
-
-    # Level 2 --------------------------------------------------------------
-
-    def __sub__(self, content):   # body        nf - "content"
-        self.write(content)        
-        return self
-    
-    def __add__(self, file):     # attachement      nf + "a.txt"
-        self.attach(file)        
-        return self
-
-    # Level 3 (SPECIAL CASES ONLY) -----------------------------------------
-
-    def __invert__(self): return self.Compose(
-            From=self.username,
-            Subject=self.subject,
-            To= self.to,
-            Cc= self.cc,
-            Body=self.joiner.join(self.content),
-            Attached=tuple(self.attached),
-        ) # composing ~nf
-
-    def __and__(self, username): # set username     nf & "username"
-        self.username = username  
-        return self
-
-    def __xor__(self, password): # set password     nf ^ "password"
-        self.password = password 
-        return self
-
-    def __or__(self, other):    # send mail         nf | 1
-        if other: self._status = self()
-        else: self._status = False
-        return self
-
-    def __bool__(self): return self._status
-
-    # Level 4 --------------------------------------------------------------
-
-    def __call__(self, msg=None): return self.Send(
-        msg = (msg if msg else ~self),
-        username=( self.username if self.username else os.environ.get('USERNAME', '') ),
-        password=( self.password if self.password else os.environ.get('PASSWORD', '') ),
-        )
-
-    #--------------------------------------------------------------
-
-
+import time, subprocess
 
 class Notifier:
     r""" Email Message Service based on gmail"""
@@ -312,32 +198,39 @@ class AutoShell:
         if success: self.notifier.Logout()
         return success, len(self.Q) - count_prev
 
-    def Work(self):
+    def Work(self, verbose=0):
         if not self.Q: return False, None
         T = self.Q.pop(0)
         subject = str(T['Subject'])
-        if not subject.startswith(self.SUBJECT_PREFIX): return False, None
+        if not subject.startswith(self.SUBJECT_PREFIX): return False, False
         service_name = subject[len(self.SUBJECT_PREFIX):]
         service_call = f'service_{service_name}'
-        res = getattr(self, service_call)(T['Body'])
+        res, tag = getattr(self, service_call)(T['Body'])
+        print(f'Sending Result: {len(res)} chars')
+        if verbose:
+            print(f'------------------------------------------------')
+            print(res)
+            print(f'------------------------------------------------')
         return True, Mailer.SendMail(
             username=self.notifier.username, password=self.notifier.password,
-            subject=f"(Re): {subject}", To=T['From'], Body=res,
+            Subject=f"(Re): {service_name} {tag}", To=T['From'], Body=res, Cc="",
         )
 
     def service_exe(self, body):
 
-        res = ""
+        res, tag = "", ""
         # Run a shell command and capture the output
-        result = subprocess.run(["cmd", "-c", body], capture_output=True, text=True)
-
+        lcmd = ["bash", "-c", body.strip()]
+        result = subprocess.run(lcmd, capture_output=True, text=True)
+        res+=f'Command:\n{lcmd}\n\n'
         # Print stdout and stderr
         res+=f'Output:\n{result.stdout}\n\n'
-        res+=f'Errors:\n{result.stdout}\n\n'
-        res+=f'Return Code: {result.returncode}\n\n'
-        return res
+        #res+=f'Errors:\n{result.stdout}\n\n'
+        tag+=f'{result.returncode}'
+        #print(res)
+        return res, tag
 
-
+    def service_ip(self, body): return f'{PublicIPv4()}', 'IPv4'
 
     # [{'From': 'Noti Fly <notifly.ps@gmail.com>',
     #     'To': 'auto.notify.ps@gmail.com',
@@ -346,4 +239,167 @@ class AutoShell:
     #     'Subject': '[ps].s',
     #     'Body': "It's test\r\n\r\nOn Thu, 19 Jun, 2025, 04:08 Noti Fly,\r\n",
     #     'Attachements': []}]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# class feMailer(Mailer):
+#     r""" A fancy email notifier that uses operators to send mail in one line
+
+#     example:
+#     (__class__() \
+#         / 'from@gmail.com' \
+#         // 'password' \
+#         * 'subject' \
+#         @ 'to@gmail.com' \
+#         % 'cc@gmail.com' \
+#         - 'Email Msg Body' \
+#         + 'attachment.txt')()
+
+#     # NOTE: to read sender credentials from env-variables start the script using custom env as:
+#     # env "USERNAME=username@gmail.com" "PASSWORD=???? ???? ???? ????" python run.py
+
+#     # NOTE: the "joiner" arg specifies the char used to join list items in body
+
+#     # NOTE: Operator preceedence 
+#     # * @ / // %
+#     # + -
+#     # << >>
+#     # & ^ | 
+
+#     """
+#     def __init__(self, joiner='\n'): 
+#         self.joiner = joiner
+#         self.subject, self.to, self.cc, self.username, self.password  = '', '', '', '', ''
+#         self.content, self.attached = [], set([])
+#         self._status = False
+        
+#     def write(self, *lines): 
+#         self.content.extend(lines)
+#         return self
+
+#     def attach(self, *files):
+#         self.attached = self.attached.union(set(files))
+#         return self
+    
+#     # Level 1 --------------------------------------------------------------
+
+#     def __truediv__(self, username):     # username/FROM     nf / 'from_mail@gmail.com'
+#         self.username = username  
+#         return self
+    
+#     def __floordiv__(self, password):    # password         nf // 'pass word'
+#         self.password = password 
+#         return self
+    
+#     def __mul__(self, subject):  # subject      nf * "subject"
+#         self.subject = subject   
+#         return self
+
+#     def __matmul__(self, to_csv):  # TO         nf @ 'to_mail@gmail.com,...'
+#         self.to = to_csv  
+#         return self
+    
+#     def __mod__(self, cc_csv):      # CC       nf % 'cc_mail@gmail.com,...'
+#         self.cc = cc_csv
+#         return self
+
+#     # Level 2 --------------------------------------------------------------
+
+#     def __sub__(self, content):   # body        nf - "content"
+#         self.write(content)        
+#         return self
+    
+#     def __add__(self, file):     # attachement      nf + "a.txt"
+#         self.attach(file)        
+#         return self
+
+#     # Level 3 (SPECIAL CASES ONLY) -----------------------------------------
+
+#     def __invert__(self): return self.Compose(
+#             From=self.username,
+#             Subject=self.subject,
+#             To= self.to,
+#             Cc= self.cc,
+#             Body=self.joiner.join(self.content),
+#             Attached=tuple(self.attached),
+#         ) # composing ~nf
+
+#     def __and__(self, username): # set username     nf & "username"
+#         self.username = username  
+#         return self
+
+#     def __xor__(self, password): # set password     nf ^ "password"
+#         self.password = password 
+#         return self
+
+#     def __or__(self, other):    # send mail         nf | 1
+#         if other: self._status = self()
+#         else: self._status = False
+#         return self
+
+#     def __bool__(self): return self._status
+
+#     # Level 4 --------------------------------------------------------------
+
+#     def __call__(self, msg=None): return self.Send(
+#         msg = (msg if msg else ~self),
+#         username=( self.username if self.username else os.environ.get('USERNAME', '') ),
+#         password=( self.password if self.password else os.environ.get('PASSWORD', '') ),
+#         )
+
+#     #--------------------------------------------------------------
+
 
