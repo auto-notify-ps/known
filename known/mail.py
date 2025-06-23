@@ -492,7 +492,7 @@ class AutoFetcher:
         self.mailboxes[alias] = Mailbox().Setup(username=username, password=password, alias=alias)
         return self
 
-    def Fetch(self, alias, folder, delete=False):
+    def Fetch(self, alias, folder, save="", delete=False):
         # get all messages from given folder (and flag as well)
         mailbox = self.mailboxes[alias]
         try:    _= mailbox.Login()
@@ -508,7 +508,7 @@ class AutoFetcher:
         mstatus, mcount = mailbox.GetMessageList(criteria=criteria)
         if mstatus != 'OK': return False, f'Cannot get message list from {folder}: {reason}'
         
-        for i in range(mcount): self.Q.append(mailbox.GetMessage(i, save=".", seen=False, flag=not delete, delete=delete))        
+        for i in range(mcount): self.Q.append(mailbox.GetMessage(i, save=save, seen=False, flag=not delete, delete=delete))        
         mailbox.CloseFolder()
         mailbox.Logout()
         return True, f'Added {mcount} tasks'
