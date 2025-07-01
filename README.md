@@ -1,33 +1,18 @@
 
 # known
 
-**known** is a collection of reusable python code.
+**known** is a collection of reusable python code. 
 
-## [1] Install from PyPI
+Install from any one of the following:
 
-```bash
-python -m pip install known
-```
-The package is frequently updated by adding new functionality, make sure to have the latest version.
-[Visit PyPI package homepage](https://pypi.org/project/known).
-
-
-## [2] Install from GitHub
-
-The github version is always upto-date. To install from github, use the following:
+* **Install from GitHub** - Recomended (always up-to-date)
 ```bash
 git clone https://github.com/auto-notify-ps/known.git && python -m pip install ./known
 ```
-Cloned repo can be deleted after installation.
 
----
-
-<br>
-
-<br>
-
-## [*] Fly-Server
-
-Refer [fly-server.md](./fly-server.md)
+* **Install from PyPI** - Stable but older than one release at most.
+```bash
+python -m pip install known
+```
 
 ---
