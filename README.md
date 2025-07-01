@@ -16,9 +16,7 @@ The package is frequently updated by adding new functionality, make sure to have
 
 The github version is always upto-date. To install from github, use the following:
 ```bash
-git clone https://github.com/auto-notify-ps/known.git
-cd known
-python -m pip install .
+git clone https://github.com/auto-notify-ps/known.git && python -m pip install ./known
 ```
 Cloned repo can be deleted after installation.
 
