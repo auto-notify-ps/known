@@ -28,8 +28,8 @@ Cloned repo can be deleted after installation.
 
 <br>
 
-## [*] Usage
+## [*] Fly-Server
 
-Look inside the `examples` folder for overview, some examples and how to use the modules.
+Refer [fly-server.md](./fly-server.md)
 
 ---
