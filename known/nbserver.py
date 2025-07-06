@@ -29,6 +29,7 @@ parser.add_argument('--header',         type=int, default=0,            help="sh
 parser.add_argument('--login',        type=str, default='',           help="path to login-dir, each user has a file with password inside, keep blank to disbale authentication")
 parser.add_argument('--case',         type=int, default=0,            help="uid case sensetivity (-1 = to-lower) (0 = no-change) (1 = to-upper)")
 parser.add_argument('--welcome',      type=str, default='Welcome',    help="welcome msg shown on the login page")
+parser.add_argument('--https',        type=int, default=0,            help="if True, Tells waitress that its behind an nginx proxy - https://flask.palletsprojects.com/en/stable/deploying/nginx/")
 parsed = parser.parse_args()
 
 if parsed.login:
@@ -55,9 +56,11 @@ else:
     def sprint(msg): print(msg) 
 
 #%% imports
+PROXY_FIX=bool(parsed.https)
 import nbconvert, os
 from bs4 import BeautifulSoup
 from flask import Flask, request, abort, redirect, url_for, send_file, session, render_template_string
+if PROXY_FIX: from werkzeug.middleware.proxy_fix import ProxyFix
 from waitress import serve
 #from flask import Flask, render_template, request, redirect, url_for, session, abort, send_file
 #%% Common
@@ -260,6 +263,7 @@ def GEN_SECRET_KEY():
     return ':{}:{}:{}:{}:{}:'.format(r1,r2,r3,r4,r5)
 
 app = Flask(__name__, static_folder=BASE, template_folder=BASE)
+if PROXY_FIX: app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 app.secret_key =  GEN_SECRET_KEY()
 app.config['auth'] = (LOGIN_XL_PATH is not None)
 app.config['base'] = BASE

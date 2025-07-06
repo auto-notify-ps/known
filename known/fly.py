@@ -28,6 +28,7 @@ parser.add_argument('--coe', type=int, default=0, help="use 1 to clean-on-exit -
 parser.add_argument('--access', type=str, default='', help="if specified, adds extra premissions to access string for this session only")
 parser.add_argument('--msl', type=int, default=100, help="Max String Length for UID/NAME/PASSWORDS [DEFAULT]: 100")
 parser.add_argument('--eip', type=int, default=1, help="Evaluate Immediate Persis. If True (by-default), persist the eval-db after each single evaluation (eval-db in always persisted after update from template)")
+parser.add_argument('--https', type=int, default=0, help="if True, Tells waitress that its behind an nginx proxy - https://flask.palletsprojects.com/en/stable/deploying/nginx/")
 #parser.add_argument('--nos', type=int, default=0, help="NoScript, use 1 to disable javascript in board files [DEFAULT]: 0")
 parsed = parser.parse_args()
 # ------------------------------------------------------------------------------------------
@@ -37,12 +38,14 @@ import os, re, getpass, random, logging, importlib.util
 from io import BytesIO
 from math import inf
 import datetime
+PROXY_FIX=bool(parsed.https)
 def fnow(format): return datetime.datetime.strftime(datetime.datetime.now(), format)
 try:
     from flask import Flask, render_template, render_template_string, request, redirect, url_for, session, abort, send_file
     from flask_wtf import FlaskForm
     from wtforms import SubmitField, MultipleFileField
     from werkzeug.utils import secure_filename
+    if PROXY_FIX: from werkzeug.middleware.proxy_fix import ProxyFix
     from wtforms.validators import InputRequired
     from waitress import serve
     from nbconvert import HTMLExporter 
@@ -101,6 +104,7 @@ else: raise ZeroDivisionError # impossible
 #%% [INITIALIZATION] @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 
 # ------------------------------------------------------------------------------------------
 sprint(f'Starting...')
+if PROXY_FIX: sprint(f'↪ PROXY_FIX is True, assume that reverse proxy engine is running ... ')
 sprint(f'↪ Logging @ {LOGFILE}')
 # ------------------------------------------------------------------------------------------
 # workdir
@@ -2105,6 +2109,7 @@ app = Flask(
     instance_relative_config = True,
     instance_path = WORKDIR,
 )
+if PROXY_FIX: app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 # ------------------------------------------------------------------------------------------
 # app config
 # ------------------------------------------------------------------------------------------
