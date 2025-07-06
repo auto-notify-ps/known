@@ -331,7 +331,7 @@ def route_home(query):
                     dlink=app.config['dtext'] if showdlink else None, 
                     hlink = app.config['htext'] if showdlink else None,
                     header = app.config['header'] if showdlink else None,
-                    durl=f"{request.base_url}?{app.config['query_download']}", 
+                    durl=f"{request.path}?{app.config['query_download']}", 
                     align=app.config['halign'])
                 #with open('??.html','w') as f: f.write(loaded_pages[requested]) # save a copy to disk?
             if refresh: return redirect(url_for('route_home', query=query))
