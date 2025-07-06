@@ -6,6 +6,8 @@ if __name__!='__main__': exit(f'[!] can not import {__name__}.{__file__}')
 import os, argparse, datetime, logging
 # python -m known.nbserver --help
 parser = argparse.ArgumentParser()
+
+
 parser.add_argument('--base',           type=str, default='',           help="path to base dir, defaults to current directory")
 parser.add_argument('--template',       type=str, default='lab',        help="classic/[lab]/reveal")
 parser.add_argument('--home',           type=str, default='',           help="home page if not specified, creates a new notebook with the same name as the base dir")
@@ -27,6 +29,7 @@ parser.add_argument('--header',         type=int, default=0,            help="sh
 
 # extra login
 parser.add_argument('--login',        type=str, default='',           help="path to login-dir, each user has a file with password inside, keep blank to disbale authentication")
+parser.add_argument('--secret',       type=str, default='',           help="the secret for flask, required only when login is enbaled")
 parser.add_argument('--case',         type=int, default=0,            help="uid case sensetivity (-1 = to-lower) (0 = no-change) (1 = to-upper)")
 parser.add_argument('--welcome',      type=str, default='Welcome',    help="welcome msg shown on the login page")
 parser.add_argument('--https',        type=int, default=0,            help="if True, Tells waitress that its behind an nginx proxy - https://flask.palletsprojects.com/en/stable/deploying/nginx/")
@@ -248,24 +251,14 @@ if not os.path.isfile(HOME_PATH):
     except: exit(f'The home page at {HOME_PATH} was not found and could not be created.')
 if not os.path.isfile(HOME_PATH): exit(f'Home page "{HOME}" not found at {HOME_PATH}.')
 
-def GEN_SECRET_KEY():
-    import random
-    randx = lambda : random.randint(1111111111, 9999999999)
-    r1 = randx()
-    for _ in range(datetime.datetime.now().microsecond % 60): _ = randx()
-    r2 = randx()
-    for _ in range(datetime.datetime.now().second): _ = randx()
-    r3 = randx()
-    for _ in range(datetime.datetime.now().minute): _ = randx()
-    r4 = randx()
-    for _ in range(datetime.datetime.now().microsecond % (datetime.datetime.now().second + 1)): _ = randx()
-    r5 = randx()
-    return ':{}:{}:{}:{}:{}:'.format(r1,r2,r3,r4,r5)
+AUTH_ON = (LOGIN_XL_PATH is not None)
+SECRET_KEY = parsed.secret
+if AUTH_ON and not SECRET_KEY: exit(f'Secret Key was not provided!')
 
 app = Flask(__name__, static_folder=BASE, template_folder=BASE)
 if PROXY_FIX: app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-app.secret_key =  GEN_SECRET_KEY()
-app.config['auth'] = (LOGIN_XL_PATH is not None)
+if AUTH_ON: app.secret_key =  SECRET_KEY
+app.config['auth'] = AUTH_ON
 app.config['base'] = BASE
 app.config['template'] = parsed.template
 app.config['dtext'] = parsed.dtext
