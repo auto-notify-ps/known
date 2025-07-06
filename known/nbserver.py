@@ -20,6 +20,7 @@ parser.add_argument('--threads',        type=int, default=10,           help="no
 parser.add_argument('--max_con',        type=int, default=500,          help="maximum number of connections allowed to the server")
 parser.add_argument('--max_size',       type=str, default='1024MB',     help="maximum size of http body")
 # Notebook decorations
+parser.add_argument('--rtext',          type=str, default='♻️',         help="text for refresh link")      
 parser.add_argument('--dtext',          type=str, default='📥️',         help="text for download link")       
 parser.add_argument('--ttext',          type=str, default='🔝',         help="text for go-top link")
 parser.add_argument('--htext',          type=str, default='🏠',         help="text for home link")
@@ -175,7 +176,15 @@ login = """
 
 def nb2html(source_notebook, html_title=None, 
             template_name='lab', no_script=False, favicon=True, 
-            auth=False, llink='logout', hlink='home', header=0, tlink='top', dlink='download', durl='#', align='left'):
+            auth=False, 
+            llink='logout', 
+            hlink='home', 
+            header=0, 
+            tlink='top', 
+            clink='clear', curl='#',
+            rlink='refresh', rurl='#', 
+            dlink='download', durl='#', 
+            align='left'):
     # ==============================================================
     if html_title is None:
         html_title = os.path.basename(source_notebook)
@@ -207,7 +216,9 @@ def nb2html(source_notebook, html_title=None,
     html_string = ""
     if auth: html_string += f'<a class="btn_actions" href="/logout">{llink}</a>'
     if hlink: html_string += f'<a class="btn_actions" href="/">{hlink}</a>' 
+    if clink: html_string += f'<a class="btn_actions" href="{curl}">{clink}</a>' 
     if dlink: html_string += f'<a class="btn_actions" href="{durl}">{dlink}</a>' 
+    if rlink: html_string += f'<a class="btn_actions" href="{rurl}">{rlink}</a>' 
     if header: html_string += f'<span class="btn_header">{html_title} @ ./{os.path.relpath(source_notebook, app.config["base"])}</span>'
     html_string += f'<br>'
     nstr = BeautifulSoup(html_string, 'html.parser')
@@ -262,6 +273,7 @@ app.config['auth'] = AUTH_ON
 app.config['base'] = BASE
 app.config['template'] = parsed.template
 app.config['dtext'] = parsed.dtext
+app.config['rtext'] = parsed.rtext
 app.config['ttext'] = parsed.ttext
 app.config['htext'] = parsed.htext
 app.config['ltext'] = parsed.ltext
@@ -321,10 +333,14 @@ def route_home(query):
                     auth = app.config['auth'],
                     llink=app.config['ltext'], 
                     tlink=app.config['ttext'], 
+                    rlink=app.config['rtext'] if showdlink else None, 
                     dlink=app.config['dtext'] if showdlink else None, 
                     hlink = app.config['htext'] if showdlink else None,
+                    clink = app.config['rtext'] if not showdlink else None,
                     header = app.config['header'] if showdlink else None,
                     durl=f"{request.path}?{app.config['query_download']}", 
+                    rurl=f"{request.path}?{app.config['query_refresh']}", 
+                    curl=f"{request.path}?{app.config['query_clear']}", 
                     align=app.config['halign'])
                 #with open('??.html','w') as f: f.write(loaded_pages[requested]) # save a copy to disk?
             if refresh: return redirect(url_for('route_home', query=query))
