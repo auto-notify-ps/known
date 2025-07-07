@@ -139,6 +139,7 @@ login = """
     <head>
         <meta charset="UTF-8">
         <title> {{ config.title }} </title>
+        <link rel="icon" href="/favicon.ico">
     </head>
     <body>
     <!-- ---------------------------------------------------------->
@@ -295,7 +296,8 @@ loaded_pages = dict()
 @app.route('/', methods =['GET'], defaults={'query': ''})
 @app.route('/<path:query>')
 def route_home(query):
-    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    if app.config['auth']:
+        if not session.get('has_login', False): return redirect(url_for('route_login'))
     #sprint("\n-------------------------------------------------------------")
     #sprint("[NEWREQUEST]")
     #sprint("-------------------------------------------------------------\n")
@@ -313,12 +315,15 @@ def route_home(query):
 
     showdlink = not((query==home) or (query==ext))
     #sprint (f'[{"🔸" if showdlink else "🔹"}]{request.remote_addr}\t[{request.method}] {request.url}')
-    sprint (f'🔸 {session["uid"]}\t({request.remote_addr})\t[{request.method}] {request.url}') # \n{request.headers}
+    from_name = session["uid"] if app.config['auth'] else "👤"
+    sprint (f'🔸 {from_name}\t({request.remote_addr})\t[{request.method}] {request.url}') # \n{request.headers}
     #sprint("__________________________________________________________________\n")
     requested = os.path.join(base, query) # Joining the base and the requested path
     if not ((os.path.isfile(requested)) and (not os.path.relpath(requested, base).startswith(base))): return abort(404)
     else:
-        if tosend: return abort(403) if app.config['no_files'] else send_file(requested, as_attachment=False) 
+        if tosend: 
+            if requested.endswith("favicon.ico"): return send_file(requested, as_attachment=False) 
+            else: return abort(403) if app.config['no_files'] else send_file(requested, as_attachment=False) 
         else:
             global loaded_pages
             if clear and not showdlink: # clear before loading
@@ -328,7 +333,7 @@ def route_home(query):
                     requested, 
                     html_title=app.config['title'] if not showdlink else None, 
                     template_name=app.config['template'], 
-                    no_script=False, 
+                    no_script=app.config['no_script'], 
                     favicon=True, 
                     auth = app.config['auth'],
                     llink=app.config['ltext'], 
