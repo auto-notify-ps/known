@@ -853,7 +853,7 @@ def TEMPLATES(style):
         </br>
         <!-- ---------------------------------------------------------->
         <div align="left" style="padding: 20px;">
-            <div class="topic_mid">{{ config.topic }}</div>
+            <div class="topic_mid">{{ config.topic }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -958,7 +958,6 @@ def TEMPLATES(style):
             <br>
             <div class="topic">{{ config.topic }}</div>
             <br>
-            <br>
             <form action="{{ url_for('route_login') }}" method="post">
                 <br>
                 <div style="font-size: x-large;">{{ warn }}</div>
@@ -1016,7 +1015,7 @@ def TEMPLATES(style):
         <div align="center">
             <br>
             <div class="topic">{{ config.topic }}</div>
-            <br>
+
             <br>
             <form action="{{ url_for('route_new') }}" method="post">
                 <br>
@@ -1071,7 +1070,7 @@ def TEMPLATES(style):
         <!-- ---------------------------------------------------------->
         
         <div align="left" style="padding: 20px;">
-            <div class="topic_mid">{{ config.topic }}</div>
+            <div class="topic_mid">{{ config.topic }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -1117,7 +1116,7 @@ def TEMPLATES(style):
         <!-- ---------------------------------------------------------->
         
         <div align="left" style="padding: 20px;">
-            <div class="topic_mid">{{ config.topic }}</div>
+            <div class="topic_mid">{{ config.topic }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -1196,7 +1195,7 @@ def TEMPLATES(style):
         <!-- ---------------------------------------------------------->
         
         <div align="left" style="padding: 20px;">
-            <div class="topic_mid">{{ config.topic }}</div>
+            <div class="topic_mid">{{ config.topic }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -1294,7 +1293,7 @@ def TEMPLATES(style):
         <!-- ---------------------------------------------------------->
         
         <div align="left" style="padding: 20px;">
-            <div class="topic_mid">{{ config.topic }}</div>
+            <div class="topic_mid">{{ config.topic }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -1340,7 +1339,7 @@ def TEMPLATES(style):
         <!-- ---------------------------------------------------------->
         
         <div align="left" style="padding: 20px;">
-            <div class="topic_mid">{{ config.topic }}</div>
+            <div class="topic_mid">{{ config.topic }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -1383,7 +1382,7 @@ def TEMPLATES(style):
         <!-- ---------------------------------------------------------->
         
         <div align="left" style="padding: 20px;">
-            <div class="topic_mid">{{ config.topic }}</div>
+            <div class="topic_mid">{{ config.topic }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -1534,7 +1533,6 @@ def TEMPLATES(style):
     .topic_mid{{
         color: {style.fgcolor};
         font-size: x-large;
-        font-style: italic;
         font-weight: bold;
         font-family:monospace;    
     }}
