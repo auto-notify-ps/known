@@ -79,10 +79,13 @@ if __name__!='__main__': exit(f'[!] can not import {__name__}.{__file__}')
 import argparse
 parser = argparse.ArgumentParser()
 # python -m known.fly --help
+parser.add_argument('--html',        type=str, default='',   help="path of html directory [DEFAULT]: current diretory")
 parser.add_argument('--dir',        type=str, default='',   help="path of workspace directory [DEFAULT]: current diretory")
+parser.add_argument('--login',        type=str, default='login.csv',   help="login database having four cols ADMIN, UID, NAME, PASS")
+parser.add_argument('--secret',        type=str, default='secret.txt',   help="file containing flask app secret (keep blank to generate random secret every time)")
 parser.add_argument('--verbose',    type=int, default=2,    help="verbose level in logging (0,1,2) [DEFAULT]: 2")
 parser.add_argument('--log',        type=str, default='',   help="name of logfile as date-time-formated string, blank by default, keep blank to disable logging") #e.g. fly_%Y_%m_%d_%H_%M_%S_%f_log.txt
-parser.add_argument('--con',        type=str, default='config',    help="config name (without .py extension) - a python module inside workdir")
+parser.add_argument('--con',        type=str, default='config.py', help="path of config file")
 parser.add_argument('--mod',        type=str, default='default',   help="config name (refers to a dict in config module)")
 parser.add_argument('--reg',        type=str, default='',   help="if specified, allow users to register with that access string such as DABU or DABUS+")
 parser.add_argument('--cos',        type=int, default=1,    help="use 1 to create-on-start - force create (overwrites) pages and scripts [DEFAULT]: 1")
@@ -316,10 +319,7 @@ default = dict(
     host         = "0.0.0.0",              # ip
 
     # ------------------------------------# file and directory information
-    html         = "__pycache__",     # use pycache dir to store flask html
     base         = "base",            # the base directory 
-    secret       = "secret.txt",      # file containing flask app secret (keep blank to generate random secret every time)
-    login        = "login.csv",       # login database having four cols ADMIN, UID, NAME, PASS
     uploads      = "uploads",         # uploads folder (uploaded files by users go here)
     reports      = "reports",         # reports folder (read-only files that are private to a user go here)
     downloads    = "downloads",       # downloads folder (public read-only access)
@@ -374,7 +374,7 @@ default = dict(
                                                                    
                         # -------------# board style ('lab'  'classic' 'reveal')
                         template_board = "lab", 
-                        ext_link =       "https://gist.github.com/auto-notify-ps/713d45a235f77e760f467a7c6bf6ee84",
+                        ext_link =       "https://github.com/auto-notify-ps/known",
                     )
     )
 
@@ -1809,8 +1809,7 @@ sprint(f'↪ Workspace directory is {WORKDIR}')
 #-----------------------------------------------------------------------------------------
 # ==> read configurations
 #-----------------------------------------------------------------------------------------
-CONFIG_PY = parsed.con # the name of configs py file
-CONFIGS_FILE = f'{CONFIG_PY}.py' # the name of configs file
+CONFIGS_FILE = os.path.abspath(parsed.con)
 CONFIG_MOD = parsed.mod # the config-dict to read from
 # try to import configs
 CONFIGS_FILE_PATH = os.path.join(WORKDIR, CONFIGS_FILE) # should exsist under workdir
@@ -1818,19 +1817,19 @@ if not os.path.isfile(CONFIGS_FILE_PATH):
     sprint(f'↪ Creating default config "{CONFIGS_FILE}" ...')
     try: 
         DEFAULT_CONFIG(CONFIGS_FILE_PATH)
-        sprint(f'⇒ Created new config "{CONFIG_PY}" at "{CONFIGS_FILE_PATH}"')
+        sprint(f'⇒ Created new config "{CONFIGS_FILE}" at "{CONFIGS_FILE_PATH}"')
         raise AssertionError
     except AssertionError: fexit(f'⇒ Server will not start on this run, edit the config and start again')
-    except: fexit(f'[!] Could find or create config "{CONFIG_PY}" at "{CONFIGS_FILE_PATH}"')
+    except: fexit(f'[!] Could find or create config "{CONFIGS_FILE}" at "{CONFIGS_FILE_PATH}"')
 try: 
     # Load the module from the specified file path
-    c_spec = importlib.util.spec_from_file_location(CONFIG_PY, CONFIGS_FILE_PATH)
+    c_spec = importlib.util.spec_from_file_location(CONFIGS_FILE, CONFIGS_FILE_PATH)
     c_module = importlib.util.module_from_spec(c_spec)
     c_spec.loader.exec_module(c_module)
-    sprint(f'↪ Imported config-module "{CONFIG_PY}" from {c_module.__file__}')
-except: fexit(f'[!] Could not import configs module "{CONFIG_PY}" at "{CONFIGS_FILE_PATH[:-3]}"')
+    sprint(f'↪ Imported config-module "{CONFIGS_FILE}" from {c_module.__file__}')
+except: fexit(f'[!] Could not import configs module "{CONFIGS_FILE}" at "{CONFIGS_FILE_PATH[:-3]}"')
 try:
-    sprint(f'↪ Reading config from {CONFIG_PY}.{CONFIG_MOD}')
+    sprint(f'↪ Reading config from {CONFIGS_FILE}.{CONFIG_MOD}')
     if "." in CONFIG_MOD: 
         CONFIGX = CONFIG_MOD.split(".")
         config_dict = c_module
@@ -1840,7 +1839,7 @@ try:
             config_dict = getattr(config_dict, m)
     else: config_dict = getattr(c_module, CONFIG_MOD)
 except:
-    fexit(f'[!] Could not read config from {CONFIG_PY}.{CONFIG_MOD}')
+    fexit(f'[!] Could not read config from {CONFIGS_FILE}.{CONFIG_MOD}')
 
 if not isinstance(config_dict, dict): 
     try: config_dict=config_dict()
@@ -1848,7 +1847,7 @@ if not isinstance(config_dict, dict):
 if not isinstance(config_dict, dict): raise fexit(f'Expecting a dict object for config')
 
 try: 
-    sprint(f'↪ Building config from {CONFIG_PY}.{CONFIG_MOD}')
+    sprint(f'↪ Building config from {CONFIGS_FILE}.{CONFIG_MOD}')
     args = Fake(**config_dict)
 except: fexit(f'[!] Could not read config')
 if not len(args): fexit(f'[!] Empty or Invalid config provided')
@@ -1866,7 +1865,7 @@ if not len(args): fexit(f'[!] Empty or Invalid config provided')
 #-----------------------------------------------------------------------------------------
 # Directories
 #-----------------------------------------------------------------------------------------
-HTMLDIR = ((os.path.join(WORKDIR, args.html)) if args.html else WORKDIR)
+HTMLDIR = os.path.abspath(parsed.html)
 try: os.makedirs(HTMLDIR, exist_ok=True)
 except: fexit(f'[!] HTML directory was not found and could not be created')
 sprint(f'⚙ HTML Directory @ {HTMLDIR}')
@@ -1879,28 +1878,25 @@ sprint(f'⚙ Base Directory: {BASEDIR}')
 # ------------------------------------------------------------------------------------------
 # WEB-SERVER INFORMATION
 # ------------------------------------------------------------------------------------------
-if not args.secret: 
+if not parsed.secret: fexit(f'[!] secret file was not provided!')    
+APP_SECRET_KEY_FILE = os.path.abspath(parsed.secret)
+if not os.path.isfile(APP_SECRET_KEY_FILE): #< --- if key dont exist, create it
     APP_SECRET_KEY =  GET_SECRET_KEY(fnow("%Y%m%d%H%M%S"))
-    sprint(f'⇒ secret not provided - using random secret')
+    try:
+        with open(APP_SECRET_KEY_FILE, 'w') as f: f.write(APP_SECRET_KEY) #<---- auto-generated key
+    except: fexit(f'[!] could not create secret key @ {APP_SECRET_KEY_FILE}')
+    sprint(f'⇒ New secret created: {APP_SECRET_KEY_FILE}')
 else:
-    APP_SECRET_KEY_FILE = os.path.join(BASEDIR, args.secret)
-    if not os.path.isfile(APP_SECRET_KEY_FILE): #< --- if key dont exist, create it
-        APP_SECRET_KEY =  GET_SECRET_KEY(fnow("%Y%m%d%H%M%S"))
-        try:
-            with open(APP_SECRET_KEY_FILE, 'w') as f: f.write(APP_SECRET_KEY) #<---- auto-generated key
-        except: fexit(f'[!] could not create secret key @ {APP_SECRET_KEY_FILE}')
-        sprint(f'⇒ New secret created: {APP_SECRET_KEY_FILE}')
-    else:
-        try:
-            with open(APP_SECRET_KEY_FILE, 'r') as f: APP_SECRET_KEY = f.read()
-            sprint(f'⇒ Loaded secret file: {APP_SECRET_KEY_FILE}')
-        except: fexit(f'[!] could not read secret key @ {APP_SECRET_KEY_FILE}')
+    try:
+        with open(APP_SECRET_KEY_FILE, 'r') as f: APP_SECRET_KEY = f.read()
+        sprint(f'⇒ Loaded secret file: {APP_SECRET_KEY_FILE}')
+    except: fexit(f'[!] could not read secret key @ {APP_SECRET_KEY_FILE}')
 
 # ------------------------------------------------------------------------------------------
 # LOGIN DATABASE - CSV
 # ------------------------------------------------------------------------------------------
-if not args.login: fexit(f'[!] login file was not provided!')    
-LOGIN_XL_PATH = os.path.join( BASEDIR, args.login) 
+if not parsed.login: fexit(f'[!] login file was not provided!')    
+LOGIN_XL_PATH = os.path.abspath(parsed.login) 
 if not os.path.isfile(LOGIN_XL_PATH): 
     sprint(f'⇒ Creating new login file: {LOGIN_XL_PATH}')
     
