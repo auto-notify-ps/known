@@ -86,14 +86,14 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--port',        type=str, default='8080',   help="")
 parser.add_argument('--host',        type=str, default='0.0.0.0',   help="")
-parser.add_argument('--maxupsize',        type=str, default="40GB",   help="")
-parser.add_argument('--maxconnect',        type=int, default=50,   help="")
-parser.add_argument('--threads',        type=int, default=4,   help="")
+parser.add_argument('--maxupsize',   type=str, default="40GB",   help="")
+parser.add_argument('--maxconnect',  type=int, default=50,   help="")
+parser.add_argument('--threads',     type=int, default=4,   help="")
 
-parser.add_argument('--html',        type=str, default='__pycache__',   help="path of html directory [DEFAULT]: current diretory")
+parser.add_argument('--html',       type=str, default='html',   help="path of html directory [DEFAULT]: current diretory")
 parser.add_argument('--dir',        type=str, default='',   help="path of workspace directory [DEFAULT]: current diretory")
-parser.add_argument('--login',        type=str, default='login.csv',   help="login database having four cols ADMIN, UID, NAME, PASS")
-parser.add_argument('--secret',        type=str, default='secret.txt',   help="file containing flask app secret (keep blank to generate random secret every time)")
+parser.add_argument('--login',      type=str, default='login.csv',   help="login database having four cols ADMIN, UID, NAME, PASS")
+parser.add_argument('--secret',     type=str, default='secret.txt',   help="file containing flask app secret (keep blank to generate random secret every time)")
 parser.add_argument('--verbose',    type=int, default=2,    help="verbose level in logging (0,1,2) [DEFAULT]: 2")
 parser.add_argument('--log',        type=str, default='',   help="name of logfile as date-time-formated string, blank by default, keep blank to disable logging") #e.g. fly_%Y_%m_%d_%H_%M_%S_%f_log.txt
 parser.add_argument('--con',        type=str, default='config.py',    help="config name (without .py extension) - a python module inside workdir")
@@ -320,6 +320,26 @@ style = dict(
         resetpass_=     'Reset',
         report_=        'Report',
 
+        # -------------# buttons
+        btn_red =       "#9a0808", # Purge
+        btn_purple =    "#651b96", # Eval
+        btn_lpurple =   "#855da5", # ...place holder for eval
+        btn_lgray   =   "#888686", # ...place holder for login
+        btn_navy =      "#060472", # Login/out
+        btn_igreen =    "#6daa43", # Refersh
+        btn_rose =      "#c23f79", # Reports
+        btn_black =     "#2b2b2b", # Generate Template
+        btn_folder =    "#934343", # StoreView
+        btn_pink =      "#934377", # Board
+        btn_sky =       "#0b7daa", # Downloads
+        btn_teal =      "#10a58a", # Store
+        btn_green =     "#089a28", # Uploads
+        btn_olive =     "#a19636", # Home
+        btn_switcherbg ="#E6EAE8", # Session Switcher BG
+        btn_switcherfg  ="#202020", # Session Switcher FG
+                                                              
+                                                              
+                                                              
         # -------------# colors 
         bgcolor      = "white",
         fgcolor      = "black",
@@ -360,9 +380,9 @@ style = dict(
         bg_board =          '#ebebeb',
         fg_board =          '#232323',
         fontsize_board =    'large',
-        border_board =       'solid',
-        brad_board =         '10px',
-        bcol_board =         '#232323',
+        border_board =      'solid',
+        brad_board =        '10px',
+        bcol_board =        '#232323',
 
 )
 
@@ -429,7 +449,7 @@ def TEMPLATES(style, script_mathjax):
         }
         </style>
         <div align="left" class="pagecontent">
-            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
+            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -477,7 +497,7 @@ def TEMPLATES(style, script_mathjax):
         </br>
         <!-- ---------------------------------------------------------->
         <div align="left" class="pagecontent">
-            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
+            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch', e='') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -485,18 +505,6 @@ def TEMPLATES(style, script_mathjax):
             <a href="{{ url_for('route_home') }}" class="btn_home">Home</a>
             <a href="{{ url_for('route_eval') }}" class="btn_refresh">Refresh</a>
             <a href="{{ url_for('route_storeuser') }}" class="btn_store">User-Store</a>
-            <a href="{{ url_for('route_generate_live_report') }}" target="_blank" class="btn_board">Live-Report</a>
-            </div>
-            <div class="bridge">
-            <button class="btn_reeval_large" onclick="confirm_reeval()">"""+'Reset Evaluation' + """</button>
-                    <script>
-                        function confirm_reeval() {
-                        let res = prompt("Enter UID to reset evaluation", ""); 
-                        if (res != null) {
-                            location.href = "{{ url_for('route_eval',req_uid='::::') }}".replace("::::", res);
-                            }
-                        }
-                    </script>
             <button class="btn_purge_large" onclick="confirm_repass()">"""+'Reset Password' + """</button>
                     <script>
                         function confirm_repass() {
@@ -506,6 +514,20 @@ def TEMPLATES(style, script_mathjax):
                             }
                         }
                     </script>
+            </div>
+        {% if config.running[session.sess].eval %}    
+            <div class="bridge">
+            <a href="{{ url_for('route_generate_live_report') }}" target="_blank" class="btn_board">Live-Report</a>
+            <button class="btn_reeval_large" onclick="confirm_reeval()">"""+'Reset Evaluation' + """</button>
+                    <script>
+                        function confirm_reeval() {
+                        let res = prompt("Enter UID to reset evaluation", ""); 
+                        if (res != null) {
+                            location.href = "{{ url_for('route_eval',req_uid='::::') }}".replace("::::", res);
+                            }
+                        }
+                    </script>
+
             <a href="{{ url_for('route_generate_report') }}" target="_blank" class="btn_download">Session-Report</a>
             </div>
             <br>
@@ -516,20 +538,19 @@ def TEMPLATES(style, script_mathjax):
             {% endif %}
             <br>
             <br>
-            <form action="{{ url_for('route_eval') }}" method="post">
-                
-                    <input id="uid" name="uid" type="text" placeholder="uid" class="txt_submit"/>
-                    <br>
-                    <br>
-                    <input id="score" name="score" type="text" placeholder="score" class="txt_submit"/> 
-                    <br>
-                    <br>
-                    <input id="remark" name="remark" type="text" placeholder="remarks" class="txt_submit"/>
-                    <br>
-                    <br>
-                    <input type="submit" class="btn_submit" value="Submit Evaluation"> 
-                    <br>   
-                    <br> 
+            <form action="{{ url_for('route_eval') }}" method="post">                
+                <input id="uid" name="uid" type="text" placeholder="uid" class="txt_submit"/>
+                <br>
+                <br>
+                <input id="score" name="score" type="text" placeholder="score" class="txt_submit"/> 
+                <br>
+                <br>
+                <input id="remark" name="remark" type="text" placeholder="remarks" class="txt_submit"/>
+                <br>
+                <br>
+                <input type="submit" class="btn_submit" value="Submit Evaluation"> 
+                <br>   
+                <br> 
             </form>
             
             <form method='POST' enctype='multipart/form-data'>
@@ -539,6 +560,7 @@ def TEMPLATES(style, script_mathjax):
             </form>
             <a href="{{ url_for('route_generate_eval_template') }}" class="btn_black">Get CSV-Template</a>
         </div>
+        {% endif %}
         
         {% if results %}
         <div class="status">
@@ -563,7 +585,52 @@ def TEMPLATES(style, script_mathjax):
         </body>
     </html>
     """,
+    # ******************************************************************************************
+    switcher = """
+    <html>
+        <head>
+            <meta charset="UTF-8">
+            <title> """+f'{style.icon_login}'+""" {{ config.topic }} </title>
+            <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">  
+            <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
+        </head>
+        <body>
+        <!-- ---------------------------------------------------------->
+        </br>
+        <!-- ---------------------------------------------------------->
+
+        <div align="center">
+            <br>
+            <div class="topic">{{ config.topic }}</div>
+            <br>
+            {% for r in config.running %}
+                {% if not session.rethome %}
+                        <a href="{{ url_for('route_switch', req_uid=r) }}" class="btn_switcher">{{ r }}</a>
+                {% else %}
+                        {% if session.rethome == 'u' %} 
+                            <a href="{{ url_for('route_switch', req_uid=r, u='') }}" class="btn_switcher">{{ r }}</a>
+                        {% elif session.rethome == 'e' %} 
+                            <a href="{{ url_for('route_switch', req_uid=r, e='') }}" class="btn_switcher">{{ r }}</a>
+                        {% else %}
+                            <a href="{{ url_for('route_switch', req_uid=r) }}" class="btn_switcher">{{ r }}</a>
+                        {% endif %}
+                {% endif %}
+                
+                <br>
+            {% endfor %}
+
+                
+        </div>
+
+        <!-- ---------------------------------------------------------->
+        
+        <!-- ---------------------------------------------------------->
+        </body>
+    </html>
+    """,
+    
+    # ******************************************************************************************
     # ******************************************************************************************
     login = """
     <html>
@@ -925,7 +992,7 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         
         <div align="left" class="pagecontent">
-            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
+            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch', u='') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -1260,46 +1327,37 @@ def TEMPLATES(style, script_mathjax):
 
     .btn_purge {{
         padding: 2px 10px 2px;
-        background-color: #9a0808; 
+        background-color: {style.btn_red}; 
         color: #FFFFFF;
         font-family: {style.font_};
         font-weight: bold;
         border-style: solid;
         border-radius: 10px;
-        border-color: #9a0808;
+        border-color: {style.btn_red}; 
         text-decoration: none;
         font-size: small;
     }}
-    .btn_purge:hover {{
-    box-shadow: 0 12px 16px 0 rgba(255, 0, 0, 0.24), 0 17px 50px 0 rgba(255, 0, 0,0.19);
-    }}
 
-    
-
-    .bridge{{
-        line-height: 2;
-    }}
-
-
+    .bridge{{ line-height: 2; }}
 
     .txt_submit{{
 
         text-align: left;
         font-family: {style.font_};
         border: 1px;
-        background: rgb(218, 187, 255);
+        background:  {style.btn_purple};
         appearance: none;
         position: relative;
         border-radius: 3px;
         padding: 5px 5px 5px 5px;
         line-height: 1.5;
-        color: #8225c2;
+        color: {style.btn_purple};
         font-size: 16px;
         font-weight: 350;
         height: 24px;
     }}
     ::placeholder {{
-        color: #8225c2;
+        color: {style.btn_lpurple};
         opacity: 1;
         font-family: {style.font_};   
     }}
@@ -1332,7 +1390,7 @@ def TEMPLATES(style, script_mathjax):
         }}
     }}
     ::placeholder {{
-        color: #888686;
+        color: {style.btn_lgray};
         opacity: 1;
         font-weight: bold;
         font-style: oblique;
@@ -1370,7 +1428,7 @@ def TEMPLATES(style, script_mathjax):
 
     .btn_logout {{
         padding: 2px 10px 2px;
-        background-color: #060472; 
+        background-color: {style.btn_navy};
         color: #FFFFFF;
         font-weight: bold;
         font-size: large;
@@ -1382,7 +1440,7 @@ def TEMPLATES(style, script_mathjax):
 
     .btn_refresh_small {{
         padding: 2px 10px 2px;
-        background-color: #6daa43; 
+        background-color: {style.btn_igreen};
         color: #FFFFFF;
         font-size: small;
         border-style: none;
@@ -1393,7 +1451,7 @@ def TEMPLATES(style, script_mathjax):
 
     .btn_refresh {{
         padding: 2px 10px 2px;
-        background-color: #6daa43; 
+        background-color:  {style.btn_igreen};
         color: #FFFFFF;
         font-size: large;
         font-weight: bold;
@@ -1420,7 +1478,7 @@ def TEMPLATES(style, script_mathjax):
 
     .btn_purge_large {{
         padding: 2px 10px 2px;
-        background-color: #9a0808; 
+        background-color: {style.btn_red}; 
         border-style: none;
         color: #FFFFFF;
         font-size: large;
@@ -1432,7 +1490,7 @@ def TEMPLATES(style, script_mathjax):
     
     .btn_reeval_large {{
         padding: 2px 10px 2px;
-        background-color: #8225c2; 
+        background-color: {style.btn_purple}; 
         border-style: none;
         color: #FFFFFF;
         font-size: large;
@@ -1443,7 +1501,7 @@ def TEMPLATES(style, script_mathjax):
 
     .btn_submit {{
         padding: 2px 10px 2px;
-        background-color: #8225c2; 
+        background-color: {style.btn_purple}; 
         border-style: none;
         color: #FFFFFF;
         font-weight: bold;
@@ -1455,7 +1513,7 @@ def TEMPLATES(style, script_mathjax):
 
     .btn_report {{
         padding: 2px 10px 2px;
-        background-color: #c23f79; 
+        background-color: {style.btn_rose};
         border-style: none;
         color: #FFFFFF;
         font-weight: bold;
@@ -1466,7 +1524,7 @@ def TEMPLATES(style, script_mathjax):
     }}
     .btn_black {{
         padding: 2px 10px 2px;
-        background-color: #2b2b2b; 
+        background-color: {style.btn_black};
         border-style: none;
         color: #FFFFFF;
         font-weight: bold;
@@ -1476,23 +1534,9 @@ def TEMPLATES(style, script_mathjax):
         text-decoration: none;
     }}
 
-    .btn_store_actions {{
-        padding: 2px 2px 2px 2px;
-        background-color: #FFFFFF; 
-        border-style: solid;
-        border-width: thin;
-        border-color: #000000;
-        color: #000000;
-        font-weight: bold;
-        font-size: medium;
-        border-radius: 5px;
-        font-family: {style.font_};
-        text-decoration: none;
-    }}
-
     .btn_folder {{
         padding: 2px 10px 2px;
-        background-color: #934343; 
+        background-color: {style.btn_folder};
         border-style: none;
         color: #FFFFFF;
         font-weight: bold;
@@ -1503,9 +1547,23 @@ def TEMPLATES(style, script_mathjax):
         line-height: 2;
     }}
 
+    
+    .btn_switcher {{
+        padding: 2px 10px 2px;
+        background-color: {style.btn_switcherbg};
+        border-style: dotted 1px;
+        color: {style.btn_switcherfg};
+        font-weight: bold;
+        border-radius: 10px;
+        font-size: large;
+        font-family: {style.font_};
+        text-decoration: none;
+        line-height: 2;
+    }}
+
     .btn_board {{
         padding: 2px 10px 2px;
-        background-color: #934377; 
+        background-color: {style.btn_pink};
         border-style: none;
         color: #FFFFFF;
         font-weight: bold;
@@ -1518,7 +1576,7 @@ def TEMPLATES(style, script_mathjax):
 
     .btn_login {{
         padding: 2px 10px 2px;
-        background-color: #060472; 
+        background-color: {style.btn_navy};
         color: #FFFFFF;
         font-weight: bold;
         font-size: large;
@@ -1530,7 +1588,7 @@ def TEMPLATES(style, script_mathjax):
 
     .btn_download {{
         padding: 2px 10px 2px;
-        background-color: #0b7daa; 
+        background-color: {style.btn_sky};
         color: #FFFFFF;
         font-weight: bold;
         font-size: large;
@@ -1541,7 +1599,7 @@ def TEMPLATES(style, script_mathjax):
 
     .btn_store{{
         padding: 2px 10px 2px;
-        background-color: #10a58a; 
+        background-color: {style.btn_teal}; 
         color: #FFFFFF;
         font-weight: bold;
         font-size: large;
@@ -1552,7 +1610,7 @@ def TEMPLATES(style, script_mathjax):
 
     .btn_upload {{
         padding: 2px 10px 2px;
-        background-color: #089a28; 
+        background-color: {style.btn_green}; 
         color: #FFFFFF;
         font-weight: bold;
         font-size: large;
@@ -1563,7 +1621,7 @@ def TEMPLATES(style, script_mathjax):
 
     .btn_home {{
         padding: 2px 10px 2px;
-        background-color: #a19636; 
+        background-color: {style.btn_olive}; 
         color: #FFFFFF;
         font-weight: bold;
         font-size: large;
@@ -2790,11 +2848,27 @@ def route_generate_report():
     return redirect(url_for('route_reports'))
 
 
-
-                    
-
-
-
+@app.route('/switch/', methods =['GET'], defaults={'req_uid': ''})
+@app.route('/switch/<req_uid>')
+def route_switch(req_uid):
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    
+    session['rethome'] = ''
+    if not req_uid: 
+        #sprint(request.args)
+        if request.args: 
+            if 'u' in request.args: session['rethome'] = 'u' 
+            if 'e' in request.args: session['rethome'] = 'e' 
+        return render_template('switcher.html')
+    
+    else:
+        if req_uid not in app.config['running']: return render_template('switcher.html')
+        else:
+            session['sess'] = req_uid
+            if 'e' in request.args: return redirect(url_for('route_eval')) 
+            if 'u' in request.args: return redirect(url_for('route_uploads')) 
+            return redirect(url_for('route_home')) 
+            
 @app.route('/generate_eval_template', methods =['GET'])
 def route_generate_eval_template():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
