@@ -306,10 +306,9 @@ def str2bytes(size):
 def DEFAULT_CONFIG(file_path):
     with open(file_path, 'w', encoding='utf-8') as f: f.write("""
 
-def merged(a:dict, b:dict): return {**a, **b}
-
 style = dict(  
-        font_ =         'monospace',                 
+        ext_link =       "https://gist.github.com/auto-notify-ps/713d45a235f77e760f467a7c6bf6ee84",
+        font_ =         'monospace',         
         # -------------# labels
         downloads_ =    'Downloads',
         uploads_ =      'Uploads',
@@ -338,14 +337,14 @@ style = dict(
         # -------------# icons 
         icon_login=     '🔒',
         icon_new=       '👤',
-        icon_home=      '🔘',
+        icon_home=      '🏠',
         icon_downloads= '📥',
         icon_uploads=   '📤',
         icon_store=     '📦',
         icon_eval=      '✴️',
         icon_report=    '📜',
         icon_getfile=   '⬇️',
-        icon_delfile=   '❌',
+        icon_delfile=   '⛔',
         icon_gethtml=   '🌐',
         icon_hidden=    '👁️',
 
@@ -356,8 +355,15 @@ style = dict(
         LOGIN_CREATE_TEXT =     '🔑',       
                                                     
         # -------------# board style ('lab'  'classic' 'reveal')
-        template_board = "lab", 
-        ext_link =       "https://gist.github.com/auto-notify-ps/713d45a235f77e760f467a7c6bf6ee84",
+        template_board =    "lab", 
+        font_board =        'monospace',
+        bg_board =          '#ebebeb',
+        fg_board =          '#232323',
+        fontsize_board =    'large',
+        border_board =       'solid',
+        brad_board =         '10px',
+        bcol_board =         '#232323',
+
 )
 
 common = dict(    
@@ -367,6 +373,7 @@ common = dict(
     welcome      = "Login to Continue",     # msg shown on login page
     register     = "Register User",         # msg shown on register (new-user) page
     emoji        = "🔘",                   # emoji shown of login page and seperates uid - name
+    bridge       = "🔹",
     rename       = 0,                       # if rename=1, allows users to update their names when logging in
     repass       = 1,                       # if repass=1, allows admins and evaluators to reset passwords for users - should be enabled in only one session
     reeval       = 1,                       # if reeval=1, allows evaluators to reset evaluation
@@ -378,8 +385,6 @@ common = dict(
                                                               
     # ------------------------------------# file and directory information
     base         = "base",            # the base directory 
-    eval         = "eval.csv",        # evaluation database - created if not existing - reloads if exists
-    uploads      = "uploads",         # uploads folder (uploaded files by users go here)
     reports      = "reports",         # reports folder (read-only files that are private to a user go here)
     downloads    = "downloads",       # downloads folder (public read-only access)
     store        = "store",           # store folder (public read-only, evaluators can upload and delete files)
@@ -424,7 +429,7 @@ def TEMPLATES(style, script_mathjax):
         }
         </style>
         <div align="left" class="pagecontent">
-            <div class="topic_mid">{{ config.topic }}</div><hr>
+            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -447,9 +452,9 @@ def TEMPLATES(style, script_mathjax):
             
             </div>               
         <!-- ---------------------------------------------------------->
-        <br>"""
+        <br><div class="board_content">"""
     HOME_PAGE_POST=f"""
-        <br>
+        </div><br>
         <!-- ---------------------------------------------------------->
         </body>
     </html>
@@ -472,7 +477,7 @@ def TEMPLATES(style, script_mathjax):
         </br>
         <!-- ---------------------------------------------------------->
         <div align="left" class="pagecontent">
-            <div class="topic_mid">{{ config.topic }}</div><hr>
+            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -480,25 +485,28 @@ def TEMPLATES(style, script_mathjax):
             <a href="{{ url_for('route_home') }}" class="btn_home">Home</a>
             <a href="{{ url_for('route_eval') }}" class="btn_refresh">Refresh</a>
             <a href="{{ url_for('route_storeuser') }}" class="btn_store">User-Store</a>
-            <a href="{{ url_for('route_generate_submit_report') }}" target="_blank" class="btn_board">User-Report</a>
+            <a href="{{ url_for('route_generate_live_report') }}" target="_blank" class="btn_board">Live-Report</a>
+            </div>
+            <div class="bridge">
             <button class="btn_reeval_large" onclick="confirm_reeval()">"""+'Reset Evaluation' + """</button>
-                <script>
-                    function confirm_reeval() {
-                    let res = prompt("Enter UID to reset evaluation", ""); 
-                    if (res != null) {
-                        location.href = "{{ url_for('route_eval',req_uid='::::') }}".replace("::::", res);
+                    <script>
+                        function confirm_reeval() {
+                        let res = prompt("Enter UID to reset evaluation", ""); 
+                        if (res != null) {
+                            location.href = "{{ url_for('route_eval',req_uid='::::') }}".replace("::::", res);
+                            }
                         }
-                    }
-                </script>
+                    </script>
             <button class="btn_purge_large" onclick="confirm_repass()">"""+'Reset Password' + """</button>
-                <script>
-                    function confirm_repass() {
-                    let res = prompt("Enter UID to reset password", ""); 
-                    if (res != null) {
-                        location.href = "{{ url_for('route_repassx',req_uid='::::') }}".replace("::::", res);
+                    <script>
+                        function confirm_repass() {
+                        let res = prompt("Enter UID to reset password", ""); 
+                        if (res != null) {
+                            location.href = "{{ url_for('route_repassx',req_uid='::::') }}".replace("::::", res);
+                            }
                         }
-                    }
-                </script>
+                    </script>
+            <a href="{{ url_for('route_generate_report') }}" target="_blank" class="btn_download">Session-Report</a>
             </div>
             <br>
             {% if success %}
@@ -530,8 +538,6 @@ def TEMPLATES(style, script_mathjax):
                 {{form.submit()}}
             </form>
             <a href="{{ url_for('route_generate_eval_template') }}" class="btn_black">Get CSV-Template</a>
-            <br>
-        
         </div>
         
         {% if results %}
@@ -552,7 +558,7 @@ def TEMPLATES(style, script_mathjax):
         {% endif %}
                     
         <!-- ---------------------------------------------------------->
-        </br>
+        
         <!-- ---------------------------------------------------------->
         </body>
     </html>
@@ -696,7 +702,7 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         
         <div align="left" class="pagecontent">
-            <div class="topic_mid">{{ config.topic }}</div><hr>
+            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -742,7 +748,7 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         
         <div align="left" class="pagecontent">
-            <div class="topic_mid">{{ config.topic }}</div><hr>
+            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -821,7 +827,7 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         
         <div align="left" class="pagecontent">
-            <div class="topic_mid">{{ config.topic }}</div><hr>
+            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -919,7 +925,7 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         
         <div align="left" class="pagecontent">
-            <div class="topic_mid">{{ config.topic }}</div><hr>
+            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -933,7 +939,7 @@ def TEMPLATES(style, script_mathjax):
                 <ol>
                 {% for i, file in ufl %}
                 <li>
-                <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}">{{ file }}</a>
+                
                 <button class="btn_del" onclick="confirm_del_{{ i }}()">"""+f'{style.icon_delfile}'+"""</button>
                 <script>
                     function confirm_del_{{ i }}() {
@@ -943,7 +949,8 @@ def TEMPLATES(style, script_mathjax):
                         }
                     }
                 </script>
-
+                
+                <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}">{{ file }}</a>
                 <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}?html"" target="_blank">"""+f'{style.icon_gethtml}'+"""</a>
                 </li>
                 <br>
@@ -1027,7 +1034,7 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         
         <div align="left" class="pagecontent">
-            <div class="topic_mid">{{ config.topic }}</div><hr>
+            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -1209,6 +1216,18 @@ def TEMPLATES(style, script_mathjax):
 
     """ + f"""
     
+    .board_content {{
+        padding: 2px 10px 2px;
+        background-color: {style.bg_board}; 
+        color: {style.fg_board}; 
+        font-size: {style.fontsize_board}; 
+        font-family: {style.font_board};
+        border-style: {style.border_board};
+        border-radius: {style.brad_board};
+        border-color: {style.bcol_board};
+        text-decoration: none;
+    }}
+
     .pagecontent {{
         padding: 20px;
         font-family: {style.font_};
@@ -1385,15 +1404,17 @@ def TEMPLATES(style, script_mathjax):
 
     
     .btn_del {{
-        padding: 2px 2px 2px;
+        
         background-color: transparent;
         border-style: none;
+        border-radius: 10px;
         color: #FFFFFF;
-        font-size: small;
-        border-radius: 2px;
+        font-size: large;
         font-family: {style.font_};
-        text-decoration: none;
+        animation-duration: 5s;
+        animation-name: faderdel;
     }}
+    @keyframes faderdel {{from  {{color: transparent; }} to {{background-color: transparent;}} }}
 
 
 
@@ -1552,13 +1573,59 @@ def TEMPLATES(style, script_mathjax):
     }}
 
 
-
-
     """
     )
+    
     # ******************************************************************************************
     return HTML_TEMPLATES, CSS_TEMPLATES, (HOME_PAGE_PRE, HOME_PAGE_POST)
     # ****************************************************************************************** 
+
+def REPORT_PAGE(report_name, html_heading, html_table): return \
+f"""
+<html>
+<head>
+<title>{report_name}</title>
+<style>
+table.dataframe {{
+    border-collapse: collapse;
+
+    margin: 1em 0;
+    font-family: {style.font_};
+    font-size: large;
+}}
+
+table.dataframe th{{
+    border: 1px solid #aaa;
+    padding: 4px 6px;
+    text-align: center;
+    font-family: {style.font_};
+    font-size: medium;
+}}
+
+table.dataframe td {{
+    border: 1px solid #aaa;
+    padding: 4px 6px;
+    text-align: center;
+    font-family: {style.font_};
+    font-size: large;
+}}
+
+table.dataframe td {{
+    vertical-align: middle;
+    font-family: {style.font_};
+}}
+
+h1 {{
+    font-family: {style.font_};
+}}
+</style>
+</head>
+<body>
+<h1>{html_heading}</h1>
+{html_table}              
+</body>
+</html>
+"""
 
 def FAVICON(): return [
     0,0,1,0,1,0,64,64,0,0,1,0,32,0,40,66,0,0,22,0,0,0,40,0,0,0,64,0,0,0,128,0,0,0,1,0,32,0,0,0,0,0,0,66,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -2286,6 +2353,7 @@ app.config['storename'] =  os.path.basename(STORE_FOLDER_PATH)
 app.config['storeuser'] =     UPLOAD_FOLDER_PATH
 app.config['storeusername'] =  os.path.basename(UPLOAD_FOLDER_PATH)
 app.config['emoji'] =     args.emoji
+app.config['bridge'] =     args.bridge
 app.config['topic'] =     args.topic
 app.config['rename'] =    int(args.rename)
 app.config['muc'] =       MAX_UPLOAD_COUNT
@@ -2607,14 +2675,134 @@ def route_reports(req_path):
             return send_file(abs_path) # Check if path is a file and serve
     return render_template('reports.html', rfl=rfl)
 # ------------------------------------------------------------------------------------------
+@app.route('/generate_report', methods =['GET'])
+def route_generate_report():
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    if not ('+' in session['admind']): return abort(404)
+    from pandas import DataFrame
+    session_reports = {u:dict(Session = [
+        'Logged-in?', 
+        'Uploaded Files?', 
+        'Required Files?', 
+        'Evaluated?', 
+        'Score', 
+        'Remark',
+        'Evaluator',
+        ]) for u in dbevalset}
+    #sprint(f'Generating session Reports...')
+    for s,d in app.config['running'].items():
+        #sprint(f'Session [{s}]')
+        # s = 'lab0'
+        # d = dict (required, extra, uploads, eval)
+        session_report_df = dict(
+                    User = [],
+                    Name = [],
+                    L = [],
+                    U = [],
+                    R = [],
+                    E = [],
+                    Score = [],
+                    Remark = [],
+                    Evaluator = [],
+                    EvaluatorName = [],
+                )
+        REQUIRED_FILES = d['required']
+        #sprint(f'[{REQUIRED_FILES=}]')
+        for u in dbevalset:
+            #sprint(f'[{u=}]')
+            userfolder = os.path.join(UPLOAD_FOLDER_PATHS[s], u)
+            #sprint(f'[{userfolder=}]')
+            # check if folder exists to confirm login (attendance)
+            uLogin = os.path.isdir(userfolder)
+            #sprint(f'[{uLogin=}]')
+            # check if user has uploaded anything
+            uFiles = os.listdir(userfolder) if uLogin else None
+            #sprint(f'[{uFiles=}]')
+            # check if user has uploaded required files
+            uHas = bool(uFiles) if uLogin else None
+            #sprint(f'[{uHas=}]')
+            if REQUIRED_FILES:
+                if uHas is None: uHasReq=None
+                else:
+                    if uHas: uHasReq = not (False in [rf in uFiles for rf in REQUIRED_FILES])
+                    else: uHasReq=False
+            else: uHasReq=...
+              
+            #sprint(f'[{uHasReq=}]')
+
+            # check evaluation 
+            dbs, loaded = READ_DB_FROM_DISK(EVAL_XL_PATHS[s], 0)
+            if not loaded:
+                dprint(f'Cannot read evaluation for {s}')
+                continue
+            
+            # LOGIN_ORD = ['ADMIN','UID','NAME','PASS']
+            # EVAL_ORD = ['UID', 'NAME', 'SCORE', 'REMARK', 'BY']
+            # 🔴🟠🟡🟢🔵⚫🟤🟣⚪🟩🟦🟪🟨🟧🟥🟫⬛⬜◼️◻️◾
+
+            uEvaluated = (u in dbs)
+            _, _, uNAME, _ = db[u]
+            if uEvaluated:
+                _, _, uSCORE, uREMARK, uBY = dbs[u]
+                _, _, eNAME, _ = db[uBY]
+            else:  uSCORE, uREMARK, uBY, eNAME = '', '', '', ''
+            
+            # 'Logged-in?', 
+            # 'Uploaded Files?', 
+            # 'Required Files?', 
+            # 'Evaluated?', 
+            # 'Score', 
+            # 'Remark',
+            # 'Evaluator',
+            Ltxt = '🟩' if uLogin else '🟥'
+            Utxt = '🟢' if uHas else ('⚫' if uHas is None else '🔴')
+            Rtxt = ('🟡' if uHasReq is ... else '🟢') if uHasReq else ('⚫' if uHas is None else '🔴')
+            Etxt = '✅' if uEvaluated else '❌'
+            session_reports[u][s] = [ Ltxt, Utxt, Rtxt, Etxt, uSCORE, uREMARK, uBY]
+            session_report_df['User'].append(u)
+            session_report_df['Name'].append(uNAME) 
+            session_report_df['L'].append(Ltxt)
+            session_report_df['U'].append(Utxt) 
+            session_report_df['R'].append(Rtxt) 
+            session_report_df['E'].append(Etxt) 
+            session_report_df['Score'].append(uSCORE) 
+            session_report_df['Remark'].append(uREMARK) 
+            session_report_df['Evaluator'].append(uBY) 
+            session_report_df['EvaluatorName'].append(eNAME) 
+
+    
+        df = DataFrame(session_report_df).sort_values(by='User', ascending=True)   
+        report_name = f'report_{s}.html'
+        report_path = os.path.join( REPORT_FOLDER_PATH, session['uid'], report_name)
+        html_table = df.to_html(index=False)        
+        with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, s, html_table))
+    
+    for u,r in session_reports.items():
+        _, _, uNAME, _ = db[u]
+        df = DataFrame(r)  
+        report_name = f'report.html'
+        report_dir =  os.path.join( REPORT_FOLDER_PATH, u)
+        os.makedirs(report_dir, exist_ok=True)
+        report_path = os.path.join(report_dir, report_name)
+        html_table = df.to_html(index=False)        
+        with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, f"{u} {args.emoji} {uNAME}", html_table))
+            
+    return redirect(url_for('route_reports'))
+
+
+
+                    
+
+
+
 @app.route('/generate_eval_template', methods =['GET'])
 def route_generate_eval_template():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
     return send_file(DICT2BUFF({k:[v[LOGIN_ORD_MAPPING["UID"]], v[LOGIN_ORD_MAPPING["NAME"]], "", "",] for k,v in db.items() if '-' not in v[LOGIN_ORD_MAPPING["ADMIN"]]} , ["UID", "NAME", "SCORE", "REMARKS"]),
                     download_name=f"eval_{app.config['topic']}_{session['uid']}.csv", as_attachment=True)
-@app.route('/generate_submit_report', methods =['GET'])
-def route_generate_submit_report():
+@app.route('/generate_live_report', methods =['GET'])
+def route_generate_live_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
     finished_uids = set(dbsubs[session['sess']].keys())
@@ -2799,8 +2987,9 @@ def route_eval(req_uid):
                                                     else: results.append((in_uid,f'Nothing was updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', False))
                                                     dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {session["sess"]} via {request.remote_addr}")
                                                 else:
-                                                    results.append((in_uid,f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information. Hint: Set the score to "inf".', False))
+                                                    results.append((in_uid,f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information.', False))
                                                     dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named}  for {session["sess"]} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
+                                                    dprint(f'\t๏ Hint: Set the score to "inf"')
                             vsu = [vv for nn,kk,vv in results]
                             vsuc = vsu.count(True)
                             success = (vsuc > 0)
@@ -2852,8 +3041,10 @@ def route_eval(req_uid):
                                         else: status, success =                         f'Nothing was updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', False
                                         dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {session["sess"]} via {request.remote_addr}")
                                     else:
-                                        status, success = f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information. Hint: Set the score to "inf".', False
+                                        status, success = f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information.', False
                                         dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} for {session["sess"]} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
+                                        dprint(f'\t๏ Hint: Set the score to "inf"')
+
                 else: status, success =  "You are not allow to evaluate.", False
             else: status, success =  "Evaluation is disabled.", False
         else: status, success = f"You posted nothing!", False
@@ -3082,7 +3273,7 @@ def route_storeuser(subpath=""):
 # ------------------------------------------------------------------------------------------
 
 def persist_db(SESS):
-    r""" writes both dbs to disk """
+    r""" writes both db to disk """
     global db
     if write_logindb_to_disk(db) and write_evaldb_to_disk(dbsubs[SESS], SESS):
         dprint(f"๏ 📥 {session['uid']} ◦ {session['named']} just persisted the db for {SESS} to disk via {request.remote_addr}")
