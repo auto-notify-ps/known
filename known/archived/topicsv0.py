@@ -79,24 +79,21 @@ if __name__!='__main__': exit(f'[!] can not import {__name__}.{__file__}')
 
 #%% Pre-Initialiation
 
+
 # ------------------------------------------------------------------------------------------
 # parsing
 # ------------------------------------------------------------------------------------------
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument('--port',        type=str, default='8080',   help="")
-parser.add_argument('--host',        type=str, default='0.0.0.0',   help="")
-parser.add_argument('--maxupsize',        type=str, default="40GB",   help="")
-parser.add_argument('--maxconnect',        type=int, default=50,   help="")
-parser.add_argument('--threads',        type=int, default=4,   help="")
-
-parser.add_argument('--html',        type=str, default='__pycache__',   help="path of html directory [DEFAULT]: current diretory")
+# python -m known.fly --help
+parser.add_argument('--html',        type=str, default='',   help="path of html directory [DEFAULT]: current diretory")
 parser.add_argument('--dir',        type=str, default='',   help="path of workspace directory [DEFAULT]: current diretory")
 parser.add_argument('--login',        type=str, default='login.csv',   help="login database having four cols ADMIN, UID, NAME, PASS")
 parser.add_argument('--secret',        type=str, default='secret.txt',   help="file containing flask app secret (keep blank to generate random secret every time)")
 parser.add_argument('--verbose',    type=int, default=2,    help="verbose level in logging (0,1,2) [DEFAULT]: 2")
 parser.add_argument('--log',        type=str, default='',   help="name of logfile as date-time-formated string, blank by default, keep blank to disable logging") #e.g. fly_%Y_%m_%d_%H_%M_%S_%f_log.txt
 parser.add_argument('--con',        type=str, default='config.py',    help="config name (without .py extension) - a python module inside workdir")
+parser.add_argument('--mod',        type=str, default='default',   help="config name (refers to a dict in config module)")
 parser.add_argument('--reg',        type=str, default='',   help="if specified, allow users to register with that access string such as DABU or DABUS+")
 parser.add_argument('--cos',        type=int, default=1,    help="use 1 to create-on-start - force create (overwrites) pages and scripts [DEFAULT]: 1")
 parser.add_argument('--access',     type=str, default='',   help="if specified, adds extra premissions to access string for this session only")
@@ -308,59 +305,7 @@ def DEFAULT_CONFIG(file_path):
 
 def merged(a:dict, b:dict): return {**a, **b}
 
-style = dict(  
-        font_ =         'monospace',                 
-        # -------------# labels
-        downloads_ =    'Downloads',
-        uploads_ =      'Uploads',
-        store_ =        'Store',
-        logout_=        'Logout',
-        login_=         'Login',
-        new_=           'Register',
-        eval_=          'Eval',
-        resetpass_=     'Reset',
-        report_=        'Report',
-
-        # -------------# colors 
-        bgcolor      = "white",
-        fgcolor      = "black",
-        refcolor     = "#101E88",
-        item_bgcolor = "#232323",
-        item_normal  = "#e6e6e6",
-        item_true    = "#47ff6f",
-        item_false   = "#ff6565",
-        flu_bgcolor  = "#ebebeb",
-        flu_fgcolor  = "#232323",
-        fld_bgcolor  = "#ebebeb",
-        fld_fgcolor  = "#232323",
-        msgcolor     = "#060472",
-        
-        # -------------# icons 
-        icon_login=     '🔒',
-        icon_new=       '👤',
-        icon_home=      '🔘',
-        icon_downloads= '📥',
-        icon_uploads=   '📤',
-        icon_store=     '📦',
-        icon_eval=      '✴️',
-        icon_report=    '📜',
-        icon_getfile=   '⬇️',
-        icon_delfile=   '❌',
-        icon_gethtml=   '🌐',
-        icon_hidden=    '👁️',
-
-        LOGIN_REG_TEXT =        '👤',
-        LOGIN_NEED_TEXT =       '🔒',
-        LOGIN_FAIL_TEXT =       '❌',  
-        LOGIN_NEW_TEXT =        '🔥',
-        LOGIN_CREATE_TEXT =     '🔑',       
-                                                    
-        # -------------# board style ('lab'  'classic' 'reveal')
-        template_board = "lab", 
-        ext_link =       "https://gist.github.com/auto-notify-ps/713d45a235f77e760f467a7c6bf6ee84",
-)
-
-common = dict(    
+default = dict(    
 
     # --------------------------------------# general info
     topic        = "Topics",                # topic text (main banner text)
@@ -370,12 +315,23 @@ common = dict(
     rename       = 0,                       # if rename=1, allows users to update their names when logging in
     repass       = 1,                       # if repass=1, allows admins and evaluators to reset passwords for users - should be enabled in only one session
     reeval       = 1,                       # if reeval=1, allows evaluators to reset evaluation
-    maxupcount   = -1,                     # maximum number of files that can be uploaded by a user (keep -1 for no limit and 0 to disable uploading)
     case         = 0,                       # case-sentivity level in uid
                                             #   (if case=0 uids are not converted           when matching in database)
                                             #   (if case>0 uids are converted to upper-case when matching in database)
                                             #   (if case<0 uids are converted to lower-case when matching in database)
-                                                              
+    
+    # -------------------------------------# validation
+    required     = "",                     # csv list of file-names that are required to be uploaded e.g., required = "a.pdf,b.png,c.exe" (keep blank to allow all file-names)
+    extra        = 1,                      # if true, allows uploading extra file (other than required)
+    maxupcount   = -1,                     # maximum number of files that can be uploaded by a user (keep -1 for no limit and 0 to disable uploading)
+    maxupsize    = "40GB",                 # maximum size of uploaded file (html_body_size)
+    
+    # -------------------------------------# server config
+    maxconnect   = 50,                     # maximum number of connections allowed to the server
+    threads      = 4,                      # no. of threads used by waitress server
+    port         = "8888",                 # port
+    host         = "0.0.0.0",              # ip
+
     # ------------------------------------# file and directory information
     base         = "base",            # the base directory 
     eval         = "eval.csv",        # evaluation database - created if not existing - reloads if exists
@@ -384,18 +340,60 @@ common = dict(
     downloads    = "downloads",       # downloads folder (public read-only access)
     store        = "store",           # store folder (public read-only, evaluators can upload and delete files)
     board        = "board.md",        # board file (public read-only, a notebook displayed as a web-page)
-)
-                                                                                       
-running = dict(    
+    # --------------------------------------# style dict
+    style        = dict(  
+                        font_ =         'monospace',                 
+                        # -------------# labels
+                        downloads_ =    'Downloads',
+                        uploads_ =      'Uploads',
+                        store_ =        'Store',
+                        logout_=        'Logout',
+                        login_=         'Login',
+                        new_=           'Register',
+                        eval_=          'Eval',
+                        resetpass_=     'Reset',
+                        report_=        'Report',
 
-    default=dict(
-        required     = "",                     # csv list of file-names that are required to be uploaded e.g., required = "a.pdf,b.png,c.exe" (keep blank to allow all file-names)
-        extra        = 1,                      # if true, allows uploading extra file (other than required)
-        eval         = "eval.csv",        # evaluation database - created if not existing - reloads if exists
-        uploads      = "uploads",         # uploads folder (uploaded files by users go here)
-        )
-)
-                                                         
+                        # -------------# colors 
+                        bgcolor      = "white",
+                        fgcolor      = "black",
+                        refcolor     = "#101E88",
+                        item_bgcolor = "#232323",
+                        item_normal  = "#e6e6e6",
+                        item_true    = "#47ff6f",
+                        item_false   = "#ff6565",
+                        flu_bgcolor  = "#ebebeb",
+                        flu_fgcolor  = "#232323",
+                        fld_bgcolor  = "#ebebeb",
+                        fld_fgcolor  = "#232323",
+                        msgcolor     = "#060472",
+                        
+                        # -------------# icons 
+                        icon_login=     '🔒',
+                        icon_new=       '👤',
+                        icon_home=      '🔘',
+                        icon_downloads= '📥',
+                        icon_uploads=   '📤',
+                        icon_store=     '📦',
+                        icon_eval=      '✴️',
+                        icon_report=    '📜',
+                        icon_getfile=   '⬇️',
+                        icon_delfile=   '❌',
+                        icon_gethtml=   '🌐',
+                        icon_hidden=    '👁️',
+
+                        LOGIN_REG_TEXT =        '👤',
+                        LOGIN_NEED_TEXT =       '🔒',
+                        LOGIN_FAIL_TEXT =       '❌',  
+                        LOGIN_NEW_TEXT =        '🔥',
+                        LOGIN_CREATE_TEXT =     '🔑',       
+                                                                   
+                        # -------------# board style ('lab'  'classic' 'reveal')
+                        template_board = "lab", 
+                        ext_link =       "https://gist.github.com/auto-notify-ps/713d45a235f77e760f467a7c6bf6ee84",
+                    )
+    )
+
 """)
 
 
@@ -587,13 +585,6 @@ def TEMPLATES(style, script_mathjax):
                 <br>
                 <br>
                 <input id="passwd" name="passwd" type="password" placeholder="... password ..." class="txt_login"/>
-                <br>
-                <br>
-                <select id="sess" name="sess" class="txt_login">
-                    {% for r in config.running %}
-                    <option value="{{ r }}">{{ r }}</option>
-                    {% endfor %}
-                </select>
                 <br>
                 <br>
                 {% if config.rename>0 %}
@@ -958,7 +949,7 @@ def TEMPLATES(style, script_mathjax):
                             <br>
 
                 {% if submitted<1 %}
-                    {% if config.muc!=0 and not config.disableupload[session.sess] %}
+                    {% if config.muc!=0 and not config.disableupload %}
                     <form method='POST' enctype='multipart/form-data'>
                         {{form.hidden_tag()}}
                         {{form.file()}}
@@ -1872,6 +1863,7 @@ sprint(f'↪ Workspace directory is {WORKDIR}')
 # ==> read configurations
 #-----------------------------------------------------------------------------------------
 CONFIGS_FILE = parsed.con # the name of configs py file
+CONFIG_MOD = parsed.mod # the config-dict to read from
 # try to import configs
 CONFIGS_FILE_PATH = os.path.join(WORKDIR, CONFIGS_FILE) # should exsist under workdir
 if not os.path.isfile(CONFIGS_FILE_PATH):
@@ -1889,58 +1881,33 @@ try:
     c_spec.loader.exec_module(c_module)
     sprint(f'↪ Imported config-module "{CONFIGS_FILE}" from {c_module.__file__}')
 except: fexit(f'[!] Could not import configs module "{CONFIGS_FILE}" at "{CONFIGS_FILE_PATH[:-3]}"')
+try:
+    sprint(f'↪ Reading config from {CONFIGS_FILE}.{CONFIG_MOD}')
+    if "." in CONFIG_MOD: 
+        CONFIGX = CONFIG_MOD.split(".")
+        config_dict = c_module
+        while CONFIGX:
+            m = CONFIGX.pop(0).strip()
+            if not m: continue
+            config_dict = getattr(config_dict, m)
+    else: config_dict = getattr(c_module, CONFIG_MOD)
+except:
+    fexit(f'[!] Could not read config from {CONFIGS_FILE}.{CONFIG_MOD}')
 
-CONFIG_MODS = {}
-for CONFIG_MOD in ('style', 'common', 'running'):
-    try:
-        sprint(f'↪ Reading config from {CONFIGS_FILE}.{CONFIG_MOD}')
-        if "." in CONFIG_MOD: 
-            CONFIGX = CONFIG_MOD.split(".")
-            config_dict = c_module
-            while CONFIGX:
-                m = CONFIGX.pop(0).strip()
-                if not m: continue
-                config_dict = getattr(config_dict, m)
-        else: config_dict = getattr(c_module, CONFIG_MOD)
-    except:
-        fexit(f'[!] Could not read config from {CONFIGS_FILE}.{CONFIG_MOD}')
+if not isinstance(config_dict, dict): 
+    try: config_dict=config_dict()
+    except: pass
+if not isinstance(config_dict, dict): raise fexit(f'Expecting a dict object for config')
 
-    if not isinstance(config_dict, dict): 
-        try: config_dict=config_dict()
-        except: pass
-    if not isinstance(config_dict, dict): raise fexit(f'Expecting a dict object for config')
-    if not config_dict: fexit(f'[!] Empty or Invalid config provided')
-    CONFIG_MODS[CONFIG_MOD] = config_dict
-
-args = Fake(**CONFIG_MODS['common'])
-style = Fake(**CONFIG_MODS['style'])
-
-running_sessions = CONFIG_MODS['running'] # a dict of running sessions
-if not running_sessions: fexit(f'[!] Empty running_sessions list')
-running_data = {**running_sessions}
-for k,v in running_sessions.items():
-    REQUIRED_FILES = set([x.strip() for x in v['required'].split(',') if x])
-    if '' in REQUIRED_FILES: REQUIRED_FILES.remove('')
-    running_data[k]['required'] = REQUIRED_FILES
-
-# # -------------------------------------# validation
-# required     = "",                     # csv list of file-names that are required to be uploaded e.g., required = "a.pdf,b.png,c.exe" (keep blank to allow all file-names)
-# extra        = 1,                      # if true, allows uploading extra file (other than required)
-# eval         = "eval.csv",        # evaluation database - created if not existing - reloads if exists
-# uploads      = "uploads",         # uploads folder (uploaded files by users go here)
-# board        = "board.md",        # board file (public read-only, a notebook displayed as a web-page)
-# # --------------------------------------# style dict
+try: 
+    sprint(f'↪ Building config from {CONFIGS_FILE}.{CONFIG_MOD}')
+    args = Fake(**config_dict)
+except: fexit(f'[!] Could not read config')
+if not len(args): fexit(f'[!] Empty or Invalid config provided')
 
 
-# ------------------------------------------------------------------------------------------
-# Check user upload requirements
-# ------------------------------------------------------------------------------------------
-def GetUserFiles(uid, SESS, REQUIRED_FILES): 
-    if not REQUIRED_FILES: return True # no files are required to be uploaded
-    udir = os.path.join( UPLOAD_FOLDER_PATHS[SESS], uid)
-    has_udir = os.path.isdir(udir)
-    if has_udir: return not (False in [os.path.isfile(os.path.join(udir, f)) for f in REQUIRED_FILES])
-    else: return False
+
+
 
 
 
@@ -2000,6 +1967,12 @@ if not os.path.isfile(LOGIN_XL_PATH):
     
     sprint(f'⇒ Created new login-db with admin-user: user-id "{this_user}" and name "{this_name}"')
 
+# ------------------------------------------------------------------------------------------
+# EVAL DATABASE - CSV
+# ------------------------------------------------------------------------------------------
+if not args.eval: EVAL_XL_PATH = None # fexit(f'[!] evaluation file was not provided!')    
+else: EVAL_XL_PATH = os.path.join( BASEDIR, args.eval)
+# ------------------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------------------
 # download settings
@@ -2020,24 +1993,11 @@ sprint(f'⚙ Store Folder: {STORE_FOLDER_PATH}')
 # ------------------------------------------------------------------------------------------
 # upload settings
 # ------------------------------------------------------------------------------------------
-UPLOAD_FOLDER_PATHS = {}
-for k,v in running_data.items():
-    if not v['uploads']: fexit(f'[!] uploads folder was not provided for session {k}')
-    UPLOAD_FOLDER_PATH = os.path.join( BASEDIR, v['uploads'] ) 
-    try: os.makedirs(UPLOAD_FOLDER_PATH, exist_ok=True)
-    except: fexit(f'[!] uploads folder @ {UPLOAD_FOLDER_PATH} was not found and could not be created')
-    sprint(f'⚙ Upload Folder for session {k}: {UPLOAD_FOLDER_PATH}')
-    UPLOAD_FOLDER_PATHS[k] = UPLOAD_FOLDER_PATH
-
-
-# ------------------------------------------------------------------------------------------
-# EVAL DATABASE - CSV
-# ------------------------------------------------------------------------------------------
-EVAL_XL_PATHS={k:(os.path.join( BASEDIR,  v['eval']) if v['eval'] else None) for k,v in running_data.items()}
-    
-# ------------------------------------------------------------------------------------------
-
-
+if not args.uploads: fexit(f'[!] uploads folder was not provided!')
+UPLOAD_FOLDER_PATH = os.path.join( BASEDIR, args.uploads ) 
+try: os.makedirs(UPLOAD_FOLDER_PATH, exist_ok=True)
+except: fexit(f'[!] uploads folder @ {UPLOAD_FOLDER_PATH} was not found and could not be created')
+sprint(f'⚙ Upload Folder: {UPLOAD_FOLDER_PATH}')
 # ------------------------------------------------------------------------------------------
 # report settings
 # ------------------------------------------------------------------------------------------
@@ -2050,29 +2010,22 @@ sprint(f'⚙ Reports Folder: {REPORT_FOLDER_PATH}')
 #-----------------------------------------------------------------------------------------
 # file-name and uploads validation
 #-----------------------------------------------------------------------------------------
+ALLOWED_EXTRA = bool(args.extra)
+REQUIRED_FILES = set([x.strip() for x in args.required.split(',') if x])  # a set or list of file extensions that are required to be uploaded 
+if '' in REQUIRED_FILES: REQUIRED_FILES.remove('')
 
-MAX_UPLOAD_SIZE = str2bytes(parsed.maxupsize)     # maximum upload file size 
-MAX_UPLOAD_COUNT = ( inf if args.maxupcount<0 else args.maxupcount )       # maximum number of files that can be uploaded by one user
-INITIAL_UPLOAD_STATUS = []           # a list of notes to be displayed to the users about uploading files
-INITIAL_UPLOAD_STATUS.append((-1, f'max upload size: {DISPLAY_SIZE_READABLE(MAX_UPLOAD_SIZE)}'))
-INITIAL_UPLOAD_STATUS.append((-1, f'max upload count: {MAX_UPLOAD_COUNT}'))
-sprint(f'⚙ Upload Settings ({len(INITIAL_UPLOAD_STATUS)})')
-for s in INITIAL_UPLOAD_STATUS: sprint(f' ⇒ {s[1]}')
-
-
-
-def VALIDATE_FILENAME(filename, required_files, allowed_extra):   # a function that checks for valid file 
+def VALIDATE_FILENAME(filename):   # a function that checks for valid file 
     sprint(f'Validating {filename}')
     if '.' in filename: 
 
         name, ext = filename.rsplit('.', 1)
         safename = f'{name}.{ext.lower()}'
-        if required_files:  isvalid = bool(safename) if allowed_extra else (safename in required_files)
+        if REQUIRED_FILES:  isvalid = bool(safename) if ALLOWED_EXTRA else (safename in REQUIRED_FILES)
         else:               isvalid = bool(safename) #re.match(VALID_FILES_PATTERN, safename, re.IGNORECASE)  # Case-insensitive matching
     else:               
         name, ext = filename, ''
         safename = f'{name}'
-        if required_files:  isvalid = bool(safename) if allowed_extra else (safename in required_files)
+        if REQUIRED_FILES:  isvalid = bool(safename) if ALLOWED_EXTRA else (safename in REQUIRED_FILES)
         else:               isvalid = bool(safename) #(not ALLOWED_EXTENSIONS)
     return isvalid, safename
 
@@ -2087,7 +2040,14 @@ def VALIDATE_FILENAME_SUBMIT(filename):
         isvalid = isvalid = bool(safename)
     return isvalid, safename
 
-
+MAX_UPLOAD_SIZE = str2bytes(args.maxupsize)     # maximum upload file size 
+MAX_UPLOAD_COUNT = ( inf if args.maxupcount<0 else args.maxupcount )       # maximum number of files that can be uploaded by one user
+INITIAL_UPLOAD_STATUS = []           # a list of notes to be displayed to the users about uploading files
+if REQUIRED_FILES: INITIAL_UPLOAD_STATUS.append((-1, f'accepted files [{len(REQUIRED_FILES)}]: {REQUIRED_FILES}'))
+INITIAL_UPLOAD_STATUS.append((-1, f'max upload size: {DISPLAY_SIZE_READABLE(MAX_UPLOAD_SIZE)}'))
+INITIAL_UPLOAD_STATUS.append((-1, f'max upload count: {MAX_UPLOAD_COUNT}'))
+sprint(f'⚙ Upload Settings ({len(INITIAL_UPLOAD_STATUS)})')
+for s in INITIAL_UPLOAD_STATUS: sprint(f' ⇒ {s[1]}')
 # ------------------------------------------------------------------------------------------
 
 class HConv: # html converter
@@ -2152,6 +2112,7 @@ def GET_SCRIPT(url):
 # ------------------------------------------------------------------------------------------
 # html pages
 # ------------------------------------------------------------------------------------------
+style = Fake(**args.style)
 
 HTML_TEMPLATES, CSS_TEMPLATES, HOME_PAGE_STR = TEMPLATES(style, 
     script_mathjax=(f'"{S_MATHJAX}"' if parsed.live else f'"{{{{ url_for("static", filename="{GET_SCRIPT(S_MATHJAX)}") }}}}"') )
@@ -2227,9 +2188,8 @@ def read_logindb_from_disk():
     if res: sprint(f'⇒ Loaded login file: {LOGIN_XL_PATH}')
     else: sprint(f'⇒ Failed reading login file: {LOGIN_XL_PATH}')
     return db_frame
-def read_evaldb_from_disk(SESS):
+def read_evaldb_from_disk():
     dbsub_frame = dict()
-    EVAL_XL_PATH = EVAL_XL_PATHS[SESS]
     if EVAL_XL_PATH: 
         dbsub_frame, ressub = READ_DB_FROM_DISK(EVAL_XL_PATH, 0)
         if ressub: sprint(f'⇒ Loaded evaluation file: {EVAL_XL_PATH}')
@@ -2241,26 +2201,30 @@ def write_logindb_to_disk(db_frame): # will change the order
     if res: sprint(f'⇒ Persisted login file: {LOGIN_XL_PATH}')
     else:  sprint(f'⇒ PermissionError - {LOGIN_XL_PATH} might be open, close it first.')
     return res
-def write_evaldb_to_disk(dbsub_frame, SESS, verbose=True): # will change the order
+def write_evaldb_to_disk(dbsub_frame, verbose=True): # will change the order
     ressub = True
-    EVAL_XL_PATH = EVAL_XL_PATHS[SESS]
     if EVAL_XL_PATH: 
         ressub = WRITE_DB_TO_DISK(EVAL_XL_PATH, dbsub_frame, EVAL_ORD)
         if verbose:
             if ressub: sprint(f'⇒ Persisted evaluation file: {EVAL_XL_PATH}')
             else:  sprint(f'⇒ PermissionError - {EVAL_XL_PATH} might be open, close it first.')
     return ressub
-def dump_evaldb_to_disk(dbsubs_frame, verbose=True): # will change the order
-    ressub = [write_evaldb_to_disk(dbsubs_frame[SESS], SESS) for SESS in EVAL_XL_PATHS]
-    return not (False in ressub)
 # ------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------
 db =    read_logindb_from_disk()  #<----------- Created database here 
-dbsubs ={ k:read_evaldb_from_disk(k) for k in EVAL_XL_PATHS }  #<----------- Created database here 
-sprint('↷ persisted eval-db [{}]'.format(dump_evaldb_to_disk(dbsubs)))
+dbsub = read_evaldb_from_disk()  #<----------- Created database here 
+sprint('↷ persisted eval-db [{}]'.format(write_evaldb_to_disk(dbsub)))
 dbevalset = set([k for k,v in db.items() if '-' not in v[0]])
 dbevaluatorset = sorted(list(set([k for k,v in db.items() if 'X' in v[0]])))
-
+# ------------------------------------------------------------------------------------------
+# Check user upload requirements
+# ------------------------------------------------------------------------------------------
+def GetUserFiles(uid): 
+    if not REQUIRED_FILES: return True # no files are required to be uploaded
+    udir = os.path.join( app.config['uploads'], uid)
+    has_udir = os.path.isdir(udir)
+    if has_udir: return not (False in [os.path.isfile(os.path.join(udir, f)) for f in REQUIRED_FILES])
+    else: return False
 class UploadFileForm(FlaskForm): # The upload form using FlaskForm
     file = MultipleFileField("File", validators=[InputRequired()])
     submit = SubmitField("Upload File")
@@ -2279,6 +2243,7 @@ if parsed.https: app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_hos
 # ------------------------------------------------------------------------------------------
 app.secret_key =          APP_SECRET_KEY
 app.config['base'] =      BASEDIR
+app.config['uploads'] =   UPLOAD_FOLDER_PATH
 app.config['reports'] =   REPORT_FOLDER_PATH
 app.config['downloads'] = DOWNLOAD_FOLDER_PATH
 app.config['store'] =     STORE_FOLDER_PATH
@@ -2289,16 +2254,13 @@ app.config['emoji'] =     args.emoji
 app.config['topic'] =     args.topic
 app.config['rename'] =    int(args.rename)
 app.config['muc'] =       MAX_UPLOAD_COUNT
-app.config['disableupload'] = {k:False for k in running_data}
+app.config['disableupload'] = False
 app.config['board'] =     (BOARD_FILE_MD is not None)
 app.config['reg'] =       (parsed.reg)
 app.config['repass'] =    bool(args.repass)
 app.config['reeval'] =    bool(args.reeval)
 app.config['eip'] =       bool(parsed.eip)
 app.config['apac'] =    f'{parsed.access}'.strip().upper()
-app.config['running'] = running_data # dict (name: dict(required, extra))
-app.config['dses'] = tuple(running_sessions.keys())[0]
-
 # ------------------------------------------------------------------------------------------
 
 
@@ -2308,13 +2270,12 @@ app.config['dses'] = tuple(running_sessions.keys())[0]
 # ------------------------------------------------------------------------------------------
 @app.route('/', methods =['GET', 'POST'])
 def route_login():
-    if request.method == 'POST' and 'uid' in request.form and 'passwd' in request.form and 'sess' in request.form:
+    if request.method == 'POST' and 'uid' in request.form and 'passwd' in request.form:
         global db
         in_uid = f"{request.form['uid']}"
         in_passwd = f"{request.form['passwd']}"
         in_name = f'{request.form["named"]}' if 'named' in request.form else ''
-        in_sess =  f"{request.form['sess']}"
-        if in_sess not in app.config['running']: in_sess = app.config['dses']
+        in_emoji = app.config['emoji']
         in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
         valid_query, valid_name = VALIDATE_UID(in_query) , VALIDATE_NAME(in_name)
         if not valid_query : record=None
@@ -2348,7 +2309,7 @@ def route_login():
             else: # re login
                 if in_passwd: # password provided 
                     if in_passwd==passwd:
-                        folder_name = os.path.join(UPLOAD_FOLDER_PATHS[in_sess], uid)
+                        folder_name = os.path.join(app.config['uploads'], uid)
                         folder_report = os.path.join(app.config['reports'], uid) 
                         try:
                             os.makedirs(folder_name, exist_ok=True)
@@ -2363,9 +2324,6 @@ def route_login():
                         session['has_login'] = True
                         session['uid'] = uid
                         session['admind'] = admind + app.config['apac']
-
-                        session['sess'] = in_sess
-
                         session['hidden_store'] = False
                         session['hidden_storeuser'] = True
                         
@@ -2378,7 +2336,7 @@ def route_login():
                             session['named'] = named
                             if in_name: sprint(f'⇒ {uid} ◦ {named} provided name "{in_name}" could not be updated')  
 
-                        dprint(f'๏ 🌝 {session["uid"]} ◦ {session["named"]} has logged in to {session["sess"]} via {request.remote_addr}') 
+                        dprint(f'๏ 🌝 {session["uid"]} ◦ {session["named"]} has logged in via {request.remote_addr}') 
                         return redirect(url_for('route_home'))
                     else:  
                         warn = style.LOGIN_FAIL_TEXT
@@ -2407,7 +2365,7 @@ def route_new():
         in_uid = f"{request.form['uid']}"
         in_passwd = f"{request.form['passwd']}"
         in_name = f'{request.form["named"]}' if 'named' in request.form else ''
-        #in_emoji = app.config['emoji']
+        in_emoji = app.config['emoji']
         in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
         valid_query, valid_name = VALIDATE_UID(in_query) , VALIDATE_NAME(in_name)
         if not valid_query:
@@ -2455,8 +2413,8 @@ def route_logout():
     r""" logout a user and redirect to login page """
     if not session.get('has_login', False):  return redirect(url_for('route_login'))
     if not session.get('uid', False): return redirect(url_for('route_login'))
-    if session['has_login']:    dprint(f'๏ 🌚 {session["uid"]} ◦ {session["named"]} has logged out of {session["sess"]} via {request.remote_addr}') 
-    else:                       dprint(f'๏ 💀 {session["uid"]} ◦ {session["named"]} was removed out of {session["sess"]} due to invalid uid via {request.remote_addr}') 
+    if session['has_login']:    dprint(f'๏ 🌚 {session["uid"]} ◦ {session["named"]} has logged out via {request.remote_addr}') 
+    else:                       dprint(f'๏ 💀 {session["uid"]} ◦ {session["named"]} was removed due to invalid uid via {request.remote_addr}') 
     session.clear()
     return redirect(url_for('route_login'))
 # ------------------------------------------------------------------------------------------
@@ -2496,20 +2454,14 @@ def route_uploads(req_path):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if 'U' not in session['admind']:  return redirect(url_for('route_home'))
     form = UploadFileForm()
-    folder_name = os.path.join( UPLOAD_FOLDER_PATHS[session['sess']], session['uid']) 
-    if EVAL_XL_PATHS[session['sess']]:
-        submitted = int(session['uid'] in dbsubs[session['sess']])
-        score = dbsubs[session['sess']][session['uid']][2] if submitted>0 else -1
+    folder_name = os.path.join( app.config['uploads'], session['uid']) 
+    if EVAL_XL_PATH:
+        submitted = int(session['uid'] in dbsub)
+        score = dbsub[session['uid']][2] if submitted>0 else -1
     else: submitted, score = -1, -1
 
     ufl = GET_FILE_LIST(folder_name, number=True)
-
-    if  app.config['disableupload'][session['sess']]: status = [(-1, f'Uploads are disabled')]
-    else:
-        REQUIRED_FILES = app.config['running'][session['sess']]['required']
-        UPLOAD_STATUS = [*INITIAL_UPLOAD_STATUS]
-        if REQUIRED_FILES: UPLOAD_STATUS.append((-1, f'accepted files [{len(REQUIRED_FILES)}]: {REQUIRED_FILES}'))
-        status=UPLOAD_STATUS
+    status=(INITIAL_UPLOAD_STATUS if not app.config['disableupload'] else [(-1, f'Uploads are disabled')])
     if req_path:
         abs_path = os.path.join(folder_name, req_path)# Joining the base and the requested path
         if not os.path.exists(abs_path): 
@@ -2535,11 +2487,11 @@ def route_uploads(req_path):
     else:
         
         if form.validate_on_submit() and ('U' in session['admind']):
-            dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items for {session["sess"]} via {request.remote_addr}")
-            if app.config['muc']==0 or app.config['disableupload'][session['sess']]: 
+            dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
+            if app.config['muc']==0 or app.config['disableupload']: 
                 status=[(0, f'✗ Uploads are disabled')]
             else:
-                if EVAL_XL_PATHS[session['sess']]:
+                if EVAL_XL_PATH:
                     if submitted>0: 
                         status=[(0, f'✗ You have been evaluated - cannot upload new files for this session.')]
                     else:
@@ -2548,14 +2500,12 @@ def route_uploads(req_path):
                         fcount = len(ufl)
                         #---------------------------------------------------------------------------------
                         for file in form.file.data:
-                            isvalid, sf = VALIDATE_FILENAME(secure_filename(file.filename),
-                                        app.config['running'][session['sess']]['required'],
-                                        app.config['running'][session['sess']]['extra'],)
+                            isvalid, sf = VALIDATE_FILENAME(secure_filename(file.filename))
                             isvalid = isvalid or ('+' in session['admind'])
                         #---------------------------------------------------------------------------------
                             
                             if not isvalid:
-                                why_failed =  f"✗ File not accepted [{sf}] " if app.config['running'][session['sess']]['required'] else f"✗ Extension is invalid [{sf}] "
+                                why_failed =  f"✗ File not accepted [{sf}] " if REQUIRED_FILES else f"✗ Extension is invalid [{sf}] "
                                 result.append((0, why_failed))
                                 continue
 
@@ -2578,7 +2528,7 @@ def route_uploads(req_path):
                             
                         result_show = ''.join([f'\t{r[-1]}\n' for r in result])
                         result_show = result_show[:-1]
-                        dprint(f'๏ ✅ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s) for {session["sess"]}\n{result_show}') 
+                        dprint(f'๏ ✅ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s)\n{result_show}') 
                         ufl = GET_FILE_LIST(folder_name, number=True)
                         status=result
         
@@ -2617,11 +2567,11 @@ def route_generate_eval_template():
 def route_generate_submit_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
-    finished_uids = set(dbsubs[session['sess']].keys())
+    finished_uids = set(dbsub.keys())
     remaining_uids = dbevalset.difference(finished_uids)
-    absent_uids = set([puid for puid in remaining_uids if not os.path.isdir(os.path.join( UPLOAD_FOLDER_PATHS[session['sess']], puid))])
+    absent_uids = set([puid for puid in remaining_uids if not os.path.isdir(os.path.join( app.config['uploads'], puid))])
     pending_uids = remaining_uids.difference(absent_uids)
-    not_uploaded_uids = set([puid for puid in pending_uids if not os.listdir(os.path.join( UPLOAD_FOLDER_PATHS[session['sess']], puid))])
+    not_uploaded_uids = set([puid for puid in pending_uids if not os.listdir(os.path.join( app.config['uploads'], puid))])
     pending_uids = pending_uids.difference(not_uploaded_uids)
     msg = f"Total [{len(dbevalset)}]"
     if len(dbevalset) != len(finished_uids) + len(pending_uids) + len(not_uploaded_uids) + len(absent_uids): msg+=f" [!] Count Mismatch!"
@@ -2697,8 +2647,8 @@ def route_generate_submit_report():
     htable3 = ''
     #EVAL_ORD = ['UID', 'NAME', 'SCORE', 'REMARK', 'BY']
     counter = { k:0 for k in dbevaluatorset}
-    for k in sorted(list(dbsubs[session['sess']].keys())):
-        v = dbsubs[session['sess']][k]
+    for k in sorted(list(dbsub.keys())):
+        v = dbsub[k]
         counter[v[4]]+=1
         htable3+=f"""
         <tr>
@@ -2737,12 +2687,12 @@ def route_eval(req_uid):
     form = UploadFileForm()
     submitter = session['uid']
     results = []
-    global db
+    global db, dbsub
     if form.validate_on_submit():
-        dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items for {session["sess"]} via {request.remote_addr}")
+        dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
         if  not ('X' in session['admind']): status, success =  "You are not allowed to evaluate.", False
         else: 
-            if not EVAL_XL_PATHS[session['sess']]: status, success =  "Evaluation is disabled.", False
+            if not EVAL_XL_PATH: status, success =  "Evaluation is disabled.", False
             else:
                 if len(form.file.data)!=1:  status, success = f"Expecting only one csv file", False
                 else:
@@ -2778,39 +2728,39 @@ def route_eval(req_uid):
                                         if ('-' in admind):
                                             results.append((in_uid,f'[{in_uid}] {named} is not in evaluation list.', False))
                                         else:
-                                            scored = dbsubs[session["sess"]].get(in_query, None)                               
+                                            scored = dbsub.get(in_query, None)                               
                                             if scored is None: # not found
                                                 if not in_score:
                                                     results.append((in_uid,f'Require numeric value to assign score to [{in_uid}] {named}.', False))
                                                 else:
-                                                    has_req_files = GetUserFiles(uid, session['sess'], app.config['running'][session['sess']]['required'])
+                                                    has_req_files = GetUserFiles(uid)
                                                     if has_req_files:
-                                                        dbsubs[session["sess"]][in_query] = [uid, named, in_score, in_remark, submitter]
+                                                        dbsub[in_query] = [uid, named, in_score, in_remark, submitter]
                                                         results.append((in_uid,f'Score/Remark Created for [{in_uid}] {named}, current score is {in_score}.', True))
-                                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} for {session["sess"]} via {request.remote_addr}")
+                                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} via {request.remote_addr}")
                                                     else:
                                                         results.append((in_uid,f'User [{in_uid}] {named} has not uploaded the required files yet.', False))
                                             else:
                                                 if scored[-1] == submitter or abs(float(scored[2])) == float('inf') or ('+' in session['admind']):
-                                                    if in_score:  dbsubs[session["sess"]][in_query][2] = in_score
-                                                    if in_remark: dbsubs[session["sess"]][in_query][3] = in_remark
-                                                    dbsubs[session["sess"]][in_query][-1] = submitter # incase of inf score
-                                                    if in_score or in_remark : results.append((in_uid,f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', True))
-                                                    else: results.append((in_uid,f'Nothing was updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', False))
-                                                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {session["sess"]} via {request.remote_addr}")
+                                                    if in_score:  dbsub[in_query][2] = in_score
+                                                    if in_remark: dbsub[in_query][3] = in_remark
+                                                    dbsub[in_query][-1] = submitter # incase of inf score
+                                                    if in_score or in_remark : results.append((in_uid,f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsub[in_query][2]}. Remark is [{dbsub[in_query][3]}].', True))
+                                                    else: results.append((in_uid,f'Nothing was updated for [{in_uid}] {named}, current score is {dbsub[in_query][2]}. Remark is [{dbsub[in_query][3]}].', False))
+                                                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} via {request.remote_addr}")
                                                 else:
                                                     results.append((in_uid,f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information. Hint: Set the score to "inf".', False))
-                                                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named}  for {session["sess"]} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
+                                                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
                             vsu = [vv for nn,kk,vv in results]
                             vsuc = vsu.count(True)
                             success = (vsuc > 0)
                             status = f'Updated {vsuc} of {len(vsu)} records'
                         except: 
                             status, success = f"Error updating scroes from file [{sf}]", False
-        if success: persist_subdb(session['sess'])
+        if success: persist_subdb()
     elif request.method == 'POST': 
         if 'uid' in request.form and 'score' in request.form:
-            if EVAL_XL_PATHS[session['sess']]:
+            if EVAL_XL_PATH:
                 if ('X' in session['admind']) or ('+' in session['admind']):
                     in_uid = f"{request.form['uid']}"
                     in_score = f"{request.form['score']}"
@@ -2831,33 +2781,33 @@ def route_eval(req_uid):
                             if ('-' in admind):
                                 status, success = f'[{in_uid}] {named} is not in evaluation list.', False
                             else:
-                                scored = dbsubs[session["sess"]].get(in_query, None)                               
+                                scored = dbsub.get(in_query, None)                               
                                 if scored is None: # not found
                                     if not in_score:
                                         status, success = f'Require numeric value to assign score to [{in_uid}] {named}.', False
                                     else:
-                                        has_req_files = GetUserFiles(uid, session['sess'], app.config['running'][session['sess']]['required'])
+                                        has_req_files = GetUserFiles(uid)
                                         if has_req_files:
-                                            dbsubs[session["sess"]][in_query] = [uid, named, in_score, in_remark, submitter]
+                                            dbsub[in_query] = [uid, named, in_score, in_remark, submitter]
                                             status, success = f'Score/Remark Created for [{in_uid}] {named}, current score is {in_score}.', True
-                                            dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} for {session["sess"]} via {request.remote_addr}")
+                                            dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} via {request.remote_addr}")
                                         else:
                                             status, success = f'User [{in_uid}] {named} has not uploaded the required files yet.', False
                                 else:
                                     if scored[-1] == submitter or abs(float(scored[2])) == float('inf') or ('+' in session['admind']):
-                                        if in_score:  dbsubs[session["sess"]][in_query][2] = in_score
-                                        if in_remark: dbsubs[session["sess"]][in_query][3] = in_remark
-                                        dbsubs[session["sess"]][in_query][-1] = submitter # incase of inf score
-                                        if in_score or in_remark : status, success =    f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', True
-                                        else: status, success =                         f'Nothing was updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', False
-                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {session["sess"]} via {request.remote_addr}")
+                                        if in_score:  dbsub[in_query][2] = in_score
+                                        if in_remark: dbsub[in_query][3] = in_remark
+                                        dbsub[in_query][-1] = submitter # incase of inf score
+                                        if in_score or in_remark : status, success =    f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsub[in_query][2]}. Remark is [{dbsub[in_query][3]}].', True
+                                        else: status, success =                         f'Nothing was updated for [{in_uid}] {named}, current score is {dbsub[in_query][2]}. Remark is [{dbsub[in_query][3]}].', False
+                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} via {request.remote_addr}")
                                     else:
                                         status, success = f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information. Hint: Set the score to "inf".', False
-                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} for {session["sess"]} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
+                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
                 else: status, success =  "You are not allow to evaluate.", False
             else: status, success =  "Evaluation is disabled.", False
         else: status, success = f"You posted nothing!", False
-        if success and app.config['eip']: persist_subdb(session['sess'])
+        if success and app.config['eip']: persist_subdb()
     else:
         if not req_uid:
             if ('+' in session['admind']) or ('X' in session['admind']):
@@ -2874,17 +2824,17 @@ def route_eval(req_uid):
                         in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
                         record = db.get(in_query, None)
                         if record is not None: 
-                            erecord = dbsubs[session["sess"]].get(in_query, None)
+                            erecord = dbsub.get(in_query, None)
                             if erecord is not None:
-                                del dbsubs[session["sess"]][in_query]
-                                dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {erecord[1]} (already evaluated by [{erecord[-1]}] with score [{erecord[2]}]) for {session["sess"]} via {request.remote_addr}")
+                                del dbsub[in_query]
+                                dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {erecord[1]} (already evaluated by [{erecord[-1]}] with score [{erecord[2]}]) via {request.remote_addr}")
                                 status, success =  f"Evaluation was reset for {record[1]} ◦ {record[2]}", True
                             else: status, success =  f"User {record[1]} ◦ {record[2]} has not been evaluated", False
                         else: status, success =  f"User '{in_query}' not found", False
                     else: status, success =  f"User-id was not provided", False
                 else: status, success =  "You are not allow to reset evaluation", False
             else: status, success =  "Evaluation reset is disabled for this session", False
-            if success: persist_subdb(session['sess'])
+            if success: persist_subdb()
 
 
     return render_template('evaluate.html', success=success, status=status, form=form, results=results)
@@ -2899,6 +2849,12 @@ def route_eval(req_uid):
 @app.route('/home', methods =['GET'])
 def route_home():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
+    #form = UploadFileForm()
+    #folder_name = os.path.join( app.config['uploads'], session['uid']) 
+    #if EVAL_XL_PATH:
+    #    submitted = int(session['uid'] in dbsub)
+    #    score = dbsub[session['uid']][2] if submitted>0 else -1
+    #else: submitted, score = -1, -1
     if '?' in (request.args) and '+' in session['admind']: 
         if update_board():  dprint(f"๏ 🔰 {session['uid']} ◦ {session['named']} just refreshed the board via {request.remote_addr}")
         else: dprint(f"๏ 🔰 {session['uid']} ◦ {session['named']} failed to refreshed the board via {request.remote_addr}")
@@ -2915,14 +2871,15 @@ def route_purge():
     """
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if 'U' not in session['admind']:  return redirect(url_for('route_home'))
-    if EVAL_XL_PATHS[session['sess']]:
-        if session['uid'] in dbsubs[session['sess']] or app.config['disableupload'][session['sess']]: return redirect(url_for('route_uploads'))
+    if EVAL_XL_PATH:
+        #global dbsub
+        if session['uid'] in dbsub or app.config['disableupload']: return redirect(url_for('route_uploads'))
 
-    folder_name = os.path.join( UPLOAD_FOLDER_PATHS[session['sess']], session['uid']) 
+    folder_name = os.path.join( app.config['uploads'], session['uid']) 
     if os.path.exists(folder_name):
         file_list = os.listdir(folder_name)
         for f in file_list: os.remove(os.path.join(folder_name, f))
-        dprint(f'๏ 🔥 {session["uid"]} ◦ {session["named"]} purged uploads for {session["sess"]} via {request.remote_addr}')
+        dprint(f'๏ 🔥 {session["uid"]} ◦ {session["named"]} purged uploads via {request.remote_addr}')
     return redirect(url_for('route_uploads'))
 # ------------------------------------------------------------------------------------------
 
@@ -3081,41 +3038,42 @@ def route_storeuser(subpath=""):
 # administrative and password reset
 # ------------------------------------------------------------------------------------------
 
-def persist_db(SESS):
+def persist_db():
     r""" writes both dbs to disk """
-    global db
-    if write_logindb_to_disk(db) and write_evaldb_to_disk(dbsubs[SESS], SESS):
-        dprint(f"๏ 📥 {session['uid']} ◦ {session['named']} just persisted the db for {SESS} to disk via {request.remote_addr}")
+    global db, dbsub
+    if write_logindb_to_disk(db) and write_evaldb_to_disk(dbsub): #if write_db_to_disk(db, dbsub):
+        dprint(f"๏ 📥 {session['uid']} ◦ {session['named']} just persisted the db to disk via {request.remote_addr}")
         STATUS, SUCCESS = "Persisted db to disk", True
     else: STATUS, SUCCESS =  f"Write error, file might be open", False
     return STATUS, SUCCESS 
 
-def persist_subdb(SESS):
+def persist_subdb():
     r""" writes eval-db to disk """
-    if write_evaldb_to_disk(dbsubs[SESS], SESS, verbose=False): STATUS, SUCCESS = f"Persisted db to disk for {SESS}", True
+    global dbsub
+    if write_evaldb_to_disk(dbsub, verbose=False): STATUS, SUCCESS = "Persisted db to disk", True
     else: STATUS, SUCCESS =  f"Write error, file might be open", False
     return STATUS, SUCCESS 
 
-def reload_db(SESS):
+def reload_db():
     r""" reloads db from disk """
-    global db
+    global db, dbsub
     db = read_logindb_from_disk()
-    dbsubs[SESS] = read_evaldb_from_disk(SESS)
-    dprint(f"๏ 📤 {session['uid']} ◦ {session['named']} just reloaded the db for {SESS} from disk via {request.remote_addr}")
+    dbsub = read_evaldb_from_disk()
+    dprint(f"๏ 📤 {session['uid']} ◦ {session['named']} just reloaded the db from disk via {request.remote_addr}")
     return "Reloaded db from disk", True #  STATUS, SUCCESS
 
-def toggle_upload(SESS):
-    r""" disables uploads by setting app.config['']"""
-    app.config['disableupload'][SESS] = not app.config['disableupload'][SESS]
+def toggle_upload():
+    r""" disables uploads by setting app.config['disableupload']"""
+    app.config['disableupload'] = not app.config['disableupload']
 
     
-    if app.config['disableupload'][SESS]: 
-        STATUS, SUCCESS =  f"Uploads are now disabled for {SESS}", True
+    if app.config['disableupload']: 
+        STATUS, SUCCESS =  f"Uploads are now disabled", True
         dowhat = 'disabled'
     else: 
-        STATUS, SUCCESS =  f"Uploads are now enabled for {SESS}", True
+        STATUS, SUCCESS =  f"Uploads are now enabled", True
         dowhat = 'enabled'
-    dprint(f"๏ ❗ {session['uid']} ◦ {session['named']} has {dowhat} uploads for {SESS} via {request.remote_addr}")
+    dprint(f"๏ ❗ {session['uid']} ◦ {session['named']} has {dowhat} uploads via {request.remote_addr}")
     return STATUS, SUCCESS 
 
 
@@ -3129,9 +3087,9 @@ def route_repassx(req_uid):
     if not req_uid:
         if '+' in session['admind']: 
             if len(request.args)==1:
-                if '?' in request.args: STATUS, SUCCESS = reload_db(session['sess'])
-                elif '!' in request.args: STATUS, SUCCESS = persist_db(session['sess'])
-                elif '~' in request.args: STATUS, SUCCESS = toggle_upload(session['sess'])
+                if '?' in request.args: STATUS, SUCCESS = reload_db()
+                elif '!' in request.args: STATUS, SUCCESS = persist_db()
+                elif '~' in request.args: STATUS, SUCCESS = toggle_upload()
                 else: STATUS, SUCCESS =  f'Invalid command ({next(iter(request.args.keys()))}) ... Hint: use (?) (!) ', False
             else: 
                 if len(request.args)>1: STATUS, SUCCESS =  f"Only one command is accepted ... Hint: use (?) (!) ", False
@@ -3231,19 +3189,19 @@ def endpoints(athost):
 
 start_time = datetime.datetime.now()
 sprint('◉ start server @ [{}]'.format(start_time))
-for endpoint in endpoints(parsed.host): sprint(f'◉ http://{endpoint}:{parsed.port}')
+for endpoint in endpoints(args.host): sprint(f'◉ http://{endpoint}:{args.port}')
 serve(app, # https://docs.pylonsproject.org/projects/waitress/en/stable/runner.html
-    host = parsed.host,          
-    port = parsed.port,          
+    host = args.host,          
+    port = args.port,          
     url_scheme = 'http',     
-    threads = parsed.threads,    
-    connection_limit = parsed.maxconnect,
+    threads = args.threads,    
+    connection_limit = args.maxconnect,
     max_request_body_size = MAX_UPLOAD_SIZE,
 )
 end_time = datetime.datetime.now()
 sprint('◉ stop server @ [{}]'.format(end_time))
 sprint('↷ persisted login-db [{}]'.format(write_logindb_to_disk(db)))
-sprint('↷ persisted eval-db [{}]'.format(dump_evaldb_to_disk(dbsubs)))
+sprint('↷ persisted eval-db [{}]'.format(write_evaldb_to_disk(dbsub)))
 sprint('◉ server up-time was [{}]'.format(end_time - start_time))
 sprint(f'...Finished!')
 #%% [END]

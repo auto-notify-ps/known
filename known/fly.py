@@ -116,9 +116,9 @@ try:
     from bs4 import BeautifulSoup
 except: exit(f'[!] The required Flask packages missing:\n  ⇒ pip install Flask Flask-WTF waitress requests markdown beautifulsoup4 nbconvert')
 try:
-    has_nbconvert=False
     from nbconvert import HTMLExporter
-except: has_nbconvert=True
+    has_nbconvert=True
+except: has_nbconvert=False
 # ------------------------------------------------------------------------------------------
 # Logging
 # ------------------------------------------------------------------------------------------
