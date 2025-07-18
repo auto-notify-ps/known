@@ -1,7 +1,14 @@
 __doc__=f"""
-# 📌 Fly
+# 📌 Topics
 
-> Flask-based web app for sharing files 
+> Flask-based web app for sharing files and quiz evaluation contained in a single script
+
+> [Download Script](https://gist.githubusercontent.com/auto-notify-ps/713d45a235f77e760f467a7c6bf6ee84/raw/dd7a7150fefc5ccd577e2a39f9eb79d80fd50c36/topics.py)
+
+> [View Gist](https://gist.github.com/auto-notify-ps/713d45a235f77e760f467a7c6bf6ee84) 
+
+> [Other Gists](https://gist.github.com/auto-notify-ps)
+
 
 ## QuickStart
 
@@ -85,11 +92,12 @@ parser.add_argument('--login',        type=str, default='login.csv',   help="log
 parser.add_argument('--secret',        type=str, default='secret.txt',   help="file containing flask app secret (keep blank to generate random secret every time)")
 parser.add_argument('--verbose',    type=int, default=2,    help="verbose level in logging (0,1,2) [DEFAULT]: 2")
 parser.add_argument('--log',        type=str, default='',   help="name of logfile as date-time-formated string, blank by default, keep blank to disable logging") #e.g. fly_%Y_%m_%d_%H_%M_%S_%f_log.txt
-parser.add_argument('--con',        type=str, default='config.py', help="path of config file")
+parser.add_argument('--con',        type=str, default='config',    help="config name (without .py extension) - a python module inside workdir")
 parser.add_argument('--mod',        type=str, default='default',   help="config name (refers to a dict in config module)")
 parser.add_argument('--reg',        type=str, default='',   help="if specified, allow users to register with that access string such as DABU or DABUS+")
 parser.add_argument('--cos',        type=int, default=1,    help="use 1 to create-on-start - force create (overwrites) pages and scripts [DEFAULT]: 1")
 parser.add_argument('--access',     type=str, default='',   help="if specified, adds extra premissions to access string for this session only")
+parser.add_argument('--eip',        type=int, default=1,    help="Evaluate Immediate Persis. If True (by-default), persist the eval-db after each single evaluation (eval-db in always persisted after update from template)")
 parser.add_argument('--https',      type=int, default=0,    help="if True, Tells waitress that its behind an nginx proxy - https://flask.palletsprojects.com/en/stable/deploying/nginx/")
 parser.add_argument('--scripts',    type=int, default=1,    help="if True, keeps all script tags in board")
 parser.add_argument('--live',       type=int, default=1,    help="if True, uses like scripts like mathjax")
@@ -179,6 +187,7 @@ NEWLINE = '\n'
 TABLINE = '\t'
 LOGIN_ORD = ['ADMIN','UID','NAME','PASS']
 LOGIN_ORD_MAPPING = {v:i for i,v in enumerate(LOGIN_ORD)}
+EVAL_ORD = ['UID', 'NAME', 'SCORE', 'REMARK', 'BY']
 DEFAULT_USER = 'admin'
 DEFAULT_ACCESS = f'DAURX+-'
 MAX_STR_LEN = 250
@@ -299,18 +308,21 @@ def merged(a:dict, b:dict): return {**a, **b}
 default = dict(    
 
     # --------------------------------------# general info
-    topic        = "Fly",                   # topic text (main banner text)
+    topic        = "Topics",                # topic text (main banner text)
     welcome      = "Login to Continue",     # msg shown on login page
     register     = "Register User",         # msg shown on register (new-user) page
-    emoji        = "🦋",                   # emoji shown of login page and seperates uid - name
+    emoji        = "🔘",                   # emoji shown of login page and seperates uid - name
     rename       = 0,                       # if rename=1, allows users to update their names when logging in
     repass       = 1,                       # if repass=1, allows admins and evaluators to reset passwords for users - should be enabled in only one session
+    reeval       = 1,                       # if reeval=1, allows evaluators to reset evaluation
     case         = 0,                       # case-sentivity level in uid
                                             #   (if case=0 uids are not converted           when matching in database)
                                             #   (if case>0 uids are converted to upper-case when matching in database)
                                             #   (if case<0 uids are converted to lower-case when matching in database)
     
     # -------------------------------------# validation
+    required     = "",                     # csv list of file-names that are required to be uploaded e.g., required = "a.pdf,b.png,c.exe" (keep blank to allow all file-names)
+    extra        = 1,                      # if true, allows uploading extra file (other than required)
     maxupcount   = -1,                     # maximum number of files that can be uploaded by a user (keep -1 for no limit and 0 to disable uploading)
     maxupsize    = "40GB",                 # maximum size of uploaded file (html_body_size)
     
@@ -322,6 +334,7 @@ default = dict(
 
     # ------------------------------------# file and directory information
     base         = "base",            # the base directory 
+    eval         = "eval.csv",        # evaluation database - created if not existing - reloads if exists
     uploads      = "uploads",         # uploads folder (uploaded files by users go here)
     reports      = "reports",         # reports folder (read-only files that are private to a user go here)
     downloads    = "downloads",       # downloads folder (public read-only access)
@@ -337,6 +350,7 @@ default = dict(
                         logout_=        'Logout',
                         login_=         'Login',
                         new_=           'Register',
+                        eval_=          'Eval',
                         resetpass_=     'Reset',
                         report_=        'Report',
 
@@ -376,7 +390,7 @@ default = dict(
                                                                    
                         # -------------# board style ('lab'  'classic' 'reveal')
                         template_board = "lab", 
-                        ext_link =       "https://github.com/auto-notify-ps/known",
+                        ext_link =       "https://gist.github.com/auto-notify-ps/713d45a235f77e760f467a7c6bf6ee84",
                     )
     )
 
@@ -422,6 +436,9 @@ def TEMPLATES(style, script_mathjax):
             {% if "A" in session.admind %}
             <a href="{{ url_for('route_store') }}" class="btn_store">"""+f'{style.store_}'+"""</a>
             {% endif %}
+            {% if 'X' in session.admind or '+' in session.admind %}
+            <a href="{{ url_for('route_eval') }}" class="btn_submit">"""+f'{style.eval_}'+"""</a>
+            {% endif %}
             {% if 'R' in session.admind %}
             <a href="{{ url_for('route_reports') }}" class="btn_report">"""+f'{style.report_}'+"""</a>
             {% endif %}
@@ -459,7 +476,18 @@ def TEMPLATES(style, script_mathjax):
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
             <a href="{{ url_for('route_home') }}" class="btn_home">Home</a>
+            <a href="{{ url_for('route_eval') }}" class="btn_refresh">Refresh</a>
             <a href="{{ url_for('route_storeuser') }}" class="btn_store">User-Store</a>
+            <a href="{{ url_for('route_generate_submit_report') }}" target="_blank" class="btn_board">User-Report</a>
+            <button class="btn_reeval_large" onclick="confirm_reeval()">"""+'Reset Evaluation' + """</button>
+                <script>
+                    function confirm_reeval() {
+                    let res = prompt("Enter UID to reset evaluation", ""); 
+                    if (res != null) {
+                        location.href = "{{ url_for('route_eval',req_uid='::::') }}".replace("::::", res);
+                        }
+                    }
+                </script>
             <button class="btn_purge_large" onclick="confirm_repass()">"""+'Reset Password' + """</button>
                 <script>
                     function confirm_repass() {
@@ -478,7 +506,28 @@ def TEMPLATES(style, script_mathjax):
             {% endif %}
             <br>
             <br>
-
+            <form action="{{ url_for('route_eval') }}" method="post">
+                
+                    <input id="uid" name="uid" type="text" placeholder="uid" class="txt_submit"/>
+                    <br>
+                    <br>
+                    <input id="score" name="score" type="text" placeholder="score" class="txt_submit"/> 
+                    <br>
+                    <br>
+                    <input id="remark" name="remark" type="text" placeholder="remarks" class="txt_submit"/>
+                    <br>
+                    <br>
+                    <input type="submit" class="btn_submit" value="Submit Evaluation"> 
+                    <br>   
+                    <br> 
+            </form>
+            
+            <form method='POST' enctype='multipart/form-data'>
+                {{form.hidden_tag()}}
+                {{form.file()}}
+                {{form.submit()}}
+            </form>
+            <a href="{{ url_for('route_generate_eval_template') }}" class="btn_black">Get CSV-Template</a>
             <br>
         
         </div>
@@ -690,6 +739,7 @@ def TEMPLATES(style, script_mathjax):
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
             <a href="{{ url_for('route_home') }}" class="btn_home">Home</a>
+            <a href="{{ url_for('route_eval') }}" class="btn_submit">"""+f'{style.eval_}'+"""</a>
             {% if not subpath %}
             {% if session.hidden_storeuser %}
                 <a href="{{ url_for('route_hidden_show', user_enable='10') }}" class="btn_disable">"""+f'{style.icon_hidden}'+"""</a>
@@ -1812,7 +1862,8 @@ sprint(f'↪ Workspace directory is {WORKDIR}')
 #-----------------------------------------------------------------------------------------
 # ==> read configurations
 #-----------------------------------------------------------------------------------------
-CONFIGS_FILE = os.path.abspath(parsed.con)
+CONFIG_PY = parsed.con # the name of configs py file
+CONFIGS_FILE = f'{CONFIG_PY}.py' # the name of configs file
 CONFIG_MOD = parsed.mod # the config-dict to read from
 # try to import configs
 CONFIGS_FILE_PATH = os.path.join(WORKDIR, CONFIGS_FILE) # should exsist under workdir
@@ -1820,19 +1871,19 @@ if not os.path.isfile(CONFIGS_FILE_PATH):
     sprint(f'↪ Creating default config "{CONFIGS_FILE}" ...')
     try: 
         DEFAULT_CONFIG(CONFIGS_FILE_PATH)
-        sprint(f'⇒ Created new config "{CONFIGS_FILE}" at "{CONFIGS_FILE_PATH}"')
+        sprint(f'⇒ Created new config "{CONFIG_PY}" at "{CONFIGS_FILE_PATH}"')
         raise AssertionError
     except AssertionError: fexit(f'⇒ Server will not start on this run, edit the config and start again')
-    except: fexit(f'[!] Could find or create config "{CONFIGS_FILE}" at "{CONFIGS_FILE_PATH}"')
+    except: fexit(f'[!] Could find or create config "{CONFIG_PY}" at "{CONFIGS_FILE_PATH}"')
 try: 
     # Load the module from the specified file path
-    c_spec = importlib.util.spec_from_file_location(CONFIGS_FILE, CONFIGS_FILE_PATH)
+    c_spec = importlib.util.spec_from_file_location(CONFIG_PY, CONFIGS_FILE_PATH)
     c_module = importlib.util.module_from_spec(c_spec)
     c_spec.loader.exec_module(c_module)
-    sprint(f'↪ Imported config-module "{CONFIGS_FILE}" from {c_module.__file__}')
-except: fexit(f'[!] Could not import configs module "{CONFIGS_FILE}" at "{CONFIGS_FILE_PATH[:-3]}"')
+    sprint(f'↪ Imported config-module "{CONFIG_PY}" from {c_module.__file__}')
+except: fexit(f'[!] Could not import configs module "{CONFIG_PY}" at "{CONFIGS_FILE_PATH[:-3]}"')
 try:
-    sprint(f'↪ Reading config from {CONFIGS_FILE}.{CONFIG_MOD}')
+    sprint(f'↪ Reading config from {CONFIG_PY}.{CONFIG_MOD}')
     if "." in CONFIG_MOD: 
         CONFIGX = CONFIG_MOD.split(".")
         config_dict = c_module
@@ -1842,7 +1893,7 @@ try:
             config_dict = getattr(config_dict, m)
     else: config_dict = getattr(c_module, CONFIG_MOD)
 except:
-    fexit(f'[!] Could not read config from {CONFIGS_FILE}.{CONFIG_MOD}')
+    fexit(f'[!] Could not read config from {CONFIG_PY}.{CONFIG_MOD}')
 
 if not isinstance(config_dict, dict): 
     try: config_dict=config_dict()
@@ -1850,7 +1901,7 @@ if not isinstance(config_dict, dict):
 if not isinstance(config_dict, dict): raise fexit(f'Expecting a dict object for config')
 
 try: 
-    sprint(f'↪ Building config from {CONFIGS_FILE}.{CONFIG_MOD}')
+    sprint(f'↪ Building config from {CONFIG_PY}.{CONFIG_MOD}')
     args = Fake(**config_dict)
 except: fexit(f'[!] Could not read config')
 if not len(args): fexit(f'[!] Empty or Invalid config provided')
@@ -1917,7 +1968,11 @@ if not os.path.isfile(LOGIN_XL_PATH):
     
     sprint(f'⇒ Created new login-db with admin-user: user-id "{this_user}" and name "{this_name}"')
 
-
+# ------------------------------------------------------------------------------------------
+# EVAL DATABASE - CSV
+# ------------------------------------------------------------------------------------------
+if not args.eval: EVAL_XL_PATH = None # fexit(f'[!] evaluation file was not provided!')    
+else: EVAL_XL_PATH = os.path.join( BASEDIR, args.eval)
 # ------------------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------------------
@@ -1956,6 +2011,9 @@ sprint(f'⚙ Reports Folder: {REPORT_FOLDER_PATH}')
 #-----------------------------------------------------------------------------------------
 # file-name and uploads validation
 #-----------------------------------------------------------------------------------------
+ALLOWED_EXTRA = bool(args.extra)
+REQUIRED_FILES = set([x.strip() for x in args.required.split(',') if x])  # a set or list of file extensions that are required to be uploaded 
+if '' in REQUIRED_FILES: REQUIRED_FILES.remove('')
 
 def VALIDATE_FILENAME(filename):   # a function that checks for valid file 
     sprint(f'Validating {filename}')
@@ -1963,11 +2021,13 @@ def VALIDATE_FILENAME(filename):   # a function that checks for valid file
 
         name, ext = filename.rsplit('.', 1)
         safename = f'{name}.{ext.lower()}'
-        isvalid = bool(safename)
+        if REQUIRED_FILES:  isvalid = bool(safename) if ALLOWED_EXTRA else (safename in REQUIRED_FILES)
+        else:               isvalid = bool(safename) #re.match(VALID_FILES_PATTERN, safename, re.IGNORECASE)  # Case-insensitive matching
     else:               
         name, ext = filename, ''
         safename = f'{name}'
-        isvalid = bool(safename)
+        if REQUIRED_FILES:  isvalid = bool(safename) if ALLOWED_EXTRA else (safename in REQUIRED_FILES)
+        else:               isvalid = bool(safename) #(not ALLOWED_EXTENSIONS)
     return isvalid, safename
 
 def VALIDATE_FILENAME_SUBMIT(filename): 
@@ -1984,6 +2044,7 @@ def VALIDATE_FILENAME_SUBMIT(filename):
 MAX_UPLOAD_SIZE = str2bytes(args.maxupsize)     # maximum upload file size 
 MAX_UPLOAD_COUNT = ( inf if args.maxupcount<0 else args.maxupcount )       # maximum number of files that can be uploaded by one user
 INITIAL_UPLOAD_STATUS = []           # a list of notes to be displayed to the users about uploading files
+if REQUIRED_FILES: INITIAL_UPLOAD_STATUS.append((-1, f'accepted files [{len(REQUIRED_FILES)}]: {REQUIRED_FILES}'))
 INITIAL_UPLOAD_STATUS.append((-1, f'max upload size: {DISPLAY_SIZE_READABLE(MAX_UPLOAD_SIZE)}'))
 INITIAL_UPLOAD_STATUS.append((-1, f'max upload count: {MAX_UPLOAD_COUNT}'))
 sprint(f'⚙ Upload Settings ({len(INITIAL_UPLOAD_STATUS)})')
@@ -2128,21 +2189,43 @@ def read_logindb_from_disk():
     if res: sprint(f'⇒ Loaded login file: {LOGIN_XL_PATH}')
     else: sprint(f'⇒ Failed reading login file: {LOGIN_XL_PATH}')
     return db_frame
-
+def read_evaldb_from_disk():
+    dbsub_frame = dict()
+    if EVAL_XL_PATH: 
+        dbsub_frame, ressub = READ_DB_FROM_DISK(EVAL_XL_PATH, 0)
+        if ressub: sprint(f'⇒ Loaded evaluation file: {EVAL_XL_PATH}')
+        else: sprint(f'⇒ Did not load evaluation file: [{EVAL_XL_PATH}] exists={os.path.exists(EVAL_XL_PATH)} isfile={os.path.isfile(EVAL_XL_PATH)}')
+    return dbsub_frame
 # ------------------------------------------------------------------------------------------
 def write_logindb_to_disk(db_frame): # will change the order
     res = WRITE_DB_TO_DISK(LOGIN_XL_PATH, db_frame, LOGIN_ORD)
     if res: sprint(f'⇒ Persisted login file: {LOGIN_XL_PATH}')
     else:  sprint(f'⇒ PermissionError - {LOGIN_XL_PATH} might be open, close it first.')
     return res
-
+def write_evaldb_to_disk(dbsub_frame, verbose=True): # will change the order
+    ressub = True
+    if EVAL_XL_PATH: 
+        ressub = WRITE_DB_TO_DISK(EVAL_XL_PATH, dbsub_frame, EVAL_ORD)
+        if verbose:
+            if ressub: sprint(f'⇒ Persisted evaluation file: {EVAL_XL_PATH}')
+            else:  sprint(f'⇒ PermissionError - {EVAL_XL_PATH} might be open, close it first.')
+    return ressub
 # ------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------
 db =    read_logindb_from_disk()  #<----------- Created database here 
-
+dbsub = read_evaldb_from_disk()  #<----------- Created database here 
+sprint('↷ persisted eval-db [{}]'.format(write_evaldb_to_disk(dbsub)))
+dbevalset = set([k for k,v in db.items() if '-' not in v[0]])
+dbevaluatorset = sorted(list(set([k for k,v in db.items() if 'X' in v[0]])))
 # ------------------------------------------------------------------------------------------
 # Check user upload requirements
 # ------------------------------------------------------------------------------------------
+def GetUserFiles(uid): 
+    if not REQUIRED_FILES: return True # no files are required to be uploaded
+    udir = os.path.join( app.config['uploads'], uid)
+    has_udir = os.path.isdir(udir)
+    if has_udir: return not (False in [os.path.isfile(os.path.join(udir, f)) for f in REQUIRED_FILES])
+    else: return False
 class UploadFileForm(FlaskForm): # The upload form using FlaskForm
     file = MultipleFileField("File", validators=[InputRequired()])
     submit = SubmitField("Upload File")
@@ -2176,6 +2259,8 @@ app.config['disableupload'] = False
 app.config['board'] =     (BOARD_FILE_MD is not None)
 app.config['reg'] =       (parsed.reg)
 app.config['repass'] =    bool(args.repass)
+app.config['reeval'] =    bool(args.reeval)
+app.config['eip'] =       bool(parsed.eip)
 app.config['apac'] =    f'{parsed.access}'.strip().upper()
 # ------------------------------------------------------------------------------------------
 
@@ -2371,7 +2456,10 @@ def route_uploads(req_path):
     if 'U' not in session['admind']:  return redirect(url_for('route_home'))
     form = UploadFileForm()
     folder_name = os.path.join( app.config['uploads'], session['uid']) 
-    submitted, score = -1, -1
+    if EVAL_XL_PATH:
+        submitted = int(session['uid'] in dbsub)
+        score = dbsub[session['uid']][2] if submitted>0 else -1
+    else: submitted, score = -1, -1
 
     ufl = GET_FILE_LIST(folder_name, number=True)
     status=(INITIAL_UPLOAD_STATUS if not app.config['disableupload'] else [(-1, f'Uploads are disabled')])
@@ -2404,43 +2492,47 @@ def route_uploads(req_path):
             if app.config['muc']==0 or app.config['disableupload']: 
                 status=[(0, f'✗ Uploads are disabled')]
             else:
-                result = []
-                n_success = 0
-                fcount = len(ufl)
-                #---------------------------------------------------------------------------------
-                for file in form.file.data:
-                    isvalid, sf = VALIDATE_FILENAME(secure_filename(file.filename))
-                    isvalid = isvalid or ('+' in session['admind'])
-                #---------------------------------------------------------------------------------
-                    
-                    if not isvalid:
-                        why_failed =  f"✗ Extension is invalid [{sf}] "
-                        result.append((0, why_failed))
-                        continue
+                if EVAL_XL_PATH:
+                    if submitted>0: 
+                        status=[(0, f'✗ You have been evaluated - cannot upload new files for this session.')]
+                    else:
+                        result = []
+                        n_success = 0
+                        fcount = len(ufl)
+                        #---------------------------------------------------------------------------------
+                        for file in form.file.data:
+                            isvalid, sf = VALIDATE_FILENAME(secure_filename(file.filename))
+                            isvalid = isvalid or ('+' in session['admind'])
+                        #---------------------------------------------------------------------------------
+                            
+                            if not isvalid:
+                                why_failed =  f"✗ File not accepted [{sf}] " if REQUIRED_FILES else f"✗ Extension is invalid [{sf}] "
+                                result.append((0, why_failed))
+                                continue
 
-                    
-                    if fcount>=app.config['muc']:
-                        why_failed = f"✗ Upload limit reached [{sf}] "
-                        result.append((0, why_failed))
-                        continue
-                    
-                    file_name = os.path.join(folder_name, sf)
-                    try: 
-                        file.save(file_name) 
-                        why_failed = f"✓ Uploaded new file [{sf}] "
-                        result.append((1, why_failed))
-                        n_success+=1
-                        fcount+=1
-                    except FileNotFoundError: 
-                        return redirect(url_for('route_logout'))
-                #---------------------------------------------------------------------------------
-                    
-                result_show = ''.join([f'\t{r[-1]}\n' for r in result])
-                result_show = result_show[:-1]
-                dprint(f'๏ ✅ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s)\n{result_show}') 
-                ufl = GET_FILE_LIST(folder_name, number=True)
-                status=result
-    
+                            
+                            if fcount>=app.config['muc']:
+                                why_failed = f"✗ Upload limit reached [{sf}] "
+                                result.append((0, why_failed))
+                                continue
+                            
+                            file_name = os.path.join(folder_name, sf)
+                            try: 
+                                file.save(file_name) 
+                                why_failed = f"✓ Uploaded new file [{sf}] "
+                                result.append((1, why_failed))
+                                n_success+=1
+                                fcount+=1
+                            except FileNotFoundError: 
+                                return redirect(url_for('route_logout'))
+                        #---------------------------------------------------------------------------------
+                            
+                        result_show = ''.join([f'\t{r[-1]}\n' for r in result])
+                        result_show = result_show[:-1]
+                        dprint(f'๏ ✅ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s)\n{result_show}') 
+                        ufl = GET_FILE_LIST(folder_name, number=True)
+                        status=result
+        
 
     return render_template('uploads.html', ufl=ufl, submitted=submitted, score=score, form=form, status=status)
 # ------------------------------------------------------------------------------------------
@@ -2466,9 +2558,287 @@ def route_reports(req_path):
             return send_file(abs_path) # Check if path is a file and serve
     return render_template('reports.html', rfl=rfl)
 # ------------------------------------------------------------------------------------------
+@app.route('/generate_eval_template', methods =['GET'])
+def route_generate_eval_template():
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
+    return send_file(DICT2BUFF({k:[v[LOGIN_ORD_MAPPING["UID"]], v[LOGIN_ORD_MAPPING["NAME"]], "", "",] for k,v in db.items() if '-' not in v[LOGIN_ORD_MAPPING["ADMIN"]]} , ["UID", "NAME", "SCORE", "REMARKS"]),
+                    download_name=f"eval_{app.config['topic']}_{session['uid']}.csv", as_attachment=True)
+@app.route('/generate_submit_report', methods =['GET'])
+def route_generate_submit_report():
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
+    finished_uids = set(dbsub.keys())
+    remaining_uids = dbevalset.difference(finished_uids)
+    absent_uids = set([puid for puid in remaining_uids if not os.path.isdir(os.path.join( app.config['uploads'], puid))])
+    pending_uids = remaining_uids.difference(absent_uids)
+    not_uploaded_uids = set([puid for puid in pending_uids if not os.listdir(os.path.join( app.config['uploads'], puid))])
+    pending_uids = pending_uids.difference(not_uploaded_uids)
+    msg = f"Total [{len(dbevalset)}]"
+    if len(dbevalset) != len(finished_uids) + len(pending_uids) + len(not_uploaded_uids) + len(absent_uids): msg+=f" [!] Count Mismatch!"
+    pending_uids, absent_uids, finished_uids, not_uploaded_uids = sorted(list(pending_uids)), sorted(list(absent_uids)), sorted(list(finished_uids)), sorted(list(not_uploaded_uids))
+    #{NEWLINE.join(finished_uids)} {NEWLINE.join(pending_uids)} {NEWLINE.join(absent_uids)}
+    
+    
+    htable0="""
+    <html>
+        <head>
+            <meta charset="UTF-8">
+            <title> Live Report {{ config.topic }} </title>
+            <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+        </head>
+        <body>
+    """ + f"""
+    <style>
+    td {{padding: 10px;}}
+    th {{padding: 5px;}}
+    tr {{vertical-align: top;}}
+    </style>
+    <h2> {msg} </h2>
+    <table border="1" style="color: black;">
+        <tr> <th>Pending [{len(pending_uids)}]</th> <th>NAME</th> </tr>
+
+    """
+    htable1=''
+    for pu in pending_uids:
+        htable1+=f""" 
+        <tr>
+        <td><a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">{pu}</a></td>
+        <td>{db[pu][2]}</td>
+        </tr>
+        """
+    htable1+=f"""</table>
+    <br>
+    <table border="1" style="color: blue;">
+        <tr> <th>No-Upload [{len(not_uploaded_uids)}]</th><th>NAME</th> </tr>
+    """
+    htable11=''
+    for pu in not_uploaded_uids:
+        htable11+=f""" 
+        <tr>
+        <td><a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">{pu}</a></td>
+        <td>{db[pu][2]}</td>
+        </tr>
+        """
+    htable11+=f"""</table>
+    <br>
+    <table border="1" style="color: maroon;">
+        <tr> <th>Absent [{len(absent_uids)}]</th><th>NAME</th> </tr>
+    """
+    htable2 = ''
+    for pu in absent_uids:
+        htable2+=f""" 
+        <tr>
+        <td>{pu}</td>
+        <td>{db[pu][2]}</td>
+        </tr>
+        """
+    htable2+=f"""</table>
+    <br>
+    <table border="1" style="color: black;">
+        <tr>
+            <th>Evaluated [{len(finished_uids)}]</th>
+            <th>NAME</th>
+            <th>SCORE</th>
+            <th>REMARK</th>
+            <th>EVALUATOR</th>
+            
+        </tr>
+    """
+    htable3 = ''
+    #EVAL_ORD = ['UID', 'NAME', 'SCORE', 'REMARK', 'BY']
+    counter = { k:0 for k in dbevaluatorset}
+    for k in sorted(list(dbsub.keys())):
+        v = dbsub[k]
+        counter[v[4]]+=1
+        htable3+=f"""
+        <tr>
+            <td><a href="{ url_for('route_storeuser', subpath=v[0]) }" target="_blank">{v[0]}</a></td>
+            <td>{v[1]}</td>
+            <td>{v[2]}</td>
+            <td>{v[3]}</td>
+            <td>{v[4]}</td>
+        </tr>
+        """
+    htable3+=f"""</table><br>
+    <h2>Evaluator Stats<h2>
+    <table border="1" style="color: black;">
+        <tr><th>Evaluator</th><th>#</th></tr>
+    """
+    htable4 = ''
+    for k,v in counter.items():
+        htable4+=f"""
+        <tr>
+            <td>{k} | {db[k][2]}</td>
+            <td>{v}</td>
+        </tr>
+        """
+    htable4+=f"""</table><br><hr></body></html>"""
+    return render_template_string( htable0+htable1+htable11+htable2+htable3+htable4)
+
+    
+
+# ------------------------------------------------------------------------------------------
+# eval
+# ------------------------------------------------------------------------------------------
+@app.route('/eval', methods =['GET', 'POST'], defaults={'req_uid': ''})
+@app.route('/eval/<req_uid>')
+def route_eval(req_uid):
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    form = UploadFileForm()
+    submitter = session['uid']
+    results = []
+    global db, dbsub
+    if form.validate_on_submit():
+        dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
+        if  not ('X' in session['admind']): status, success =  "You are not allowed to evaluate.", False
+        else: 
+            if not EVAL_XL_PATH: status, success =  "Evaluation is disabled.", False
+            else:
+                if len(form.file.data)!=1:  status, success = f"Expecting only one csv file", False
+                else:
+                    #---------------------------------------------------------------------------------
+                    file = form.file.data[0]
+                    isvalid, sf = VALIDATE_FILENAME_SUBMIT(secure_filename(file.filename))
+                    #---------------------------------------------------------------------------------
+                    if not isvalid: status, success = f"FileName is invalid '{sf}'", False
+                    else:
+                        try: 
+                            filebuffer = BytesIO()
+                            file.save(filebuffer) 
+                            score_dict = BUFF2DICT(filebuffer, 0)
+                            results.clear()
+                            for k,v in score_dict.items():
+                                in_uid = f'{v[0]}'.strip() 
+                                in_score = f'{v[2]}'.strip() 
+                                in_remark = f'{v[3]}'.strip()
+                                if not (in_score or in_remark): continue
+                                if in_score:
+                                    try: _ = float(in_score)
+                                    except: in_score=''
+                                in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
+                                valid_query = VALIDATE_UID(in_query) 
+                                if not valid_query : 
+                                    results.append((in_uid,f'[{in_uid}] is not a valid user.', False))
+                                else: 
+                                    record = db.get(in_query, None)
+                                    if record is None: 
+                                        results.append((in_uid,f'[{in_uid}] is not a valid user.', False))
+                                    else:
+                                        admind, uid, named, _ = record
+                                        if ('-' in admind):
+                                            results.append((in_uid,f'[{in_uid}] {named} is not in evaluation list.', False))
+                                        else:
+                                            scored = dbsub.get(in_query, None)                               
+                                            if scored is None: # not found
+                                                if not in_score:
+                                                    results.append((in_uid,f'Require numeric value to assign score to [{in_uid}] {named}.', False))
+                                                else:
+                                                    has_req_files = GetUserFiles(uid)
+                                                    if has_req_files:
+                                                        dbsub[in_query] = [uid, named, in_score, in_remark, submitter]
+                                                        results.append((in_uid,f'Score/Remark Created for [{in_uid}] {named}, current score is {in_score}.', True))
+                                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} via {request.remote_addr}")
+                                                    else:
+                                                        results.append((in_uid,f'User [{in_uid}] {named} has not uploaded the required files yet.', False))
+                                            else:
+                                                if scored[-1] == submitter or abs(float(scored[2])) == float('inf') or ('+' in session['admind']):
+                                                    if in_score:  dbsub[in_query][2] = in_score
+                                                    if in_remark: dbsub[in_query][3] = in_remark
+                                                    dbsub[in_query][-1] = submitter # incase of inf score
+                                                    if in_score or in_remark : results.append((in_uid,f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsub[in_query][2]}. Remark is [{dbsub[in_query][3]}].', True))
+                                                    else: results.append((in_uid,f'Nothing was updated for [{in_uid}] {named}, current score is {dbsub[in_query][2]}. Remark is [{dbsub[in_query][3]}].', False))
+                                                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} via {request.remote_addr}")
+                                                else:
+                                                    results.append((in_uid,f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information. Hint: Set the score to "inf".', False))
+                                                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
+                            vsu = [vv for nn,kk,vv in results]
+                            vsuc = vsu.count(True)
+                            success = (vsuc > 0)
+                            status = f'Updated {vsuc} of {len(vsu)} records'
+                        except: 
+                            status, success = f"Error updating scroes from file [{sf}]", False
+        if success: persist_subdb()
+    elif request.method == 'POST': 
+        if 'uid' in request.form and 'score' in request.form:
+            if EVAL_XL_PATH:
+                if ('X' in session['admind']) or ('+' in session['admind']):
+                    in_uid = f"{request.form['uid']}"
+                    in_score = f"{request.form['score']}"
+                    if in_score:
+                        try: _ = float(in_score)
+                        except: in_score=''
+                    in_remark = f'{request.form["remark"]}' if 'remark' in request.form else ''
+                    in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
+                    valid_query = VALIDATE_UID(in_query) 
+                    if not valid_query : 
+                        status, success = f'[{in_uid}] is not a valid user.', False
+                    else: 
+                        record = db.get(in_query, None)
+                        if record is None: 
+                            status, success = f'[{in_uid}] is not a valid user.', False
+                        else:
+                            admind, uid, named, _ = record
+                            if ('-' in admind):
+                                status, success = f'[{in_uid}] {named} is not in evaluation list.', False
+                            else:
+                                scored = dbsub.get(in_query, None)                               
+                                if scored is None: # not found
+                                    if not in_score:
+                                        status, success = f'Require numeric value to assign score to [{in_uid}] {named}.', False
+                                    else:
+                                        has_req_files = GetUserFiles(uid)
+                                        if has_req_files:
+                                            dbsub[in_query] = [uid, named, in_score, in_remark, submitter]
+                                            status, success = f'Score/Remark Created for [{in_uid}] {named}, current score is {in_score}.', True
+                                            dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} via {request.remote_addr}")
+                                        else:
+                                            status, success = f'User [{in_uid}] {named} has not uploaded the required files yet.', False
+                                else:
+                                    if scored[-1] == submitter or abs(float(scored[2])) == float('inf') or ('+' in session['admind']):
+                                        if in_score:  dbsub[in_query][2] = in_score
+                                        if in_remark: dbsub[in_query][3] = in_remark
+                                        dbsub[in_query][-1] = submitter # incase of inf score
+                                        if in_score or in_remark : status, success =    f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsub[in_query][2]}. Remark is [{dbsub[in_query][3]}].', True
+                                        else: status, success =                         f'Nothing was updated for [{in_uid}] {named}, current score is {dbsub[in_query][2]}. Remark is [{dbsub[in_query][3]}].', False
+                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} via {request.remote_addr}")
+                                    else:
+                                        status, success = f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information. Hint: Set the score to "inf".', False
+                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
+                else: status, success =  "You are not allow to evaluate.", False
+            else: status, success =  "Evaluation is disabled.", False
+        else: status, success = f"You posted nothing!", False
+        if success and app.config['eip']: persist_subdb()
+    else:
+        if not req_uid:
+            if ('+' in session['admind']) or ('X' in session['admind']):
+                status, success = f"Eval Access is Enabled", True
+            else: status, success = f"Eval Access is Disabled", False
+        else:
+            iseval = ('X' in session['admind']) or ('+' in session['admind'])
+            if app.config['reeval']:
+                if iseval:
+                    in_uid = f'{req_uid}'
+                    if in_uid: 
+                    
+
+                        in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
+                        record = db.get(in_query, None)
+                        if record is not None: 
+                            erecord = dbsub.get(in_query, None)
+                            if erecord is not None:
+                                del dbsub[in_query]
+                                dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {erecord[1]} (already evaluated by [{erecord[-1]}] with score [{erecord[2]}]) via {request.remote_addr}")
+                                status, success =  f"Evaluation was reset for {record[1]} ◦ {record[2]}", True
+                            else: status, success =  f"User {record[1]} ◦ {record[2]} has not been evaluated", False
+                        else: status, success =  f"User '{in_query}' not found", False
+                    else: status, success =  f"User-id was not provided", False
+                else: status, success =  "You are not allow to reset evaluation", False
+            else: status, success =  "Evaluation reset is disabled for this session", False
+            if success: persist_subdb()
 
 
-
+    return render_template('evaluate.html', success=success, status=status, form=form, results=results)
 
 # ------------------------------------------------------------------------------------------
 
@@ -2480,6 +2850,12 @@ def route_reports(req_path):
 @app.route('/home', methods =['GET'])
 def route_home():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
+    #form = UploadFileForm()
+    #folder_name = os.path.join( app.config['uploads'], session['uid']) 
+    #if EVAL_XL_PATH:
+    #    submitted = int(session['uid'] in dbsub)
+    #    score = dbsub[session['uid']][2] if submitted>0 else -1
+    #else: submitted, score = -1, -1
     if '?' in (request.args) and '+' in session['admind']: 
         if update_board():  dprint(f"๏ 🔰 {session['uid']} ◦ {session['named']} just refreshed the board via {request.remote_addr}")
         else: dprint(f"๏ 🔰 {session['uid']} ◦ {session['named']} failed to refreshed the board via {request.remote_addr}")
@@ -2496,8 +2872,9 @@ def route_purge():
     """
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if 'U' not in session['admind']:  return redirect(url_for('route_home'))
-
-    if app.config['disableupload']: return redirect(url_for('route_uploads'))
+    if EVAL_XL_PATH:
+        #global dbsub
+        if session['uid'] in dbsub or app.config['disableupload']: return redirect(url_for('route_uploads'))
 
     folder_name = os.path.join( app.config['uploads'], session['uid']) 
     if os.path.exists(folder_name):
@@ -2664,19 +3041,25 @@ def route_storeuser(subpath=""):
 
 def persist_db():
     r""" writes both dbs to disk """
-    global db
-    if write_logindb_to_disk(db): 
+    global db, dbsub
+    if write_logindb_to_disk(db) and write_evaldb_to_disk(dbsub): #if write_db_to_disk(db, dbsub):
         dprint(f"๏ 📥 {session['uid']} ◦ {session['named']} just persisted the db to disk via {request.remote_addr}")
         STATUS, SUCCESS = "Persisted db to disk", True
     else: STATUS, SUCCESS =  f"Write error, file might be open", False
     return STATUS, SUCCESS 
 
-
+def persist_subdb():
+    r""" writes eval-db to disk """
+    global dbsub
+    if write_evaldb_to_disk(dbsub, verbose=False): STATUS, SUCCESS = "Persisted db to disk", True
+    else: STATUS, SUCCESS =  f"Write error, file might be open", False
+    return STATUS, SUCCESS 
 
 def reload_db():
     r""" reloads db from disk """
-    global db
+    global db, dbsub
     db = read_logindb_from_disk()
+    dbsub = read_evaldb_from_disk()
     dprint(f"๏ 📤 {session['uid']} ◦ {session['named']} just reloaded the db from disk via {request.remote_addr}")
     return "Reloaded db from disk", True #  STATUS, SUCCESS
 
@@ -2819,6 +3202,7 @@ serve(app, # https://docs.pylonsproject.org/projects/waitress/en/stable/runner.h
 end_time = datetime.datetime.now()
 sprint('◉ stop server @ [{}]'.format(end_time))
 sprint('↷ persisted login-db [{}]'.format(write_logindb_to_disk(db)))
+sprint('↷ persisted eval-db [{}]'.format(write_evaldb_to_disk(dbsub)))
 sprint('◉ server up-time was [{}]'.format(end_time - start_time))
 sprint(f'...Finished!')
 #%% [END]
