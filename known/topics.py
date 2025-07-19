@@ -84,26 +84,11 @@ if __name__!='__main__': exit(f'[!] can not import {__name__}.{__file__}')
 # ------------------------------------------------------------------------------------------
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument('--port',        type=str, default='8080',   help="")
-parser.add_argument('--host',        type=str, default='0.0.0.0',   help="")
-parser.add_argument('--maxupsize',   type=str, default="40GB",   help="")
-parser.add_argument('--maxconnect',  type=int, default=50,   help="")
-parser.add_argument('--threads',     type=int, default=4,   help="")
-
-parser.add_argument('--html',       type=str, default='html',   help="path of html directory [DEFAULT]: current diretory")
-parser.add_argument('--dir',        type=str, default='',   help="path of workspace directory [DEFAULT]: current diretory")
-parser.add_argument('--login',      type=str, default='login.csv',   help="login database having four cols ADMIN, UID, NAME, PASS")
-parser.add_argument('--secret',     type=str, default='secret.txt',   help="file containing flask app secret (keep blank to generate random secret every time)")
 parser.add_argument('--verbose',    type=int, default=2,    help="verbose level in logging (0,1,2) [DEFAULT]: 2")
 parser.add_argument('--log',        type=str, default='',   help="name of logfile as date-time-formated string, blank by default, keep blank to disable logging") #e.g. fly_%Y_%m_%d_%H_%M_%S_%f_log.txt
 parser.add_argument('--con',        type=str, default='config.py',    help="config name (without .py extension) - a python module inside workdir")
-parser.add_argument('--reg',        type=str, default='',   help="if specified, allow users to register with that access string such as DABU or DABUS+")
-parser.add_argument('--cos',        type=int, default=1,    help="use 1 to create-on-start - force create (overwrites) pages and scripts [DEFAULT]: 1")
 parser.add_argument('--access',     type=str, default='',   help="if specified, adds extra premissions to access string for this session only")
-parser.add_argument('--eip',        type=int, default=1,    help="Evaluate Immediate Persis. If True (by-default), persist the eval-db after each single evaluation (eval-db in always persisted after update from template)")
-parser.add_argument('--https',      type=int, default=0,    help="if True, Tells waitress that its behind an nginx proxy - https://flask.palletsprojects.com/en/stable/deploying/nginx/")
-parser.add_argument('--scripts',    type=int, default=1,    help="if True, keeps all script tags in board")
-parser.add_argument('--live',       type=int, default=1,    help="if True, uses like scripts like mathjax")
+parser.add_argument('--https',      type=int, default=0,    help="if True, Tells waitress that its behind an nginx proxy - https://flask.palletsprojects.com/en/stable/deploying/nginx/")                           
 parsed = parser.parse_args()
 
 # ------------------------------------------------------------------------------------------
@@ -179,6 +164,7 @@ elif parsed.verbose>=2: # server and user logs
             exit()
 else: raise ZeroDivisionError # impossible
 # ------------------------------------------------------------------------------------------
+    
 
 
 #-----------------------------------------------------------------------------------------
@@ -322,8 +308,8 @@ style = dict(
 
         # -------------# buttons
         btn_red =       "#9a0808", # Purge
-        btn_purple =    "#651b96", # Eval
-        btn_lpurple =   "#855da5", # ...place holder for eval
+        btn_purple =    "#9346c6", # Eval
+        btn_lpurple =   "#dccae9", # ...place holder for eval
         btn_lgray   =   "#888686", # ...place holder for login
         btn_navy =      "#060472", # Login/out
         btn_igreen =    "#6daa43", # Refersh
@@ -385,7 +371,7 @@ style = dict(
         bcol_board =        '#232323',
 
 )
-
+                                                              
 common = dict(    
 
     # --------------------------------------# general info
@@ -402,8 +388,25 @@ common = dict(
                                             #   (if case=0 uids are not converted           when matching in database)
                                             #   (if case>0 uids are converted to upper-case when matching in database)
                                             #   (if case<0 uids are converted to lower-case when matching in database)
-                                                              
+    reg         = "",                       # if specified, allow users to register with that access string such as DARU
+    cos         = 1,                        # use 1 to create-on-start - force create (overwrites) pages and scripts [DEFAULT]: 1
+    eip         = 1,                        # Evaluate Immediate Persis. If True (by-default), persist the eval-db after each single evaluation (eval-db in always persisted after update from template)
+    scripts     = 1,                        # if True, keeps all script tags in board
+    live        = 1,                        # if True, uses online scripts like mathjax
+    
+    # ------------------------------------# server config
+    port        = "8080",                
+    host        = "0.0.0.0",   
+    maxupsize   = "50GB",
+    maxconnect  = 500,
+    threads     = 5,
+
     # ------------------------------------# file and directory information
+    secret       = "./secret.txt",     # flask app secret
+    login        = "./login.csv",      # login database
+    html         = "./html",           # for storing html pages, css and js
+    dir          = ".",                # workspace directory, everything below is relative to this
+
     base         = "base",            # the base directory 
     reports      = "reports",         # reports folder (read-only files that are private to a user go here)
     downloads    = "downloads",       # downloads folder (public read-only access)
@@ -416,6 +419,7 @@ running = dict(
     default=dict(
         required     = "",                     # csv list of file-names that are required to be uploaded e.g., required = "a.pdf,b.png,c.exe" (keep blank to allow all file-names)
         extra        = 1,                      # if true, allows uploading extra file (other than required)
+        canupload    = 1,                 # toggle enable/disable uploading for users (not for store)
         eval         = "eval.csv",        # evaluation database - created if not existing - reloads if exists
         uploads      = "uploads",         # uploads folder (uploaded files by users go here)
         )
@@ -1344,7 +1348,7 @@ def TEMPLATES(style, script_mathjax):
         text-align: left;
         font-family: {style.font_};
         border: 1px;
-        background:  {style.btn_purple};
+        background:  {style.btn_lpurple};
         appearance: none;
         position: relative;
         border-radius: 3px;
@@ -1356,7 +1360,7 @@ def TEMPLATES(style, script_mathjax):
         height: 24px;
     }}
     ::placeholder {{
-        color: {style.btn_lpurple};
+        color: {style.btn_purple};
         opacity: 1;
         font-family: {style.font_};   
     }}
@@ -1984,16 +1988,6 @@ sprint(f'Starting...')
 if parsed.https: sprint(f'↪ https is enabled, assume that reverse proxy engine is running ... ')
 if not has_nbconvert: sprint(f'↪ nbconvert package was not found, ipynb-to-html rendering will not work ... ')
 sprint(f'↪ Logging @ {LOGFILE}')
-# ------------------------------------------------------------------------------------------
-# workdir
-#-----------------------------------------------------------------------------------------
-WORKDIR = f'{parsed.dir}' # define working dir - contains all bases
-if not WORKDIR: WORKDIR = os.getcwd()
-WORKDIR=os.path.abspath(WORKDIR)
-try: os.makedirs(WORKDIR, exist_ok=True)
-except: fexit(f'[!] Workspace directory was not found and could not be created')
-sprint(f'↪ Workspace directory is {WORKDIR}')
-
 
 
 
@@ -2003,7 +1997,7 @@ sprint(f'↪ Workspace directory is {WORKDIR}')
 #-----------------------------------------------------------------------------------------
 CONFIGS_FILE = parsed.con # the name of configs py file
 # try to import configs
-CONFIGS_FILE_PATH = os.path.join(WORKDIR, CONFIGS_FILE) # should exsist under workdir
+CONFIGS_FILE_PATH = os.path.abspath(CONFIGS_FILE) # should exsist under workdir
 if not os.path.isfile(CONFIGS_FILE_PATH):
     sprint(f'↪ Creating default config "{CONFIGS_FILE}" ...')
     try: 
@@ -2081,10 +2075,22 @@ def GetUserFiles(uid, SESS, REQUIRED_FILES):
 #-----------------------------------------------------------------------------------------
 # Directories
 #-----------------------------------------------------------------------------------------
-HTMLDIR = os.path.abspath(parsed.html)
+
+HTMLDIR = os.path.abspath(args.html)
 try: os.makedirs(HTMLDIR, exist_ok=True)
 except: fexit(f'[!] HTML directory was not found and could not be created')
 sprint(f'⚙ HTML Directory @ {HTMLDIR}')
+
+# ------------------------------------------------------------------------------------------
+# workdir
+#-----------------------------------------------------------------------------------------
+WORKDIR = f'{args.dir}' # define working dir - contains all bases
+if not WORKDIR: WORKDIR = os.getcwd()
+WORKDIR=os.path.abspath(WORKDIR)
+try: os.makedirs(WORKDIR, exist_ok=True)
+except: fexit(f'[!] Workspace directory was not found and could not be created')
+sprint(f'↪ Workspace directory is {WORKDIR}')
+
 
 BASEDIR = ((os.path.join(WORKDIR, args.base)) if args.base else WORKDIR)
 try:     os.makedirs(BASEDIR, exist_ok=True)
@@ -2094,8 +2100,8 @@ sprint(f'⚙ Base Directory: {BASEDIR}')
 # ------------------------------------------------------------------------------------------
 # WEB-SERVER INFORMATION
 # ------------------------------------------------------------------------------------------
-if not parsed.secret: fexit(f'[!] secret file was not provided!')    
-APP_SECRET_KEY_FILE = os.path.abspath(parsed.secret)
+if not args.secret: fexit(f'[!] secret file was not provided!')    
+APP_SECRET_KEY_FILE = os.path.abspath(args.secret)
 if not os.path.isfile(APP_SECRET_KEY_FILE): #< --- if key dont exist, create it
     APP_SECRET_KEY =  GET_SECRET_KEY(fnow("%Y%m%d%H%M%S"))
     try:
@@ -2111,8 +2117,8 @@ else:
 # ------------------------------------------------------------------------------------------
 # LOGIN DATABASE - CSV
 # ------------------------------------------------------------------------------------------
-if not parsed.login: fexit(f'[!] login file was not provided!')    
-LOGIN_XL_PATH = os.path.abspath(parsed.login) 
+if not args.login: fexit(f'[!] login file was not provided!')    
+LOGIN_XL_PATH = os.path.abspath(args.login) 
 if not os.path.isfile(LOGIN_XL_PATH): 
     sprint(f'⇒ Creating new login file: {LOGIN_XL_PATH}')
     
@@ -2181,7 +2187,7 @@ sprint(f'⚙ Reports Folder: {REPORT_FOLDER_PATH}')
 # file-name and uploads validation
 #-----------------------------------------------------------------------------------------
 
-MAX_UPLOAD_SIZE = str2bytes(parsed.maxupsize)     # maximum upload file size 
+MAX_UPLOAD_SIZE = str2bytes(args.maxupsize)     # maximum upload file size 
 MAX_UPLOAD_COUNT = ( inf if args.maxupcount<0 else args.maxupcount )       # maximum number of files that can be uploaded by one user
 INITIAL_UPLOAD_STATUS = []           # a list of notes to be displayed to the users about uploading files
 INITIAL_UPLOAD_STATUS.append((-1, f'max upload size: {DISPLAY_SIZE_READABLE(MAX_UPLOAD_SIZE)}'))
@@ -2251,7 +2257,7 @@ class HConv: # html converter
 def GET_SCRIPT(url):
     output_name = os.path.basename(url)
     output_path = os.path.join(HTMLDIR, output_name)
-    if (not os.path.isfile(output_path)) or bool(parsed.cos):
+    if (not os.path.isfile(output_path)) or bool(args.cos):
         sprint(f'↪ Downloading script from {url}')
         try:
             response = requests.get(url)
@@ -2284,18 +2290,18 @@ def GET_SCRIPT(url):
 # ------------------------------------------------------------------------------------------
 
 HTML_TEMPLATES, CSS_TEMPLATES, HOME_PAGE_STR = TEMPLATES(style, 
-    script_mathjax=(f'"{S_MATHJAX}"' if parsed.live else f'"{{{{ url_for("static", filename="{GET_SCRIPT(S_MATHJAX)}") }}}}"') )
+    script_mathjax=(f'"{S_MATHJAX}"' if args.live else f'"{{{{ url_for("static", filename="{GET_SCRIPT(S_MATHJAX)}") }}}}"') )
 # ------------------------------------------------------------------------------------------
 for k,v in HTML_TEMPLATES.items():
     h = os.path.join(HTMLDIR, f"{k}.html")
-    if (not os.path.isfile(h)) or bool(parsed.cos):
+    if (not os.path.isfile(h)) or bool(args.cos):
         try:
             with open(h, 'w', encoding='utf-8') as f: f.write(v)
         except: fexit(f'[!] Cannot create html "{k}" at {h}')
 # ------------------------------------------------------------------------------------------
 for k,v in CSS_TEMPLATES.items():
     h = os.path.join(HTMLDIR, f"{k}.css")
-    if (not os.path.isfile(h)) or bool(parsed.cos):
+    if (not os.path.isfile(h)) or bool(args.cos):
         try:
             with open(h, 'w', encoding='utf-8') as f: f.write(v)
         except: fexit(f'[!] Cannot create css "{k}" at {h}')
@@ -2420,12 +2426,12 @@ app.config['bridge'] =     args.bridge
 app.config['topic'] =     args.topic
 app.config['rename'] =    int(args.rename)
 app.config['muc'] =       MAX_UPLOAD_COUNT
-app.config['disableupload'] = {k:False for k in running_data}
+app.config['disableupload'] = {k:not(bool(v['canupload'])) for k,v in running_data.items()}
 app.config['board'] =     (BOARD_FILE_MD is not None)
-app.config['reg'] =       (parsed.reg)
+app.config['reg'] =       (args.reg)
 app.config['repass'] =    bool(args.repass)
 app.config['reeval'] =    bool(args.reeval)
-app.config['eip'] =       bool(parsed.eip)
+app.config['eip'] =       bool(args.eip)
 app.config['apac'] =    f'{parsed.access}'.strip().upper()
 app.config['running'] = running_data # dict (name: dict(required, extra))
 app.config['dses'] = tuple(running_sessions.keys())[0]
@@ -2611,7 +2617,7 @@ def route_downloads(req_path):
             if ("html" in request.args): 
                 dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
                 try:
-                    hstatus, hmsg = HConv.convertx(abs_path, parsed.scripts, style.template_board)
+                    hstatus, hmsg = HConv.convertx(abs_path, args.scripts, style.template_board)
                 except: hstatus, hmsg = False, f"Exception while converting {req_path} to a web-page"
                 return hmsg #if hstatus else  send_file(abs_path, as_attachment=True)
             else: 
@@ -2650,7 +2656,7 @@ def route_uploads(req_path):
             if ("html" in request.args): 
                 dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
                 try:
-                    hstatus, hmsg = HConv.convertx(abs_path, parsed.scripts, style.template_board)
+                    hstatus, hmsg = HConv.convertx(abs_path, args.scripts, style.template_board)
                 except: hstatus, hmsg = False, f"Exception while converting {req_path} to a web-page"
                 return hmsg #if hstatus else  send_file(abs_path, as_attachment=True)
             elif ("del" in request.args):
@@ -2800,7 +2806,7 @@ def route_generate_report():
             # check evaluation 
             dbs, loaded = READ_DB_FROM_DISK(EVAL_XL_PATHS[s], 0)
             if not loaded:
-                dprint(f'Cannot read evaluation for {s}')
+                sprint(f'Cannot read evaluation for {s}')
                 continue
             
             # LOGIN_ORD = ['ADMIN','UID','NAME','PASS']
@@ -2876,7 +2882,18 @@ def route_switch(req_uid):
     else:
         if req_uid not in app.config['running']: return render_template('switcher.html')
         else:
-            session['sess'] = req_uid
+            previous_sess = session['sess']
+            if previous_sess != req_uid:
+                session['sess'] = req_uid
+                folder_name = os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'])
+                try: os.makedirs(folder_name, exist_ok=True)
+                except:
+                    sprint(f'✗ directory could not be created @ {folder_name} :: Force logout user {session["uid"]}')
+                    session['has_login'] = False
+                    return redirect(url_for('route_logout'))
+                dprint(f'๏ 🙃 {session["uid"]} ◦ {session["named"]} has switched from {previous_sess} to {session["sess"]} via {request.remote_addr}') 
+                
+
             if 'e' in request.args: return redirect(url_for('route_eval')) 
             if 'u' in request.args: return redirect(url_for('route_uploads')) 
             return redirect(url_for('route_home')) 
@@ -2987,13 +3004,14 @@ def route_generate_live_report():
     htable3+=f"""</table><br>
     <h2>Evaluator Stats<h2>
     <table border="1" style="color: black;">
-        <tr><th>Evaluator</th><th>#</th></tr>
+        <tr><th>Evaluator</th><th>Name</th><th>Count</th></tr>
     """
     htable4 = ''
     for k,v in counter.items():
         htable4+=f"""
         <tr>
-            <td>{k} | {db[k][2]}</td>
+            <td>{k}</td>
+            <td>{db[k][2]}</td>
             <td>{v}</td>
         </tr>
         """
@@ -3076,7 +3094,7 @@ def route_eval(req_uid):
                                                 else:
                                                     results.append((in_uid,f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information.', False))
                                                     dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named}  for {session["sess"]} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
-                                                    dprint(f'\t๏ Hint: Set the score to "inf"')
+                                                    sprint(f'\tHint: Set the score to "inf"')
                             vsu = [vv for nn,kk,vv in results]
                             vsuc = vsu.count(True)
                             success = (vsuc > 0)
@@ -3130,7 +3148,7 @@ def route_eval(req_uid):
                                     else:
                                         status, success = f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information.', False
                                         dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} for {session["sess"]} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
-                                        dprint(f'\t๏ Hint: Set the score to "inf"')
+                                        sprint(f'\tHint: Set the score to "inf"')
 
                 else: status, success =  "You are not allow to evaluate.", False
             else: status, success =  "Evaluation is disabled.", False
@@ -3321,7 +3339,7 @@ def route_store(subpath=""):
                 elif ("html" in request.args): 
                     dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
                     try:
-                        hstatus, hmsg = HConv.convertx(abs_path, parsed.scripts, style.template_board)
+                        hstatus, hmsg = HConv.convertx(abs_path, args.scripts, style.template_board)
                     except: hstatus, hmsg = False, f"Exception while converting notebook to web-page"
                     return hmsg
                 else: return f"Invalid args for store actions"
@@ -3346,7 +3364,7 @@ def route_storeuser(subpath=""):
         if ("html" in request.args): 
             dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
             try:
-                hstatus, hmsg = HConv.convertx(abs_path, parsed.scripts, style.template_board)
+                hstatus, hmsg = HConv.convertx(abs_path, args.scripts, style.template_board)
             except: hstatus, hmsg = False, f"Exception while converting notebook to web-page"
             return hmsg
         else: 
@@ -3509,13 +3527,13 @@ def endpoints(athost):
 
 start_time = datetime.datetime.now()
 sprint('◉ start server @ [{}]'.format(start_time))
-for endpoint in endpoints(parsed.host): sprint(f'◉ http://{endpoint}:{parsed.port}')
+for endpoint in endpoints(args.host): sprint(f'◉ http://{endpoint}:{args.port}')
 serve(app, # https://docs.pylonsproject.org/projects/waitress/en/stable/runner.html
-    host = parsed.host,          
-    port = parsed.port,          
+    host = args.host,          
+    port = args.port,          
     url_scheme = 'http',     
-    threads = parsed.threads,    
-    connection_limit = parsed.maxconnect,
+    threads = args.threads,    
+    connection_limit = args.maxconnect,
     max_request_body_size = MAX_UPLOAD_SIZE,
 )
 end_time = datetime.datetime.now()
