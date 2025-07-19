@@ -295,6 +295,7 @@ def DEFAULT_CONFIG(file_path):
 style = dict(  
         ext_link =       "https://gist.github.com/auto-notify-ps/713d45a235f77e760f467a7c6bf6ee84",
         font_ =         'monospace',         
+        fontw =         'bold',         
         # -------------# labels
         downloads_ =    'Downloads',
         uploads_ =      'Uploads',
@@ -307,6 +308,8 @@ style = dict(
         report_=        'Report',
 
         # -------------# buttons
+        btn_fw =        "bold",    # Button Font weight
+        btn_fg =        "#FFFFFF", # Button Foreground
         btn_red =       "#9a0808", # Purge
         btn_purple =    "#9346c6", # Eval
         btn_lpurple =   "#dccae9", # ...place holder for eval
@@ -327,8 +330,8 @@ style = dict(
                                                               
                                                               
         # -------------# colors 
-        bgcolor      = "white",
-        fgcolor      = "black",
+        bgcolor      = "#000000",
+        fgcolor      = "#FFFFFF",
         refcolor     = "#101E88",
         item_bgcolor = "#232323",
         item_normal  = "#e6e6e6",
@@ -1165,7 +1168,7 @@ def TEMPLATES(style, script_mathjax):
         background-color: {style.fld_bgcolor}; 
         color: {style.fld_fgcolor};
         font-size: large;
-        font-weight: bold;
+        font-weight:  {style.fontw};
         border-radius: 10px;
         font-family: {style.font_};
         text-decoration: none;
@@ -1174,14 +1177,14 @@ def TEMPLATES(style, script_mathjax):
     .topic{{
         color:{style.fgcolor};
         font-size: xxx-large;
-        font-weight: bold;
+        font-weight:  {style.fontw};
         font-family: {style.font_};    
     }}
 
     .msg_login{{
         color: {style.msgcolor}; 
         font-size: large;
-        font-weight: bold;
+        font-weight:  {style.fontw};
         font-family: {style.font_};    
         animation-duration: 3s; 
         animation-name: fader_msg;
@@ -1193,13 +1196,13 @@ def TEMPLATES(style, script_mathjax):
     .topic_mid{{
         color: {style.fgcolor};
         font-size: x-large;
-        font-weight: bold;
+        font-weight:  {style.fontw};
         font-family: {style.font_};    
     }}
 
     .userword{{
         color: {style.fgcolor};
-        font-weight: bold;
+        font-weight:  {style.fontw};
         font-family: {style.font_};    
         font-size: xxx-large;
     }}
@@ -1207,7 +1210,7 @@ def TEMPLATES(style, script_mathjax):
 
     .upword{{
         color: {style.fgcolor};
-        font-weight: bold;
+        font-weight:  {style.fontw};
         font-family: {style.font_};    
         font-size: xx-large;
 
@@ -1225,7 +1228,7 @@ def TEMPLATES(style, script_mathjax):
 
 
     .files_status{{
-        font-weight: bold;
+        font-weight:  {style.fontw};
         font-size: x-large;
         font-family: {style.font_};
     }}
@@ -1234,7 +1237,7 @@ def TEMPLATES(style, script_mathjax):
     .admin_mid{{
         color: {style.fgcolor}; 
         font-size: x-large;
-        font-weight: bold;
+        font-weight:  {style.fontw};
         font-family: {style.font_};    
         animation-duration: 10s;
     }}
@@ -1267,7 +1270,7 @@ def TEMPLATES(style, script_mathjax):
         padding: 2px 10px 2px;
         background-color: {style.item_false}; 
         color: #FFFFFF;
-        font-weight: bold;
+        font-weight:  {style.fontw};
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1279,7 +1282,7 @@ def TEMPLATES(style, script_mathjax):
         padding: 2px 10px 2px;
         background-color: {style.item_true}; 
         color: #FFFFFF;
-        font-weight: bold;
+        font-weight:  {style.fontw};
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1319,7 +1322,7 @@ def TEMPLATES(style, script_mathjax):
         background-color: #007f30; 
         color: #FFFFFF;
         font-family: {style.font_};
-        font-weight: bold;
+        font-weight:  {style.fontw};
         border-style: solid;
         border-radius: 10px;
         border-color: #007f30;
@@ -1333,9 +1336,9 @@ def TEMPLATES(style, script_mathjax):
     .btn_purge {{
         padding: 2px 10px 2px;
         background-color: {style.btn_red}; 
-        color: #FFFFFF;
+        color: {style.btn_fg}; 
         font-family: {style.font_};
-        font-weight: bold;
+        font-weight: {style.btn_fw}; 
         border-style: solid;
         border-radius: 10px;
         border-color: {style.btn_red}; 
@@ -1434,8 +1437,8 @@ def TEMPLATES(style, script_mathjax):
     .btn_logout {{
         padding: 2px 10px 2px;
         background-color: {style.btn_navy};
-        color: #FFFFFF;
-        font-weight: bold;
+        color:  {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1446,7 +1449,7 @@ def TEMPLATES(style, script_mathjax):
     .btn_refresh_small {{
         padding: 2px 10px 2px;
         background-color: {style.btn_igreen};
-        color: #FFFFFF;
+        color: {style.btn_fg}; 
         font-size: small;
         border-style: none;
         border-radius: 10px;
@@ -1457,9 +1460,9 @@ def TEMPLATES(style, script_mathjax):
     .btn_refresh {{
         padding: 2px 10px 2px;
         background-color:  {style.btn_igreen};
-        color: #FFFFFF;
+        color: {style.btn_fg}; 
         font-size: large;
-        font-weight: bold;
+        font-weight: {style.btn_fw}; 
         border-radius: 10px;
         font-family: {style.font_};
         text-decoration: none;
@@ -1485,7 +1488,8 @@ def TEMPLATES(style, script_mathjax):
         padding: 2px 10px 2px;
         background-color: {style.btn_red}; 
         border-style: none;
-        color: #FFFFFF;
+        color:  {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1497,7 +1501,8 @@ def TEMPLATES(style, script_mathjax):
         padding: 2px 10px 2px;
         background-color: {style.btn_purple}; 
         border-style: none;
-        color: #FFFFFF;
+        color: {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1508,8 +1513,8 @@ def TEMPLATES(style, script_mathjax):
         padding: 2px 10px 2px;
         background-color: {style.btn_purple}; 
         border-style: none;
-        color: #FFFFFF;
-        font-weight: bold;
+        color:  {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1520,8 +1525,8 @@ def TEMPLATES(style, script_mathjax):
         padding: 2px 10px 2px;
         background-color: {style.btn_rose};
         border-style: none;
-        color: #FFFFFF;
-        font-weight: bold;
+        color: {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1531,8 +1536,8 @@ def TEMPLATES(style, script_mathjax):
         padding: 2px 10px 2px;
         background-color: {style.btn_black};
         border-style: none;
-        color: #FFFFFF;
-        font-weight: bold;
+        color: {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1543,8 +1548,8 @@ def TEMPLATES(style, script_mathjax):
         padding: 2px 10px 2px;
         background-color: {style.btn_folder};
         border-style: none;
-        color: #FFFFFF;
-        font-weight: bold;
+        color: {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1558,7 +1563,7 @@ def TEMPLATES(style, script_mathjax):
         background-color: {style.btn_switcherbg};
         border-style: dotted 1px;
         color: {style.btn_switcherfg};
-        font-weight: bold;
+        font-weight: {style.btn_fw}; 
         border-radius: 10px;
         font-size: large;
         font-family: {style.font_};
@@ -1570,8 +1575,8 @@ def TEMPLATES(style, script_mathjax):
         padding: 2px 10px 2px;
         background-color: {style.btn_pink};
         border-style: none;
-        color: #FFFFFF;
-        font-weight: bold;
+        color: {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1582,8 +1587,8 @@ def TEMPLATES(style, script_mathjax):
     .btn_login {{
         padding: 2px 10px 2px;
         background-color: {style.btn_navy};
-        color: #FFFFFF;
-        font-weight: bold;
+        color: {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1594,8 +1599,8 @@ def TEMPLATES(style, script_mathjax):
     .btn_download {{
         padding: 2px 10px 2px;
         background-color: {style.btn_sky};
-        color: #FFFFFF;
-        font-weight: bold;
+        color: {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1605,8 +1610,8 @@ def TEMPLATES(style, script_mathjax):
     .btn_store{{
         padding: 2px 10px 2px;
         background-color: {style.btn_teal}; 
-        color: #FFFFFF;
-        font-weight: bold;
+        color:  {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1616,8 +1621,8 @@ def TEMPLATES(style, script_mathjax):
     .btn_upload {{
         padding: 2px 10px 2px;
         background-color: {style.btn_green}; 
-        color: #FFFFFF;
-        font-weight: bold;
+        color: {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
@@ -1627,8 +1632,8 @@ def TEMPLATES(style, script_mathjax):
     .btn_home {{
         padding: 2px 10px 2px;
         background-color: {style.btn_olive}; 
-        color: #FFFFFF;
-        font-weight: bold;
+        color: {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
         font-size: large;
         border-radius: 10px;
         font-family: {style.font_};
