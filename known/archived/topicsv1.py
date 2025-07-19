@@ -412,7 +412,9 @@ common = dict(
 
     base         = "base",            # the base directory 
     reports      = "reports",         # reports folder (read-only files that are private to a user go here)
+    downloads    = "downloads",       # downloads folder (public read-only access)
     store        = "store",           # store folder (public read-only, evaluators can upload and delete files)
+    board        = "board.md",        # board file (public read-only, a notebook displayed as a web-page)
 )
                                                                                        
 running = dict(    
@@ -423,8 +425,6 @@ running = dict(
         canupload    = 1,                 # toggle enable/disable uploading for users (not for store)
         eval         = "eval.csv",        # evaluation database - created if not existing - reloads if exists
         uploads      = "uploads",         # uploads folder (uploaded files by users go here)
-        downloads    = "downloads",       # downloads folder (public read-only access)
-        board        = "board.md",        # board file (public read-only, a notebook displayed as a web-page)
         )
 )
                                                          
@@ -2145,6 +2145,14 @@ if not os.path.isfile(LOGIN_XL_PATH):
 
 
 # ------------------------------------------------------------------------------------------
+# download settings
+# ------------------------------------------------------------------------------------------
+if not args.downloads: fexit(f'[!] downloads folder was not provided!')
+DOWNLOAD_FOLDER_PATH = os.path.join( BASEDIR, args.downloads) 
+try: os.makedirs(DOWNLOAD_FOLDER_PATH, exist_ok=True)
+except: fexit(f'[!] downloads folder @ {DOWNLOAD_FOLDER_PATH} was not found and could not be created')
+sprint(f'⚙ Download Folder: {DOWNLOAD_FOLDER_PATH}') 
+# ------------------------------------------------------------------------------------------
 # store settings
 # ------------------------------------------------------------------------------------------
 if not args.store: fexit(f'[!] store folder was not provided!')
@@ -2153,67 +2161,16 @@ try: os.makedirs(STORE_FOLDER_PATH, exist_ok=True)
 except: fexit(f'[!] store folder @ {STORE_FOLDER_PATH} was not found and could not be created')
 sprint(f'⚙ Store Folder: {STORE_FOLDER_PATH}')
 # ------------------------------------------------------------------------------------------
-# upload+download settings
+# upload settings
 # ------------------------------------------------------------------------------------------
 UPLOAD_FOLDER_PATHS = {}
-DOWNLOAD_FOLDER_PATHS = {}
-BOARD_FILE_MDS, BOARD_PAGES= {}, {}
-
 for k,v in running_data.items():
-
     if not v['uploads']: fexit(f'[!] uploads folder was not provided for session {k}')
     UPLOAD_FOLDER_PATH = os.path.join( BASEDIR, v['uploads'] ) 
     try: os.makedirs(UPLOAD_FOLDER_PATH, exist_ok=True)
     except: fexit(f'[!] uploads folder @ {UPLOAD_FOLDER_PATH} was not found and could not be created')
-    sprint(f'⚙ Uploads Folder for session {k}: {UPLOAD_FOLDER_PATH}')
+    sprint(f'⚙ Upload Folder for session {k}: {UPLOAD_FOLDER_PATH}')
     UPLOAD_FOLDER_PATHS[k] = UPLOAD_FOLDER_PATH
-
-    if not v['downloads']: fexit(f'[!] downloads folder was not provided for session {k}')
-    DOWNLOAD_FOLDER_PATH = os.path.join( BASEDIR, v['downloads'] ) 
-    try: os.makedirs(DOWNLOAD_FOLDER_PATH, exist_ok=True)
-    except: fexit(f'[!] downloads folder @ {DOWNLOAD_FOLDER_PATH} was not found and could not be created')
-    sprint(f'⚙ Downloads Folder for session {k}: {DOWNLOAD_FOLDER_PATH}')
-    DOWNLOAD_FOLDER_PATHS[k] = DOWNLOAD_FOLDER_PATH
-
-
-    # ------------------------------------------------------------------------------------------
-    # Board
-    # ------------------------------------------------------------------------------------------
-    BOARD_FILE_MD = None
-    BOARD_PAGE = ""
-    if v['board']:
-        BOARD_FILE_MD = os.path.join(BASEDIR, v['board'])
-        if  os.path.isfile(BOARD_FILE_MD): sprint(f'⚙ Board File for {k}: {BOARD_FILE_MD}')
-        else: 
-            sprint(f'⚙ Board File for {k}: {BOARD_FILE_MD} not found - trying to create...')
-            try:
-                with open(BOARD_FILE_MD, 'w', encoding='utf-8') as f: f.write(__doc__)
-                sprint(f'⚙ Board File for {k}: {BOARD_FILE_MD} was created successfully!')
-            except:
-                BOARD_FILE_MD = None
-                sprint(f'⚙ Board File for {k}: {BOARD_FILE_MD} could not be created - Board will not be available!')
-    if not BOARD_FILE_MD:   sprint(f'⚙ Board: Not Available for {k}')
-    else: sprint(f'⚙ Board: Is Available for {k}')
-    BOARD_FILE_MDS[k] = BOARD_FILE_MD
-    BOARD_PAGES[k] = BOARD_PAGE
-
-# ------------------------------------------------------------------------------------------
-def update_board(k): 
-    res = False
-    if BOARD_FILE_MDS[k]:
-        try: 
-            with open(BOARD_FILE_MDS[k], 'r', encoding='utf-8')as f: md_text =f.read()
-            BOARD_PAGES[k] = markdown.markdown(md_text, extensions=['fenced_code'])
-            sprint(f'⚙ Board File for {k} was updated: {BOARD_FILE_MDS[k]}')
-            res=True
-        except: 
-            BOARD_PAGES[k]="There was an error updating this page!"
-            sprint(f'⚙ Board File for {k} could not be updated: {BOARD_FILE_MDS[k]}')
-    else: BOARD_PAGES[k]=""
-    return res
-
-for k in running_data: update_board(k)
-
 
 
 # ------------------------------------------------------------------------------------------
@@ -2365,6 +2322,42 @@ if not os.path.exists(favicon_path):
     except: pass
 # ------------------------------------------------------------------------------------------
 
+# ------------------------------------------------------------------------------------------
+# Board
+# ------------------------------------------------------------------------------------------
+BOARD_FILE_MD = None
+BOARD_PAGE = ""
+if args.board:
+    BOARD_FILE_MD = os.path.join(BASEDIR, f'{args.board}')
+    if  os.path.isfile(BOARD_FILE_MD): sprint(f'⚙ Board File: {BOARD_FILE_MD}')
+    else: 
+        sprint(f'⚙ Board File: {BOARD_FILE_MD} not found - trying to create...')
+        try:
+            with open(BOARD_FILE_MD, 'w', encoding='utf-8') as f: f.write(__doc__)
+            sprint(f'⚙ Board File: {BOARD_FILE_MD} was created successfully!')
+        except:
+            BOARD_FILE_MD = None
+            sprint(f'⚙ Board File: {BOARD_FILE_MD} could not be created - Board will not be available!')
+if not BOARD_FILE_MD:   sprint(f'⚙ Board: Not Available')
+else: sprint(f'⚙ Board: Is Available')
+# ------------------------------------------------------------------------------------------
+def update_board(): 
+    global BOARD_PAGE
+    res = False
+    if BOARD_FILE_MD:
+        try: 
+            with open(BOARD_FILE_MD, 'r', encoding='utf-8')as f: md_text =f.read()
+            #BOARD_PAGE = markdown.markdown(md_text, extensions=['fenced_code', 'md_in_html'])
+            BOARD_PAGE = markdown.markdown(md_text, extensions=['fenced_code'])
+            sprint(f'⚙ Board File was updated: {BOARD_FILE_MD}')
+            res=True
+        except: 
+            BOARD_PAGE="There was an error updating this page!"
+            sprint(f'⚙ Board File could not be updated: {BOARD_FILE_MD}')
+    else: BOARD_PAGE=""
+    return res
+_ = update_board()
+
 
 # ------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------
@@ -2430,6 +2423,7 @@ if parsed.https: app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_hos
 app.secret_key =          APP_SECRET_KEY
 app.config['base'] =      BASEDIR
 app.config['reports'] =   REPORT_FOLDER_PATH
+app.config['downloads'] = DOWNLOAD_FOLDER_PATH
 app.config['store'] =     STORE_FOLDER_PATH
 app.config['storename'] =  os.path.basename(STORE_FOLDER_PATH)
 app.config['storeuser'] =     UPLOAD_FOLDER_PATH
@@ -2440,6 +2434,7 @@ app.config['topic'] =     args.topic
 app.config['rename'] =    int(args.rename)
 app.config['muc'] =       MAX_UPLOAD_COUNT
 app.config['disableupload'] = {k:not(bool(v['canupload'])) for k,v in running_data.items()}
+app.config['board'] =     (BOARD_FILE_MD is not None)
 app.config['reg'] =       (args.reg)
 app.config['repass'] =    bool(args.repass)
 app.config['reeval'] =    bool(args.reeval)
@@ -2620,10 +2615,10 @@ def route_downloads(req_path):
     if 'D' not in session['admind']:  return redirect(url_for('route_home'))
     
     if not req_path:
-        dfl = GET_FILE_LIST(DOWNLOAD_FOLDER_PATHS[session['sess']])
+        dfl = GET_FILE_LIST(DOWNLOAD_FOLDER_PATH)
     else:
         dfl=[]
-        abs_path = os.path.join(DOWNLOAD_FOLDER_PATHS[session['sess']], req_path) # Joining the base and the requested path
+        abs_path = os.path.join(app.config['downloads'], req_path) # Joining the base and the requested path
         if not os.path.exists(abs_path): 
             sprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
             return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
@@ -3210,11 +3205,11 @@ def route_eval(req_uid):
 def route_home():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if '?' in (request.args) and '+' in session['admind']: 
-        if update_board(session['sess']):  dprint(f"๏ 🔰 {session['uid']} ◦ {session['named']} just refreshed the board for {session['sess']} via {request.remote_addr}")
-        else: dprint(f"๏ 🔰 {session['uid']} ◦ {session['named']} failed to refreshed the board for {session['sess']} via {request.remote_addr}")
+        if update_board():  dprint(f"๏ 🔰 {session['uid']} ◦ {session['named']} just refreshed the board via {request.remote_addr}")
+        else: dprint(f"๏ 🔰 {session['uid']} ◦ {session['named']} failed to refreshed the board via {request.remote_addr}")
         return redirect(url_for('route_home'))
             
-    return render_template_string(HOME_PAGE_STR[0]+ BOARD_PAGES[session['sess']] + HOME_PAGE_STR[-1])
+    return render_template_string(HOME_PAGE_STR[0]+ BOARD_PAGE + HOME_PAGE_STR[-1])
 # ------------------------------------------------------------------------------------------
 # purge
 # ------------------------------------------------------------------------------------------
