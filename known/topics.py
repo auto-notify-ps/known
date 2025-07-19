@@ -618,6 +618,8 @@ def TEMPLATES(style, script_mathjax):
                             <a href="{{ url_for('route_switch', req_uid=r, u='') }}" class="btn_switcher">{{ r }}</a>
                         {% elif session.rethome == 'e' %} 
                             <a href="{{ url_for('route_switch', req_uid=r, e='') }}" class="btn_switcher">{{ r }}</a>
+                        {% elif session.rethome == 'd' %} 
+                            <a href="{{ url_for('route_switch', req_uid=r, d='') }}" class="btn_switcher">{{ r }}</a>
                         {% else %}
                             <a href="{{ url_for('route_switch', req_uid=r) }}" class="btn_switcher">{{ r }}</a>
                         {% endif %}
@@ -777,7 +779,7 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         
         <div align="left" class="pagecontent">
-            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
+            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch', d='') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
             <div class="bridge">
@@ -2891,6 +2893,7 @@ def route_switch(req_uid):
         if request.args: 
             if 'u' in request.args: session['rethome'] = 'u' 
             if 'e' in request.args: session['rethome'] = 'e' 
+            if 'd' in request.args: session['rethome'] = 'd' 
         return render_template('switcher.html')
     
     else:
@@ -2910,6 +2913,7 @@ def route_switch(req_uid):
 
             if 'e' in request.args: return redirect(url_for('route_eval')) 
             if 'u' in request.args: return redirect(url_for('route_uploads')) 
+            if 'd' in request.args: return redirect(url_for('route_downloads')) 
             return redirect(url_for('route_home')) 
             
 @app.route('/generate_eval_template', methods =['GET'])
