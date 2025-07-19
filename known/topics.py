@@ -330,8 +330,8 @@ style = dict(
                                                               
                                                               
         # -------------# colors 
-        bgcolor      = "#000000",
-        fgcolor      = "#FFFFFF",
+        bgcolor      = "#FFFFFF",
+        fgcolor      = "#000000",
         refcolor     = "#101E88",
         item_bgcolor = "#232323",
         item_normal  = "#e6e6e6",
