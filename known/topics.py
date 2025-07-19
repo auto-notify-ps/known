@@ -531,6 +531,7 @@ def TEMPLATES(style, script_mathjax):
             <a href="{{ url_for('route_generate_report') }}" target="_blank" class="btn_download">Session-Report</a>
             </div>
             <br>
+            {% endif %}
             {% if success %}
             <span class="admin_mid" style="animation-name: fader_admin_success;">✓ {{ status }} </span>
             {% else %}
@@ -538,6 +539,7 @@ def TEMPLATES(style, script_mathjax):
             {% endif %}
             <br>
             <br>
+            {% if config.running[session.sess].eval %}  
             <form action="{{ url_for('route_eval') }}" method="post">                
                 <input id="uid" name="uid" type="text" placeholder="uid" class="txt_submit"/>
                 <br>
@@ -599,11 +601,8 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
-
-        <div align="center">
-            <br>
-            <div class="topic">{{ config.topic }}</div>
-            <br>
+        <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
+        <div align="left">
             {% for r in config.running %}
                 {% if not session.rethome %}
                         <a href="{{ url_for('route_switch', req_uid=r) }}" class="btn_switcher">{{ r }}</a>
@@ -1638,13 +1637,11 @@ def TEMPLATES(style, script_mathjax):
     return HTML_TEMPLATES, CSS_TEMPLATES, (HOME_PAGE_PRE, HOME_PAGE_POST)
     # ****************************************************************************************** 
 
-def REPORT_PAGE(report_name, html_heading, html_table): return \
+
+def TABLE_STYLED(): return \
 f"""
-<html>
-<head>
-<title>{report_name}</title>
 <style>
-table.dataframe {{
+table {{
     border-collapse: collapse;
 
     margin: 1em 0;
@@ -1652,15 +1649,7 @@ table.dataframe {{
     font-size: large;
 }}
 
-table.dataframe th{{
-    border: 1px solid #aaa;
-    padding: 4px 6px;
-    text-align: center;
-    font-family: {style.font_};
-    font-size: medium;
-}}
-
-table.dataframe td {{
+table th{{
     border: 1px solid #aaa;
     padding: 4px 6px;
     text-align: center;
@@ -1668,7 +1657,15 @@ table.dataframe td {{
     font-size: large;
 }}
 
-table.dataframe td {{
+table td {{
+    border: 1px solid #aaa;
+    padding: 4px 6px;
+    text-align: center;
+    font-family: {style.font_};
+    font-size: large;
+}}
+
+table td {{
     vertical-align: middle;
     font-family: {style.font_};
 }}
@@ -1677,6 +1674,14 @@ h1 {{
     font-family: {style.font_};
 }}
 </style>
+"""
+
+def REPORT_PAGE(report_name, html_heading, html_table): return \
+f"""
+<html>
+<head>
+<title>{report_name}</title>
+{TABLE_STYLED()}
 </head>
 <body>
 <h1>{html_heading}</h1>
@@ -2649,11 +2654,15 @@ def route_uploads(req_path):
                 except: hstatus, hmsg = False, f"Exception while converting {req_path} to a web-page"
                 return hmsg #if hstatus else  send_file(abs_path, as_attachment=True)
             elif ("del" in request.args):
-                try:
-                    os.remove(abs_path)
-                    dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted file ({req_path}) via {request.remote_addr}") 
-                    return redirect(url_for('route_uploads'))
-                except:return f"Error deleting the file"
+                if app.config['disableupload'][session['sess']] or submitted>0: 
+                    return f"Cannot delete this file now."
+                else:
+                    try:
+                        os.remove(abs_path)
+                        dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted file ({req_path}) via {request.remote_addr}") 
+                        return redirect(url_for('route_uploads'))
+                    except:return f"Error deleting the file"
+                
             else: 
                 dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
                 return send_file(abs_path, as_attachment=False) # Check if path is a file and serve
@@ -2738,16 +2747,16 @@ def route_generate_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not ('+' in session['admind']): return abort(404)
     from pandas import DataFrame
-    session_reports = {u:dict(Session = [
-        'Logged-in?', 
-        'Uploaded Files?', 
-        'Required Files?', 
-        'Evaluated?', 
-        'Score', 
-        'Remark',
-        'Evaluator',
-        ]) for u in dbevalset}
-    #sprint(f'Generating session Reports...')
+    session_reports_user = {u:{
+        'Session' : [],
+        'L' : [], 
+        'U' : [], 
+        'R' : [], 
+        'E' : [], 
+        'Score' : [], 
+        'Remark' : [],
+        'Evaluator' : [],
+    } for u in dbevalset}
     for s,d in app.config['running'].items():
         #sprint(f'Session [{s}]')
         # s = 'lab0'
@@ -2805,18 +2814,21 @@ def route_generate_report():
                 _, _, eNAME, _ = db[uBY]
             else:  uSCORE, uREMARK, uBY, eNAME = '', '', '', ''
             
-            # 'Logged-in?', 
-            # 'Uploaded Files?', 
-            # 'Required Files?', 
-            # 'Evaluated?', 
-            # 'Score', 
-            # 'Remark',
-            # 'Evaluator',
+
             Ltxt = '🟩' if uLogin else '🟥'
             Utxt = '🟢' if uHas else ('⚫' if uHas is None else '🔴')
             Rtxt = ('🟡' if uHasReq is ... else '🟢') if uHasReq else ('⚫' if uHas is None else '🔴')
             Etxt = '✅' if uEvaluated else '❌'
-            session_reports[u][s] = [ Ltxt, Utxt, Rtxt, Etxt, uSCORE, uREMARK, uBY]
+
+            session_reports_user[u]['Session'].append(s)
+            session_reports_user[u]['L'].append(Ltxt)
+            session_reports_user[u]['U'].append(Utxt)
+            session_reports_user[u]['R'].append(Rtxt)
+            session_reports_user[u]['E'].append(Etxt)
+            session_reports_user[u]['Score'].append(uSCORE)
+            session_reports_user[u]['Remark'].append(uREMARK)
+            session_reports_user[u]['Evaluator'].append(uBY)
+
             session_report_df['User'].append(u)
             session_report_df['Name'].append(uNAME) 
             session_report_df['L'].append(Ltxt)
@@ -2835,7 +2847,7 @@ def route_generate_report():
         html_table = df.to_html(index=False)        
         with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, s, html_table))
     
-    for u,r in session_reports.items():
+    for u,r in session_reports_user.items():
         _, _, uNAME, _ = db[u]
         df = DataFrame(r)  
         report_name = f'report.html'
@@ -2897,6 +2909,7 @@ def route_generate_live_report():
             <meta charset="UTF-8">
             <title> Live Report {{ config.topic }} </title>
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+            """ + TABLE_STYLED() + """
         </head>
         <body>
     """ + f"""
