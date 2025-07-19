@@ -393,7 +393,7 @@ common = dict(
     eip         = 1,                        # Evaluate Immediate Persis. If True (by-default), persist the eval-db after each single evaluation (eval-db in always persisted after update from template)
     scripts     = 1,                        # if True, keeps all script tags in board
     live        = 1,                        # if True, uses online scripts like mathjax
-    
+    ssologin    = 1,                        # alllows users to select session on login page
     # ------------------------------------# server config
     port        = "8080",                
     host        = "0.0.0.0",   
@@ -665,6 +665,7 @@ def TEMPLATES(style, script_mathjax):
                 <input id="passwd" name="passwd" type="password" placeholder="... password ..." class="txt_login"/>
                 <br>
                 <br>
+                {% if config.ssologin %}
                 <select id="sess" name="sess" class="txt_login">
                     {% for r in config.running %}
                     <option value="{{ r }}">{{ r }}</option>
@@ -672,6 +673,7 @@ def TEMPLATES(style, script_mathjax):
                 </select>
                 <br>
                 <br>
+                {% endif %}
                 {% if config.rename>0 %}
                 <input id="named" name="named" type="text" placeholder="... update-name ..." class="txt_login"/>
                 <br>
@@ -2435,7 +2437,7 @@ app.config['eip'] =       bool(args.eip)
 app.config['apac'] =    f'{parsed.access}'.strip().upper()
 app.config['running'] = running_data # dict (name: dict(required, extra))
 app.config['dses'] = tuple(running_sessions.keys())[0]
-
+app.config['ssologin'] =   bool(args.ssologin)
 # ------------------------------------------------------------------------------------------
 
 
@@ -2445,12 +2447,14 @@ app.config['dses'] = tuple(running_sessions.keys())[0]
 # ------------------------------------------------------------------------------------------
 @app.route('/', methods =['GET', 'POST'])
 def route_login():
-    if request.method == 'POST' and 'uid' in request.form and 'passwd' in request.form and 'sess' in request.form:
+    if request.method == 'POST' and 'uid' in request.form and 'passwd' in request.form:
         global db
         in_uid = f"{request.form['uid']}"
         in_passwd = f"{request.form['passwd']}"
         in_name = f'{request.form["named"]}' if 'named' in request.form else ''
-        in_sess =  f"{request.form['sess']}"
+
+        if 'sess' in request.form : in_sess =  f"{request.form['sess']}"
+        else: in_sess = app.config['dses']
         if in_sess not in app.config['running']: in_sess = app.config['dses']
         in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
         valid_query, valid_name = VALIDATE_UID(in_query) , VALIDATE_NAME(in_name)
