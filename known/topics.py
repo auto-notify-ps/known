@@ -3590,7 +3590,9 @@ def route_public(req_path):
         abs_path = os.path.join(PUBLIC_FOLDER_PATH, req_path) # Joining the base and the requested path
         if PUBLIC_FOLDER_PATH not in abs_path:  return abort(404) # not a subpath
         if not os.path.exists(abs_path):        return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
-        if os.path.isfile(abs_path):            return send_file(abs_path, as_attachment=("?" in request.args)) # Check if path is a file and serve
+        if os.path.isfile(abs_path):            
+            sprint(f'📢 Public Link was accessed via {request.remote_addr}\n{request.__dict__}')
+            return send_file(abs_path, as_attachment=("?" in request.args)) # Check if path is a file and serve
     return render_template('publics.html')
 
 #%% [READY TO SERVE]
