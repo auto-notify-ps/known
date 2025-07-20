@@ -293,7 +293,6 @@ def DEFAULT_CONFIG(file_path):
     with open(file_path, 'w', encoding='utf-8') as f: f.write("""
 
 style = dict(  
-        ext_link =       "https://gist.github.com/auto-notify-ps/713d45a235f77e760f467a7c6bf6ee84",
         font_ =         'monospace',         
         fontw =         'bold',         
         # -------------# labels
@@ -458,7 +457,8 @@ def TEMPLATES(style, script_mathjax):
         </style>
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
-            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            
+            <div class="userword">{{session.named}} <a href="{{ url_for('route_public') }}">{{ config.emoji }}</a> {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -506,7 +506,7 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch', e='') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
-            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -695,7 +695,8 @@ def TEMPLATES(style, script_mathjax):
         
         <div align="center">
         <div>
-        <a href="""+f'{style.ext_link}'+""" target="_blank"><span style="font-size: xx-large;">{{ config.emoji }}</span></a>
+        <span style="font-size: xx-large;"><a href="{{ url_for('route_public') }}">{{ config.emoji }}</a></span>
+        <br>
         <br>
         {% if config.reg %}
         <a href="{{ url_for('route_new') }}" class="btn_board">""" + f'{style.new_}' +"""</a>
@@ -753,7 +754,8 @@ def TEMPLATES(style, script_mathjax):
         
         <div align="center">
         <div>
-        <a href="""+f'{style.ext_link}'+""" target="_blank"><span style="font-size: xx-large;">{{ config.emoji }}</span></a>
+        <a href="{{ url_for('route_public') }}"><span style="font-size: xx-large;">{{ config.emoji }}</span></a>
+        <br>
         <br>
         <a href="{{ url_for('route_login') }}" class="btn_login">""" + f'{style.login_}' +"""</a>
         
@@ -781,7 +783,7 @@ def TEMPLATES(style, script_mathjax):
         
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch', d='') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
-            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -815,7 +817,7 @@ def TEMPLATES(style, script_mathjax):
     <html>
         <head>
             <meta charset="UTF-8">
-            <title> {{ config.emoji }} {{ config.topic }} | {{ session.uid }} </title>
+            <title> {{ config.emoji }} {{ config.topic }} </title>
             <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">           
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
@@ -826,11 +828,8 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         
         <div align="left" class="pagecontent">
-            <div class="topic_mid"> {{ config.emoji }} {{ config.topic }} </a></div><hr>
+            <div class="userword"> <a href="{{ url_for('route_login') }}">{{ config.emoji }}</a> {{ config.topic }} </a></div><hr>
             <br>
-            <div class="bridge">
-            <a href="{{ url_for('route_login') }}" class="btn_home">Login</a>
-            </div>
             <br>
             <div class="files_list_down">
                 <ol>
@@ -868,7 +867,7 @@ def TEMPLATES(style, script_mathjax):
         
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
-            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -947,7 +946,7 @@ def TEMPLATES(style, script_mathjax):
         
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
-            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -1045,7 +1044,7 @@ def TEMPLATES(style, script_mathjax):
         
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch', u='') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
-            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -1154,7 +1153,7 @@ def TEMPLATES(style, script_mathjax):
         
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
-            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -2503,6 +2502,7 @@ app.config['running'] = running_data # dict (name: dict(required, extra))
 app.config['dses'] = tuple(running_sessions.keys())[0]
 app.config['ssologin'] =   bool(args.ssologin)
 app.config['pfl'] = GET_FILE_LIST(PUBLIC_FOLDER_PATH) if PUBLIC_FOLDER_PATH is not None else []
+app.config['publiclog'] = (parsed.verbose>2)
 # ------------------------------------------------------------------------------------------
 
 
@@ -3579,7 +3579,7 @@ def route_repassx(req_uid):
 @app.route('/p/', methods =['GET'], defaults={'req_path': ''})
 @app.route('/p/<path:req_path>')
 def route_public(req_path):
-    if not PUBLIC_FOLDER_PATH: return abort(404)  
+    if not PUBLIC_FOLDER_PATH: return "❌ Public Sharing is disabled for this server."
     if not req_path:
         if request.args:
             if "?" in request.args:
@@ -3591,7 +3591,12 @@ def route_public(req_path):
         if PUBLIC_FOLDER_PATH not in abs_path:  return abort(404) # not a subpath
         if not os.path.exists(abs_path):        return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
         if os.path.isfile(abs_path):            
-            sprint(f'📢 Public Link was accessed via {request.remote_addr}\n{request.__dict__}')
+            if app.config['publiclog']:
+                info = request.environ
+                txt=f'📢 Public Link was accessed via {request.remote_addr}\n'
+                for k,v in info.items(): txt+=(f'\t{k}:{v}\n')
+                sprint(f'{txt}')
+            
             return send_file(abs_path, as_attachment=("?" in request.args)) # Check if path is a file and serve
     return render_template('publics.html')
 
