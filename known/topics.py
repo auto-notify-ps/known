@@ -411,6 +411,7 @@ common = dict(
     dir          = ".",                # workspace directory, everything below is relative to this
 
     base         = "base",            # the base directory 
+    public       = "public",          # public folder (read-only files that are public )
     reports      = "reports",         # reports folder (read-only files that are private to a user go here)
     store        = "store",           # store folder (public read-only, evaluators can upload and delete files)
 )
@@ -795,6 +796,47 @@ def TEMPLATES(style, script_mathjax):
                 <li>
                 <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}"" >{{ file }}</a>
                 <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}?html"" target="_blank">"""+f'{style.icon_gethtml}'+"""</a>
+                </li>
+                <br>
+                {% endfor %}
+                </ol>
+            </div>
+            <br>
+        </div>
+
+        <!-- ---------------------------------------------------------->
+        </br>
+        <!-- ---------------------------------------------------------->
+        </body>
+    </html>
+    """,
+# ******************************************************************************************
+    publics = """
+    <html>
+        <head>
+            <meta charset="UTF-8">
+            <title> {{ config.emoji }} {{ config.topic }} | {{ session.uid }} </title>
+            <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">           
+            <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+        </head>
+        <body>
+        <!-- ---------------------------------------------------------->
+        </br>
+        <!-- ---------------------------------------------------------->
+        
+        <div align="left" class="pagecontent">
+            <div class="topic_mid"> {{ config.emoji }} {{ config.topic }} </a></div><hr>
+            <br>
+            <div class="bridge">
+            <a href="{{ url_for('route_login') }}" class="btn_home">Login</a>
+            </div>
+            <br>
+            <div class="files_list_down">
+                <ol>
+                {% for file in pfl %}
+                <li>
+                <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}"" >{{ file }}</a>
                 </li>
                 <br>
                 {% endfor %}
@@ -2224,6 +2266,17 @@ for k in running_data: update_board(k)
 EVAL_XL_PATHS={k:(os.path.join( BASEDIR,  v['eval']) if v['eval'] else None) for k,v in running_data.items()}
     
 # ------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
+# public settings
+# ------------------------------------------------------------------------------------------
+if not args.public: PUBLIC_FOLDER_PATH= None
+else: 
+    PUBLIC_FOLDER_PATH = os.path.join(BASEDIR, args.public ) 
+    try: os.makedirs(PUBLIC_FOLDER_PATH, exist_ok=True)
+    except: fexit(f'[!] public folder @ {PUBLIC_FOLDER_PATH} was not found and could not be created')
+
+if PUBLIC_FOLDER_PATH is None: sprint(f'⚙ Public Folder was not used')
+else: sprint(f'⚙ Public Folder: {PUBLIC_FOLDER_PATH}')
 
 
 # ------------------------------------------------------------------------------------------
@@ -2431,7 +2484,6 @@ if parsed.https: app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_hos
 # ------------------------------------------------------------------------------------------
 app.secret_key =          APP_SECRET_KEY
 app.config['base'] =      BASEDIR
-app.config['reports'] =   REPORT_FOLDER_PATH
 app.config['store'] =     STORE_FOLDER_PATH
 app.config['storename'] =  os.path.basename(STORE_FOLDER_PATH)
 app.config['storeuser'] =     UPLOAD_FOLDER_PATH
@@ -2502,7 +2554,7 @@ def route_login():
                 if in_passwd: # password provided 
                     if in_passwd==passwd:
                         folder_name = os.path.join(UPLOAD_FOLDER_PATHS[in_sess], uid)
-                        folder_report = os.path.join(app.config['reports'], uid) 
+                        folder_report = os.path.join(REPORT_FOLDER_PATH, uid) 
                         try:
                             os.makedirs(folder_name, exist_ok=True)
                             os.makedirs(folder_report, exist_ok=True)
@@ -2749,7 +2801,7 @@ def route_uploads(req_path):
 def route_reports(req_path):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if 'R' not in session['admind']:  return redirect(url_for('route_home'))
-    folder_name=os.path.join( app.config['reports'], session['uid'])
+    folder_name=os.path.join(REPORT_FOLDER_PATH, session['uid'])
     
     if not req_path:
         rfl = os.listdir(folder_name)
@@ -3521,6 +3573,21 @@ def route_repassx(req_uid):
         
     return render_template('evaluate.html',  status=STATUS, success=SUCCESS, form=form, results=results)
 # ------------------------------------------------------------------------------------------
+
+
+@app.route('/p/', methods =['GET'], defaults={'req_path': ''})
+@app.route('/p/<path:req_path>')
+def route_public(req_path):
+    if not PUBLIC_FOLDER_PATH: return abort(404)  
+    if not req_path: 
+        pfl = GET_FILE_LIST(PUBLIC_FOLDER_PATH)
+    else:
+        pfl=[]
+        abs_path = os.path.join(PUBLIC_FOLDER_PATH, req_path) # Joining the base and the requested path
+        if PUBLIC_FOLDER_PATH not in abs_path:  return abort(404) # not a subpath
+        if not os.path.exists(abs_path):        return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
+        if os.path.isfile(abs_path):            return send_file(abs_path, as_attachment=("?" in request.args)) # Check if path is a file and serve
+    return render_template('publics.html', pfl=pfl)
 
 #%% [READY TO SERVE]
 
