@@ -834,7 +834,7 @@ def TEMPLATES(style, script_mathjax):
             <br>
             <div class="files_list_down">
                 <ol>
-                {% for file in pfl %}
+                {% for file in config.pfl %}
                 <li>
                 <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}"" >{{ file }}</a>
                 </li>
@@ -2502,6 +2502,7 @@ app.config['apac'] =    f'{parsed.access}'.strip().upper()
 app.config['running'] = running_data # dict (name: dict(required, extra))
 app.config['dses'] = tuple(running_sessions.keys())[0]
 app.config['ssologin'] =   bool(args.ssologin)
+app.config['pfl'] = GET_FILE_LIST(PUBLIC_FOLDER_PATH) if PUBLIC_FOLDER_PATH is not None else []
 # ------------------------------------------------------------------------------------------
 
 
@@ -3579,15 +3580,18 @@ def route_repassx(req_uid):
 @app.route('/p/<path:req_path>')
 def route_public(req_path):
     if not PUBLIC_FOLDER_PATH: return abort(404)  
-    if not req_path: 
-        pfl = GET_FILE_LIST(PUBLIC_FOLDER_PATH)
+    if not req_path:
+        if request.args:
+            if "?" in request.args:
+                if session.get('has_login', False): app.config['pfl'] = GET_FILE_LIST(PUBLIC_FOLDER_PATH)
+                return redirect(url_for('route_public'))
+                
     else:
-        pfl=[]
         abs_path = os.path.join(PUBLIC_FOLDER_PATH, req_path) # Joining the base and the requested path
         if PUBLIC_FOLDER_PATH not in abs_path:  return abort(404) # not a subpath
         if not os.path.exists(abs_path):        return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
         if os.path.isfile(abs_path):            return send_file(abs_path, as_attachment=("?" in request.args)) # Check if path is a file and serve
-    return render_template('publics.html', pfl=pfl)
+    return render_template('publics.html')
 
 #%% [READY TO SERVE]
 
