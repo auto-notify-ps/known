@@ -56,6 +56,7 @@ pip install Flask Flask-WTF waitress requests markdown beautifulsoup4 nbconvert
         * `A`   Access Store
         * `U`   Perform Upload
         * `R`   Access Reports
+        * `G`   Generate Reports
         * `X`   Eval access enabled
         * `-`   Not included in evaluation
         * `+`   Admin access enabled
@@ -69,26 +70,60 @@ pip install Flask Flask-WTF waitress requests markdown beautifulsoup4 nbconvert
     * Download File : `store/subpath/my_file?get`
     * Delete File   : `store/subpath/my_file?del`
 
-    
+* **Report Fields**
+    * `L` : User has logged in? 
+        * 🟩 : yes 
+        * 🟥 : no
+    * `U` : User has uploaded any file? 
+        * 🟢 : yes 
+        * 🔴 : no 
+        * ⚫ : did not login
+    * `R` : User has uploaded required files? 
+        * 🟢 : yes 
+        * 🔴 : no 
+        * 🟡 : no files were required
+        * ⚫ : did not login
+    * `E` : User was evaluated?
+        * ✅ : yes
+        * ❌ : no
+
 """
 #-----------------------------------------------------------------------------------------
 from sys import exit
 if __name__!='__main__': exit(f'[!] can not import {__name__}.{__file__}')
 #-----------------------------------------------------------------------------------------
 
-
-#%% Pre-Initialiation
-
 # ------------------------------------------------------------------------------------------
-# parsing
+# arguments parsing
 # ------------------------------------------------------------------------------------------
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument('--verbose',    type=int, default=2,    help="verbose level in logging (0,1,2) [DEFAULT]: 2")
-parser.add_argument('--log',        type=str, default='',   help="name of logfile as date-time-formated string, blank by default, keep blank to disable logging") #e.g. fly_%Y_%m_%d_%H_%M_%S_%f_log.txt
-parser.add_argument('--con',        type=str, default='config.py',    help="config name (without .py extension) - a python module inside workdir")
-parser.add_argument('--access',     type=str, default='',   help="if specified, adds extra premissions to access string for this session only")
-parser.add_argument('--https',      type=int, default=0,    help="if True, Tells waitress that its behind an nginx proxy - https://flask.palletsprojects.com/en/stable/deploying/nginx/")                           
+
+parser.add_argument('--verbose',    
+                    type=int, 
+                    default=2,    
+                    help="verbose level in logging (0,1,2) [DEFAULT]: 2")
+
+parser.add_argument('--log',        
+                    type=str, 
+                    default='',   
+                    help="name of logfile as date-time-formated string, blank by default, keep blank to disable logging") #e.g. fly_%Y_%m_%d_%H_%M_%S_%f_log.txt
+
+parser.add_argument('--con',        
+                    type=str, 
+                    default='config.py',    
+                    help="config name (without .py extension) - a python module inside workdir")
+
+parser.add_argument('--access',     
+                    type=str, 
+                    default='',   
+                    help="if specified, adds extra premissions to access string for this session only")
+
+parser.add_argument('--https',      
+                    type=int, 
+                    default=0,    
+                    help="if True, Tells waitress that its behind an nginx proxy - https://flask.palletsprojects.com/en/stable/deploying/nginx/")                           
+
 parsed = parser.parse_args()
 
 # ------------------------------------------------------------------------------------------
@@ -115,6 +150,7 @@ try:
     from nbconvert import HTMLExporter
     has_nbconvert=True
 except: has_nbconvert=False
+
 # ------------------------------------------------------------------------------------------
 # Logging
 # ------------------------------------------------------------------------------------------
@@ -163,13 +199,12 @@ elif parsed.verbose>=2: # server and user logs
             logging.error(msg) 
             exit()
 else: raise ZeroDivisionError # impossible
-# ------------------------------------------------------------------------------------------
-    
 
 
 #-----------------------------------------------------------------------------------------
 # globals
 #-----------------------------------------------------------------------------------------
+
 CSV_DELIM = ','
 SSV_DELIM = '\n'
 NEWLINE = '\n'
@@ -178,7 +213,7 @@ LOGIN_ORD = ['ADMIN','UID','NAME','PASS']
 LOGIN_ORD_MAPPING = {v:i for i,v in enumerate(LOGIN_ORD)}
 EVAL_ORD = ['UID', 'NAME', 'SCORE', 'REMARK', 'BY']
 DEFAULT_USER = 'admin'
-DEFAULT_ACCESS = f'DAURX+-'
+DEFAULT_ACCESS = f'DAURGX-+'
 MAX_STR_LEN = 250
 
 def rematch(instr, pattern):  return \
@@ -238,10 +273,9 @@ def READ_DB_FROM_DISK(path, key_at):
 
 def WRITE_DB_TO_DISK(path, db_frame, ord): # will change the order
     try:
-        DICT2CSV(path, db_frame, ord) # save updated login information to csv
+        DICT2CSV(path, db_frame, ord) 
         return True
-    except PermissionError:
-        return False
+    except PermissionError: return False
 
 def GET_FILE_LIST (d, sort=True, number=False): 
     dlist = []
@@ -270,24 +304,18 @@ def DISPLAY_SIZE_READABLE(mus):
                 mus_display = f'{mus_tb:.2f} TB'
     return mus_display
 
-def NEW_NOTEBOOK_STR(title, nbformat=4, nbformat_minor=2):
-    return '{"cells": [{"cell_type": "markdown","metadata": {},"source": [ "'+str(title)+'" ] } ], "metadata": { }, "nbformat": '+str(nbformat)+', "nbformat_minor": '+str(nbformat_minor)+'}'
+def str2bytes(size):
+    sizes = dict(KB=2**10, MB=2**20, GB=2**30, TB=2**40)
+    return int(float(size[:-2])*sizes.get(size[-2:].upper(), 0))
 
 class Fake:
     def __len__(self): return len(self.__dict__)
     def __init__(self, **kwargs) -> None:
         for name, attribute in kwargs.items():  setattr(self, name, attribute)
-#-----------------------------------------------------------------------------------------
 
-def str2bytes(size):
-    sizes = dict(KB=2**10, MB=2**20, GB=2**30, TB=2**40)
-    return int(float(size[:-2])*sizes.get(size[-2:].upper(), 0))
-
-
-
-#-----------------------------------------------------------------------------------------
-# ==> default configurations
-#-----------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
+#  Templates
+# ------------------------------------------------------------------------------------------
 
 def DEFAULT_CONFIG(file_path):
     with open(file_path, 'w', encoding='utf-8') as f: f.write("""
@@ -325,9 +353,7 @@ style = dict(
         btn_olive =     "#a19636", # Home
         btn_switcherbg ="#E6EAE8", # Session Switcher BG
         btn_switcherfg  ="#202020", # Session Switcher FG
-                                                              
-                                                              
-                                                              
+              
         # -------------# colors 
         bgcolor      = "#FFFFFF",
         fgcolor      = "#000000",
@@ -418,24 +444,21 @@ common = dict(
 running = dict(    
 
     default=dict(
-        required     = "",                     # csv list of file-names that are required to be uploaded e.g., required = "a.pdf,b.png,c.exe" (keep blank to allow all file-names)
-        extra        = 1,                      # if true, allows uploading extra file (other than required)
+        required     = "",                # csv list of file-names that are required to be uploaded e.g., required = "a.pdf,b.png,c.exe" (keep blank to allow all file-names)
+        extra        = 1,                 # if true, allows uploading extra file (other than required)
         canupload    = 1,                 # toggle enable/disable uploading for users (not for store)
         eval         = "eval.csv",        # evaluation database - created if not existing - reloads if exists
         uploads      = "uploads",         # uploads folder (uploaded files by users go here)
         downloads    = "downloads",       # downloads folder (public read-only access)
         board        = "board.md",        # board file (public read-only, a notebook displayed as a web-page)
-        )
+        ),
 )
                                                          
 """)
 
-
-S_MATHJAX = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'
-
 def TEMPLATES(style, script_mathjax):
 
-    HOME_PAGE_PRE = """
+    def HOME_PAGE(): return """
     <html>
         <head>
             <meta charset="UTF-8">
@@ -444,20 +467,16 @@ def TEMPLATES(style, script_mathjax):
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
             <!-- MathJax for math rendering -->
             <script src=""" + script_mathjax +  """ async></script>
-
         </head>
         <body>
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
         <style type="text/css">
-        mjx-container[jax="CHTML"][display="true"]  {
-            text-align: left;
-        }
+        mjx-container[jax="CHTML"][display="true"]  { text-align: left; }
         </style>
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
-            
             <div class="userword">{{session.named}} <a href="{{ url_for('route_public') }}">{{ config.emoji }}</a> {{session.uid}}</div>
             <br>
             <div class="bridge">
@@ -477,20 +496,18 @@ def TEMPLATES(style, script_mathjax):
             {% if 'R' in session.admind %}
             <a href="{{ url_for('route_reports') }}" class="btn_report">"""+f'{style.report_}'+"""</a>
             {% endif %}
-            
             </div>               
         <!-- ---------------------------------------------------------->
-        <br><div class="board_content">"""
-    HOME_PAGE_POST=f"""
+        <br><div class="board_content">""", f"""
         </div><br>
         <!-- ---------------------------------------------------------->
         </body>
     </html>
     """
-    #******************************************************************************************
+
     # ******************************************************************************************
+    
     HTML_TEMPLATES = dict(
-    # ******************************************************************************************
     # ******************************************************************************************
     evaluate = """
     <html>
@@ -535,7 +552,6 @@ def TEMPLATES(style, script_mathjax):
                             }
                         }
                     </script>
-
             <a href="{{ url_for('route_generate_report') }}" target="_blank" class="btn_download">Session-Report</a>
             </div>
             <br>
@@ -562,7 +578,6 @@ def TEMPLATES(style, script_mathjax):
                 <br>   
                 <br> 
             </form>
-            
             <form method='POST' enctype='multipart/form-data'>
                 {{form.hidden_tag()}}
                 {{form.file()}}
@@ -571,7 +586,6 @@ def TEMPLATES(style, script_mathjax):
             <a href="{{ url_for('route_generate_eval_template') }}" class="btn_black">Get CSV-Template</a>
         </div>
         {% endif %}
-        
         {% if results %}
         <div class="status">
         <table>
@@ -587,10 +601,9 @@ def TEMPLATES(style, script_mathjax):
         {% endfor %}
         </table>
         </div>
-        {% endif %}
-                    
+        {% endif %} 
         <!-- ---------------------------------------------------------->
-        
+        <br>
         <!-- ---------------------------------------------------------->
         </body>
     </html>
@@ -603,7 +616,6 @@ def TEMPLATES(style, script_mathjax):
             <title> """+f'{style.icon_login}'+""" {{ config.topic }} </title>
             <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">  
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-
         </head>
         <body>
         <!-- ---------------------------------------------------------->
@@ -625,21 +637,12 @@ def TEMPLATES(style, script_mathjax):
                             <a href="{{ url_for('route_switch', req_uid=r) }}" class="btn_switcher">{{ r }}</a>
                         {% endif %}
                 {% endif %}
-                
                 <br>
-            {% endfor %}
-
-                
+            {% endfor %}  
         </div>
-
-        <!-- ---------------------------------------------------------->
-        
-        <!-- ---------------------------------------------------------->
         </body>
     </html>
     """,
-    
-    # ******************************************************************************************
     # ******************************************************************************************
     login = """
     <html>
@@ -648,13 +651,11 @@ def TEMPLATES(style, script_mathjax):
             <title> """+f'{style.icon_login}'+""" {{ config.topic }} </title>
             <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">  
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-
         </head>
         <body>
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
-
         <div align="center">
             <br>
             <div class="topic">{{ config.topic }}</div>
@@ -665,7 +666,7 @@ def TEMPLATES(style, script_mathjax):
                 <br>
                 <div class="msg_login">{{ msg }}</div>
                 <br>
-                <input id="uid" name="uid" type="text" placeholder="... user-id ..." class="txt_login"/>
+                <input id="uid" name="uid" type="text" placeholder="... username ..." class="txt_login"/>
                 <br>
                 <br>
                 <input id="passwd" name="passwd" type="password" placeholder="... password ..." class="txt_login"/>
@@ -690,9 +691,7 @@ def TEMPLATES(style, script_mathjax):
                 <br>
             </form>
         </div>
-
         <!-- ---------------------------------------------------------->
-        
         <div align="center">
         <div>
         <span style="font-size: xx-large;"><a href="{{ url_for('route_public') }}">{{ config.emoji }}</a></span>
@@ -716,17 +715,14 @@ def TEMPLATES(style, script_mathjax):
             <title> """+f'{style.icon_new}'+""" {{ config.topic }} </title>
             <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">  
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-
         </head>
         <body>
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
-
         <div align="center">
             <br>
             <div class="topic">{{ config.topic }}</div>
-
             <br>
             <form action="{{ url_for('route_new') }}" method="post">
                 <br>
@@ -734,31 +730,33 @@ def TEMPLATES(style, script_mathjax):
                 <br>
                 <div class="msg_login">{{ msg }}</div>
                 <br>
-                <input id="uid" name="uid" type="text" placeholder="... user-id ..." class="txt_login"/>
+                <div class="tooltip-container">
+                <input id="uid" name="uid" type="text" placeholder="... username ..." class="txt_login"/>
+                <div class="tooltip-text">alpha-numeric, can have _ . @</div></div>
                 <br>
                 <br>
+                <div class="tooltip-container">
                 <input id="passwd" name="passwd" type="password" placeholder="... password ..." class="txt_login"/>
+                <div class="tooltip-text">alpha-numeric, can have _ . @ ~ ! # $ % ^ & * + ? ` - = < > [ ] ( ) { }</div></div>
                 <br>
                 <br>
+                <div class="tooltip-container">
                 <input id="named" name="named" type="text" placeholder="... name ..." class="txt_login"/>
+                <div class="tooltip-text">alpha-numeric, cannot start with a number</div></div>
                 <br>
                 <br>
                 <input type="submit" class="btn_board" value=""" + f'"{style.new_}"' +"""> 
                 <br>
-                <br>
-                
+                <br> 
             </form>
         </div>
-
         <!-- ---------------------------------------------------------->
-        
         <div align="center">
         <div>
         <a href="{{ url_for('route_public') }}"><span style="font-size: xx-large;">{{ config.emoji }}</span></a>
         <br>
         <br>
         <a href="{{ url_for('route_login') }}" class="btn_login">""" + f'{style.login_}' +"""</a>
-        
         </div>
         <br>
         </div>
@@ -774,13 +772,11 @@ def TEMPLATES(style, script_mathjax):
             <title> """+f'{style.icon_downloads}'+""" {{ config.topic }} | {{ session.uid }} </title>
             <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">           
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-
         </head>
         <body>
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
-        
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch', d='') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
             <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
@@ -805,14 +801,13 @@ def TEMPLATES(style, script_mathjax):
             </div>
             <br>
         </div>
-
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
         </body>
     </html>
     """,
-# ******************************************************************************************
+    # ******************************************************************************************
     publics = """
     <html>
         <head>
@@ -820,13 +815,11 @@ def TEMPLATES(style, script_mathjax):
             <title> {{ config.emoji }} {{ config.topic }} </title>
             <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">           
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-
         </head>
         <body>
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
-        
         <div align="left" class="pagecontent">
             <div class="userword"> <a href="{{ url_for('route_login') }}">{{ config.emoji }}</a> {{ config.topic }} </a></div><hr>
             <br>
@@ -843,7 +836,6 @@ def TEMPLATES(style, script_mathjax):
             </div>
             <br>
         </div>
-
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
@@ -858,13 +850,11 @@ def TEMPLATES(style, script_mathjax):
             <title> """+f'{style.icon_store}'+""" {{ config.topic }} | {{ session.uid }} </title>
             <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">   
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-            
         </head>
         <body>
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
-        
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
             <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
@@ -893,7 +883,6 @@ def TEMPLATES(style, script_mathjax):
             </div>
             <hr>
             <!-- Directory Listing -->
-            
             <div class="files_list_up">
                 <p class="files_status">Folders</p>
                 {% for (dir,hdir) in dirs %}
@@ -903,7 +892,6 @@ def TEMPLATES(style, script_mathjax):
                 {% endfor %}
             </div>
             <hr>
-            
             <div class="files_list_down">
                 <p class="files_status">Files</p>
                 <ol>
@@ -912,12 +900,9 @@ def TEMPLATES(style, script_mathjax):
                     <li>
                     <a href="{{ url_for('route_storeuser', subpath=subpath + '/' + file, get='') }}" target="_blank">"""+f'{style.icon_getfile}'+"""</a> 
                     <a href="{{ url_for('route_storeuser', subpath=subpath + '/' + file) }}" target="_blank">{{ file }}</a>
-                    
                     <a href="{{ url_for('route_storeuser', subpath=subpath + '/' + file, html='') }}" target="_blank">"""+f'{style.icon_gethtml}'+"""</a> 
-                    
                     </li>
                 {% endif %}
-                
                 {% endfor %}
                 </ol>
             </div>
@@ -930,6 +915,7 @@ def TEMPLATES(style, script_mathjax):
         </body>
     </html>
     """,
+    # ******************************************************************************************
     store = """
     <html>
         <head>
@@ -937,13 +923,11 @@ def TEMPLATES(style, script_mathjax):
             <title> """+f'{style.icon_store}'+""" {{ config.topic }} | {{ session.uid }} </title>
             <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">      
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-        
         </head>
         <body>
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
-        
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
             <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
@@ -978,7 +962,6 @@ def TEMPLATES(style, script_mathjax):
             </div>
             <hr>
             <!-- Directory Listing -->
-            
             <div class="files_list_up">
                 <p class="files_status">Folders</p>
                 {% for (dir,hdir) in dirs %}
@@ -988,7 +971,6 @@ def TEMPLATES(style, script_mathjax):
                 {% endfor %}
             </div>
             <hr>
-            
             <div class="files_list_down">
                 <p class="files_status">Files</p>
                 <ol>
@@ -1012,13 +994,11 @@ def TEMPLATES(style, script_mathjax):
                         <a href="{{ url_for('route_store', subpath=subpath + '/' + file, html='') }}" target="_blank">"""+f'{style.icon_gethtml}'+"""</a> 
                         </li>
                     {% endif %}
-                
                 {% endfor %}
                 </ol>
             </div>
             <br>
         </div>
-
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
@@ -1033,13 +1013,11 @@ def TEMPLATES(style, script_mathjax):
             <title> """+f'{style.icon_uploads}'+""" {{ config.topic }} | {{ session.uid }} </title>
             <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">        
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    
         </head>
         <body>
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
-        
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch', u='') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
             <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
@@ -1055,7 +1033,6 @@ def TEMPLATES(style, script_mathjax):
                 <ol>
                 {% for i, file in ufl %}
                 <li>
-                
                 <button class="btn_del" onclick="confirm_del_{{ i }}()">"""+f'{style.icon_delfile}'+"""</button>
                 <script>
                     function confirm_del_{{ i }}() {
@@ -1065,7 +1042,6 @@ def TEMPLATES(style, script_mathjax):
                         }
                     }
                 </script>
-                
                 <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}">{{ file }}</a>
                 <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}?html"" target="_blank">"""+f'{style.icon_gethtml}'+"""</a>
                 </li>
@@ -1073,20 +1049,15 @@ def TEMPLATES(style, script_mathjax):
                 {% endfor %}
                 </ol>
             </div>
-
            <br>
             {% if "U" in session.admind %}
-
-
-                            <br>
-
+                <br>
                 {% if submitted<1 %}
                     {% if config.muc!=0 and not config.disableupload[session.sess] %}
                     <form method='POST' enctype='multipart/form-data'>
                         {{form.hidden_tag()}}
                         {{form.file()}}
                         {{form.submit()}}
-                    
                     <button class="btn_purge" onclick="confirm_purge()">Purge</button>
                     </form>
                     <script>
@@ -1101,7 +1072,6 @@ def TEMPLATES(style, script_mathjax):
                 {% else %}
                     <div class="upword">Your Score is {{ score }}</div><br>
                 {% endif %}
-
                 <div class="status">
                     <ol>
                     {% for s,f in status %}
@@ -1118,16 +1088,11 @@ def TEMPLATES(style, script_mathjax):
                     </ol>
                 </div>
                 <br>
-                    
                 </div>
                 <br>
-
             {% endif %}
-
-
             <br>
         </div>
-
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
@@ -1142,13 +1107,11 @@ def TEMPLATES(style, script_mathjax):
             <title> """+f'{style.icon_report}'+""" {{ config.topic }} | {{ session.uid }} </title>
             <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">     
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-        
         </head>
         <body>
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
-        
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
             <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
@@ -1170,7 +1133,6 @@ def TEMPLATES(style, script_mathjax):
             </div>
             <br>
         </div>
-
         <!-- ---------------------------------------------------------->
         </br>
         <!-- ---------------------------------------------------------->
@@ -1179,10 +1141,10 @@ def TEMPLATES(style, script_mathjax):
     """,
     # ******************************************************************************************
     )
+    
     # ******************************************************************************************
-    CSS_TEMPLATES = dict(
-    # ****************************************************************************************** 
-    style = f""" 
+    
+    CSS_TEMPLATES = dict(style = f""" 
 
     body {{
         background-color: {style.bgcolor};
@@ -1232,8 +1194,6 @@ def TEMPLATES(style, script_mathjax):
     }}
     @keyframes fader_msg {{from {{color: {style.bgcolor};}} to {{color: {style.msgcolor}; }} }}
 
-
-
     .topic_mid{{
         color: {style.fgcolor};
         font-size: x-large;
@@ -1247,7 +1207,6 @@ def TEMPLATES(style, script_mathjax):
         font-family: {style.font_};    
         font-size: xxx-large;
     }}
-
 
     .upword{{
         color: {style.fgcolor};
@@ -1267,13 +1226,11 @@ def TEMPLATES(style, script_mathjax):
         text-decoration: none;
     }}
 
-
     .files_status{{
         font-weight:  {style.fontw};
         font-size: x-large;
         font-family: {style.font_};
     }}
-
 
     .admin_mid{{
         color: {style.fgcolor}; 
@@ -1286,8 +1243,6 @@ def TEMPLATES(style, script_mathjax):
     @keyframes fader_admin_success {{from {{color: {style.item_true};}} to {{color: {style.fgcolor}; }} }}
     @keyframes fader_admin_normal {{from {{color: {style.item_normal};}} to {{color: {style.fgcolor}; }} }}
 
-
-
     .btn_enablel {{
         padding: 2px 10px 2px;
         color: {style.item_false}; 
@@ -1296,7 +1251,6 @@ def TEMPLATES(style, script_mathjax):
         font-family: {style.font_};
         text-decoration: none;
     }}
-
 
     .btn_disablel {{
         padding: 2px 10px 2px;
@@ -1317,7 +1271,6 @@ def TEMPLATES(style, script_mathjax):
         font-family: {style.font_};
         text-decoration: none;
     }}
-
 
     .btn_disable {{
         padding: 2px 10px 2px;
@@ -1358,6 +1311,7 @@ def TEMPLATES(style, script_mathjax):
         color: #FFFFFF;
         font-size: small;
     }}
+
     #submit {{
         padding: 2px 10px 2px;
         background-color: #007f30; 
@@ -1390,7 +1344,6 @@ def TEMPLATES(style, script_mathjax):
     .bridge{{ line-height: 2; }}
 
     .txt_submit{{
-
         text-align: left;
         font-family: {style.font_};
         border: 1px;
@@ -1412,10 +1365,8 @@ def TEMPLATES(style, script_mathjax):
     }}
 
     .txt_login{{
-
         text-align: center;
         font-family: {style.font_};
-
         box-shadow: inset #abacaf 0 0 0 2px;
         border: 0;
         background: rgba(0, 0, 0, 0);
@@ -1446,35 +1397,6 @@ def TEMPLATES(style, script_mathjax):
         font-family: {style.font_};   
     }}
 
-
-    .txt_login_small{{
-        box-shadow: inset #abacaf 0 0 0 2px;
-        text-align: center;
-        font-family: {style.font_};
-        border: 0;
-        background: rgba(0, 0, 0, 0);
-        appearance: none;
-        position: absolute;
-        border-radius: 3px;
-        padding: 9px 12px;
-        margin: 0px 0px 0px 4px;
-        line-height: 1.4;
-        color: rgb(0, 0, 0);
-        font-size: 16px;
-        font-weight: 400;
-        height: 40px;
-        width: 45px;
-        transition: all .2s ease;
-        :hover{{
-            box-shadow: 0 0 0 0 #fff inset, #1de9b6 0 0 0 2px;
-        }}
-        :focus{{
-            background: #fff;
-            outline: 0;
-            box-shadow: 0 0 0 0 #fff inset, #1de9b6 0 0 0 3px;
-        }}
-    }}
-
     .btn_logout {{
         padding: 2px 10px 2px;
         background-color: {style.btn_navy};
@@ -1485,7 +1407,6 @@ def TEMPLATES(style, script_mathjax):
         font-family: {style.font_};
         text-decoration: none;
     }}
-
 
     .btn_refresh_small {{
         padding: 2px 10px 2px;
@@ -1508,7 +1429,6 @@ def TEMPLATES(style, script_mathjax):
         font-family: {style.font_};
         text-decoration: none;
     }}
-
     
     .btn_del {{
         
@@ -1523,8 +1443,6 @@ def TEMPLATES(style, script_mathjax):
     }}
     @keyframes faderdel {{from  {{color: transparent; }} to {{background-color: transparent;}} }}
 
-
-
     .btn_purge_large {{
         padding: 2px 10px 2px;
         background-color: {style.btn_red}; 
@@ -1537,7 +1455,6 @@ def TEMPLATES(style, script_mathjax):
         text-decoration: none;
     }}
 
-    
     .btn_reeval_large {{
         padding: 2px 10px 2px;
         background-color: {style.btn_purple}; 
@@ -1682,13 +1599,41 @@ def TEMPLATES(style, script_mathjax):
     }}
 
 
+    .tooltip-container {{
+    position: relative;
+    display: inline-block;
+    }}
+
+    .tooltip-text {{
+    visibility: hidden;
+    width: 100%;
+    font-family: {style.font_};
+    background-color: {style.fgcolor}; 
+    color: {style.bgcolor};
+    text-align: left;
+    padding: 6px;
+    border-radius: 3px;
+    font-size: medium;
+    
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    left: 104%;
+    opacity: 0;
+    transition: opacity 0.3s;
+    }}
+
+    .tooltip-container:hover .tooltip-text {{
+    visibility: visible;
+    opacity: 1;
+    }}
+
     """
     )
-    
-    # ******************************************************************************************
-    return HTML_TEMPLATES, CSS_TEMPLATES, (HOME_PAGE_PRE, HOME_PAGE_POST)
-    # ****************************************************************************************** 
 
+    # ******************************************************************************************
+    return HTML_TEMPLATES, CSS_TEMPLATES, HOME_PAGE()
+    # ****************************************************************************************** 
 
 def TABLE_STYLED(): return \
 f"""
@@ -1725,6 +1670,7 @@ table td {{
 h1 {{
     font-family: {style.font_};
 }}
+
 </style>
 """
 
@@ -2029,16 +1975,13 @@ def FAVICON(): return [
     ]
 
 
-
-#%% Initialization
+# ------------------------------------------------------------------------------------------
+#  Initialization
 # ------------------------------------------------------------------------------------------
 sprint(f'Starting...')
 if parsed.https: sprint(f'↪ https is enabled, assume that reverse proxy engine is running ... ')
 if not has_nbconvert: sprint(f'↪ nbconvert package was not found, notebook-to-html rendering will not work ... ')
 sprint(f'↪ Logging @ {LOGFILE}')
-
-
-
 
 #-----------------------------------------------------------------------------------------
 # ==> read configurations
@@ -2095,15 +2038,6 @@ for k,v in running_sessions.items():
     if '' in REQUIRED_FILES: REQUIRED_FILES.remove('')
     running_data[k]['required'] = REQUIRED_FILES
 
-# # -------------------------------------# validation
-# required     = "",                     # csv list of file-names that are required to be uploaded e.g., required = "a.pdf,b.png,c.exe" (keep blank to allow all file-names)
-# extra        = 1,                      # if true, allows uploading extra file (other than required)
-# eval         = "eval.csv",        # evaluation database - created if not existing - reloads if exists
-# uploads      = "uploads",         # uploads folder (uploaded files by users go here)
-# board        = "board.md",        # board file (public read-only, a notebook displayed as a web-page)
-# # --------------------------------------# style dict
-
-
 # ------------------------------------------------------------------------------------------
 # Check user upload requirements
 # ------------------------------------------------------------------------------------------
@@ -2114,24 +2048,18 @@ def GetUserFiles(uid, SESS, REQUIRED_FILES):
     if has_udir: return not (False in [os.path.isfile(os.path.join(udir, f)) for f in REQUIRED_FILES])
     else: return False
 
-
-
-
-
-
+class UploadFileForm(FlaskForm): # The upload form using FlaskForm
+    file = MultipleFileField("File", validators=[InputRequired()])
+    submit = SubmitField("Upload File")
 
 #-----------------------------------------------------------------------------------------
 # Directories
 #-----------------------------------------------------------------------------------------
-
 HTMLDIR = os.path.abspath(args.html)
 try: os.makedirs(HTMLDIR, exist_ok=True)
 except: fexit(f'[!] HTML directory was not found and could not be created')
 sprint(f'⚙ HTML Directory @ {HTMLDIR}')
 
-# ------------------------------------------------------------------------------------------
-# workdir
-#-----------------------------------------------------------------------------------------
 WORKDIR = f'{args.dir}' # define working dir - contains all bases
 if not WORKDIR: WORKDIR = os.getcwd()
 WORKDIR=os.path.abspath(WORKDIR)
@@ -2139,14 +2067,13 @@ try: os.makedirs(WORKDIR, exist_ok=True)
 except: fexit(f'[!] Workspace directory was not found and could not be created')
 sprint(f'↪ Workspace directory is {WORKDIR}')
 
-
 BASEDIR = ((os.path.join(WORKDIR, args.base)) if args.base else WORKDIR)
 try:     os.makedirs(BASEDIR, exist_ok=True)
 except:  fexit(f'[!] base directory  @ {BASEDIR} was not found and could not be created') 
 sprint(f'⚙ Base Directory: {BASEDIR}')
 
 # ------------------------------------------------------------------------------------------
-# WEB-SERVER INFORMATION
+# Flask secret key
 # ------------------------------------------------------------------------------------------
 if not args.secret: fexit(f'[!] secret file was not provided!')    
 APP_SECRET_KEY_FILE = os.path.abspath(args.secret)
@@ -2169,21 +2096,13 @@ if not args.login: fexit(f'[!] login file was not provided!')
 LOGIN_XL_PATH = os.path.abspath(args.login) 
 if not os.path.isfile(LOGIN_XL_PATH): 
     sprint(f'⇒ Creating new login file: {LOGIN_XL_PATH}')
-    
     this_user = getpass.getuser()
     if not (VALIDATE_UID(this_user)):  this_user=DEFAULT_USER
-
-    
     try:this_name = os.uname().nodename
     except:this_name = ""
     if not (VALIDATE_NAME(this_name)):  this_name=this_user.upper()
-
-    DICT2CSV(LOGIN_XL_PATH, 
-             { f'{this_user}' : [DEFAULT_ACCESS,  f'{this_user}', f'{this_name}', f''] }, 
-             LOGIN_ORD ) # save updated login information to csv
-    
-    sprint(f'⇒ Created new login-db with admin-user: user-id "{this_user}" and name "{this_name}"')
-
+    DICT2CSV(LOGIN_XL_PATH, { f'{this_user}' : [DEFAULT_ACCESS,  f'{this_user}', f'{this_name}', f''] },  LOGIN_ORD )
+    sprint(f'⇒ Created new login-db with admin-user: username "{this_user}" and name "{this_name}"')
 
 # ------------------------------------------------------------------------------------------
 # store settings
@@ -2193,8 +2112,9 @@ STORE_FOLDER_PATH = os.path.join( BASEDIR, args.store)
 try: os.makedirs(STORE_FOLDER_PATH, exist_ok=True)
 except: fexit(f'[!] store folder @ {STORE_FOLDER_PATH} was not found and could not be created')
 sprint(f'⚙ Store Folder: {STORE_FOLDER_PATH}')
+
 # ------------------------------------------------------------------------------------------
-# upload+download settings
+# session specific settings
 # ------------------------------------------------------------------------------------------
 UPLOAD_FOLDER_PATHS = {}
 DOWNLOAD_FOLDER_PATHS = {}
@@ -2215,7 +2135,6 @@ for k,v in running_data.items():
     except: fexit(f'[!] downloads folder @ {DOWNLOAD_FOLDER_PATH} was not found and could not be created')
     sprint(f'⚙ Downloads Folder for session {k}: {DOWNLOAD_FOLDER_PATH}')
     DOWNLOAD_FOLDER_PATHS[k] = DOWNLOAD_FOLDER_PATH
-
 
     # ------------------------------------------------------------------------------------------
     # Board
@@ -2238,7 +2157,6 @@ for k,v in running_data.items():
     BOARD_FILE_MDS[k] = BOARD_FILE_MD
     BOARD_PAGES[k] = BOARD_PAGE
 
-# ------------------------------------------------------------------------------------------
 def update_board(k): 
     res = False
     if BOARD_FILE_MDS[k]:
@@ -2252,17 +2170,8 @@ def update_board(k):
             sprint(f'⚙ Board File for {k} could not be updated: {BOARD_FILE_MDS[k]}')
     else: BOARD_PAGES[k]=""
     return res
-
 for k in running_data: update_board(k)
 
-
-
-# ------------------------------------------------------------------------------------------
-# EVAL DATABASE - CSV
-# ------------------------------------------------------------------------------------------
-EVAL_XL_PATHS={k:(os.path.join( BASEDIR,  v['eval']) if v['eval'] else None) for k,v in running_data.items()}
-    
-# ------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------
 # public settings
 # ------------------------------------------------------------------------------------------
@@ -2271,10 +2180,8 @@ else:
     PUBLIC_FOLDER_PATH = os.path.join(BASEDIR, args.public ) 
     try: os.makedirs(PUBLIC_FOLDER_PATH, exist_ok=True)
     except: fexit(f'[!] public folder @ {PUBLIC_FOLDER_PATH} was not found and could not be created')
-
 if PUBLIC_FOLDER_PATH is None: sprint(f'⚙ Public Folder was not used')
 else: sprint(f'⚙ Public Folder: {PUBLIC_FOLDER_PATH}')
-
 
 # ------------------------------------------------------------------------------------------
 # report settings
@@ -2288,32 +2195,26 @@ sprint(f'⚙ Reports Folder: {REPORT_FOLDER_PATH}')
 #-----------------------------------------------------------------------------------------
 # file-name and uploads validation
 #-----------------------------------------------------------------------------------------
-
-MAX_UPLOAD_SIZE = str2bytes(args.maxupsize)     # maximum upload file size 
-MAX_UPLOAD_COUNT = ( inf if args.maxupcount<0 else args.maxupcount )       # maximum number of files that can be uploaded by one user
-INITIAL_UPLOAD_STATUS = []           # a list of notes to be displayed to the users about uploading files
+MAX_UPLOAD_SIZE = str2bytes(args.maxupsize) 
+MAX_UPLOAD_COUNT = ( inf if args.maxupcount<0 else args.maxupcount )
+INITIAL_UPLOAD_STATUS = []
 INITIAL_UPLOAD_STATUS.append((-1, f'max upload size: {DISPLAY_SIZE_READABLE(MAX_UPLOAD_SIZE)}'))
 INITIAL_UPLOAD_STATUS.append((-1, f'max upload count: {MAX_UPLOAD_COUNT}'))
 sprint(f'⚙ Upload Settings ({len(INITIAL_UPLOAD_STATUS)})')
 for s in INITIAL_UPLOAD_STATUS: sprint(f' ⇒ {s[1]}')
-
-
-
-def VALIDATE_FILENAME(filename, required_files, allowed_extra):   # a function that checks for valid file 
+def VALIDATE_FILENAME(filename, required_files, allowed_extra):   
     sprint(f'Validating {filename}')
     if '.' in filename: 
-
         name, ext = filename.rsplit('.', 1)
         safename = f'{name}.{ext.lower()}'
         if required_files:  isvalid = bool(safename) if allowed_extra else (safename in required_files)
-        else:               isvalid = bool(safename) #re.match(VALID_FILES_PATTERN, safename, re.IGNORECASE)  # Case-insensitive matching
+        else:               isvalid = bool(safename) 
     else:               
         name, ext = filename, ''
         safename = f'{name}'
         if required_files:  isvalid = bool(safename) if allowed_extra else (safename in required_files)
-        else:               isvalid = bool(safename) #(not ALLOWED_EXTENSIONS)
+        else:               isvalid = bool(safename) 
     return isvalid, safename
-
 def VALIDATE_FILENAME_SUBMIT(filename): 
     if '.' in filename: 
         name, ext = filename.rsplit('.', 1)
@@ -2325,23 +2226,9 @@ def VALIDATE_FILENAME_SUBMIT(filename):
         isvalid = isvalid = bool(safename)
     return isvalid, safename
 
-
 # ------------------------------------------------------------------------------------------
-
-
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#%% HTML/CSS 
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-
-
+# html pages
+# ------------------------------------------------------------------------------------------
 def GET_SCRIPT(url):
     output_name = os.path.basename(url)
     output_path = os.path.join(HTMLDIR, output_name)
@@ -2357,10 +2244,7 @@ def GET_SCRIPT(url):
         except Exception as e:
             sprint(f'↪ Failed to download script. Error code: {e}')
     return output_name
-
-# ------------------------------------------------------------------------------------------
-# html pages
-# ------------------------------------------------------------------------------------------
+S_MATHJAX = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'
 SCRIPT_MATHJAX=(f'"{S_MATHJAX}"' if args.live else f'"{{{{ url_for("static", filename="{GET_SCRIPT(S_MATHJAX)}") }}}}"') 
 HTML_TEMPLATES, CSS_TEMPLATES, HOME_PAGE_STR = TEMPLATES(style, script_mathjax=SCRIPT_MATHJAX)
 # ------------------------------------------------------------------------------------------
@@ -2386,14 +2270,10 @@ if not os.path.exists(favicon_path):
         with open( favicon_path, 'wb') as f: f.write((b''.join([i.to_bytes() for i in FAVICON()])))         
     except: pass
 # ------------------------------------------------------------------------------------------
-
-
 class HConv: # html converter
-
 
     @staticmethod
     def convertx(abs_path, scripts, style):
-        
         if abs_path.lower().endswith(".ipynb"):
             try: return __class__.nb2html(abs_path, scripts=scripts, style=style) 
             except Exception as e: return (f"failed to rendered Notebook to HTML @ {abs_path}\n{e}") 
@@ -2435,7 +2315,6 @@ class HConv: # html converter
             iht = html_title.rfind('.')
             if not iht<0: html_title = html_title[:iht]
             if not html_title: html_title = (parsed_title if parsed_title else os.path.basename(os.path.dirname(source_notebook)))
-
         with open(source_notebook, 'r', encoding='utf-8')as f: md_text =f.read()
         page = __class__.GETMDPAGE(
             title=html_title,
@@ -2443,7 +2322,6 @@ class HConv: # html converter
             script_mathjax=(SCRIPT_MATHJAX if scripts else ""),
             style=style )
         return  page
-    
     
     @staticmethod
     def nb2html(source_notebook, scripts, style, html_title=None, parsed_title='Notebook',):
@@ -2458,15 +2336,13 @@ class HConv: # html converter
             for script in soup.find_all('script'): script.decompose()  # Find all script tags and remove them
             page = soup.prettify()
         return  page
-
+# ------------------------------------------------------------------------------------------
 
 
 # ------------------------------------------------------------------------------------------
+#  Database Read/Write
 # ------------------------------------------------------------------------------------------
-#%% Database Read/Write
-# ------------------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------------------
-
+EVAL_XL_PATHS={k:(os.path.join(BASEDIR, v['eval']) if v['eval'] else None) for k,v in running_data.items()}
 def read_logindb_from_disk():
     db_frame, res = READ_DB_FROM_DISK(LOGIN_XL_PATH, 1)
     if res: sprint(f'⇒ Loaded login file: {LOGIN_XL_PATH}')
@@ -2480,7 +2356,6 @@ def read_evaldb_from_disk(SESS):
         if ressub: sprint(f'⇒ Loaded evaluation file: {EVAL_XL_PATH}')
         else: sprint(f'⇒ Did not load evaluation file: [{EVAL_XL_PATH}] exists={os.path.exists(EVAL_XL_PATH)} isfile={os.path.isfile(EVAL_XL_PATH)}')
     return dbsub_frame
-# ------------------------------------------------------------------------------------------
 def write_logindb_to_disk(db_frame): # will change the order
     res = WRITE_DB_TO_DISK(LOGIN_XL_PATH, db_frame, LOGIN_ORD)
     if res: sprint(f'⇒ Persisted login file: {LOGIN_XL_PATH}')
@@ -2498,19 +2373,20 @@ def write_evaldb_to_disk(dbsub_frame, SESS, verbose=True): # will change the ord
 def dump_evaldb_to_disk(dbsubs_frame, verbose=True): # will change the order
     ressub = [write_evaldb_to_disk(dbsubs_frame[SESS], SESS) for SESS in EVAL_XL_PATHS]
     return not (False in ressub)
-# ------------------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------------------
-db =    read_logindb_from_disk()  #<----------- Created database here 
-dbsubs ={ k:read_evaldb_from_disk(k) for k in EVAL_XL_PATHS }  #<----------- Created database here 
+#<----------- create database 
+db =    read_logindb_from_disk() 
+dbsubs ={ k:read_evaldb_from_disk(k) for k in EVAL_XL_PATHS }  
 sprint('↷ persisted eval-db [{}]'.format(dump_evaldb_to_disk(dbsubs)))
 dbevalset = set([k for k,v in db.items() if '-' not in v[0]])
 dbevaluatorset = sorted(list(set([k for k,v in db.items() if 'X' in v[0]])))
+# ------------------------------------------------------------------------------------------
 
-class UploadFileForm(FlaskForm): # The upload form using FlaskForm
-    file = MultipleFileField("File", validators=[InputRequired()])
-    submit = SubmitField("Upload File")
 
-#%% [APP DEFINE] @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 
+
+
+# ------------------------------------------------------------------------------------------
+# app config
+# ------------------------------------------------------------------------------------------
 app = Flask(
     __name__,
     static_folder=HTMLDIR,      # Set your custom static folder path here
@@ -2519,9 +2395,6 @@ app = Flask(
     instance_path = WORKDIR,
 )
 if parsed.https: app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-# ------------------------------------------------------------------------------------------
-# app config
-# ------------------------------------------------------------------------------------------
 app.secret_key =          APP_SECRET_KEY
 app.config['base'] =      BASEDIR
 app.config['store'] =     STORE_FOLDER_PATH
@@ -2546,11 +2419,10 @@ app.config['pfl'] = GET_FILE_LIST(PUBLIC_FOLDER_PATH) if PUBLIC_FOLDER_PATH is n
 app.config['publiclog'] = (parsed.verbose>2)
 # ------------------------------------------------------------------------------------------
 
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# [Routes]
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-#%% [ROUTES] @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 
-# ------------------------------------------------------------------------------------------
-# login
-# ------------------------------------------------------------------------------------------
 @app.route('/', methods =['GET', 'POST'])
 def route_login():
     if request.method == 'POST' and 'uid' in request.form and 'passwd' in request.form:
@@ -2558,7 +2430,6 @@ def route_login():
         in_uid = f"{request.form['uid']}"
         in_passwd = f"{request.form['passwd']}"
         in_name = f'{request.form["named"]}' if 'named' in request.form else ''
-
         if 'sess' in request.form : in_sess =  f"{request.form['sess']}"
         else: in_sess = app.config['dses']
         if in_sess not in app.config['running']: in_sess = app.config['dses']
@@ -2578,20 +2449,15 @@ def route_login():
                             named = in_name
                         else: 
                             if in_name: sprint(f'⇒ {uid} ◦ {named} provided name "{in_name}" could not be updated') 
-
                         warn = style.LOGIN_CREATE_TEXT
                         msg = f'[{uid}] ({named}) New password was created successfully'
                         dprint(f'๏ 🤗 {uid} ◦ {named} just joined via {request.remote_addr}')
-           
-                    else: # new password is invalid valid 
+                    else: # new password is invalid valid
                         warn = style.LOGIN_NEW_TEXT
                         msg=f'[{uid}] New password is invalid - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'
-                        
-                                               
                 else: #new password not provided                
                     warn = style.LOGIN_NEW_TEXT
-                    msg = f'[{uid}] New password required - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'
-                                           
+                    msg = f'[{uid}] New password required - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'                       
             else: # re login
                 if in_passwd: # password provided 
                     if in_passwd==passwd:
@@ -2610,9 +2476,7 @@ def route_login():
                         session['has_login'] = True
                         session['uid'] = uid
                         session['admind'] = admind + app.config['apac']
-
                         session['sess'] = in_sess
-
                         session['hidden_store'] = False
                         session['hidden_storeuser'] = True
                         
@@ -2624,7 +2488,6 @@ def route_login():
                         else: 
                             session['named'] = named
                             if in_name: sprint(f'⇒ {uid} ◦ {named} provided name "{in_name}" could not be updated')  
-
                         dprint(f'๏ 🌝 {session["uid"]} ◦ {session["named"]} has logged in to {session["sess"]} via {request.remote_addr}') 
                         return redirect(url_for('route_home'))
                     else:  
@@ -2636,16 +2499,12 @@ def route_login():
         else:
             warn = style.LOGIN_FAIL_TEXT
             msg = f'[{in_uid}] Not a valid user' 
-
     else:
         if session.get('has_login', False):  return redirect(url_for('route_home'))
         msg = args.welcome
         warn = style.LOGIN_NEED_TEXT 
-        
     return render_template('login.html', msg = msg,  warn = warn)
-# ------------------------------------------------------------------------------------------
-# new
-# ------------------------------------------------------------------------------------------
+
 @app.route('/new', methods =['GET', 'POST'])
 def route_new():
     if not app.config['reg']: return "registration is not allowed"
@@ -2654,11 +2513,10 @@ def route_new():
         in_uid = f"{request.form['uid']}"
         in_passwd = f"{request.form['passwd']}"
         in_name = f'{request.form["named"]}' if 'named' in request.form else ''
-        #in_emoji = app.config['emoji']
         in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
         valid_query, valid_name = VALIDATE_UID(in_query) , VALIDATE_NAME(in_name)
         if not valid_query:
-            warn, msg = style.LOGIN_FAIL_TEXT, f'[{in_uid}] Not a valid user-id' 
+            warn, msg = style.LOGIN_FAIL_TEXT, f'[{in_uid}] Not a valid username' 
         elif not valid_name:
             warn, msg = style.LOGIN_FAIL_TEXT, f'[{in_name}] Not a valid name' 
         else:
@@ -2674,29 +2532,20 @@ def route_new():
                             warn = style.LOGIN_CREATE_TEXT
                             msg = f'[{in_uid}] ({named}) New password was created successfully'
                             dprint(f'๏ 🫣 {in_uid} ◦ {named} just registered via {request.remote_addr}')
-            
                         else: # new password is invalid valid  
                             warn = style.LOGIN_NEW_TEXT
-                            msg=f'[{in_uid}] New password is invalid - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'
-                            
-                                                
+                            msg=f'[{in_uid}] New password is invalid - try something else'  
                     else: #new password not provided                  
                         warn = style.LOGIN_NEW_TEXT
-                        msg = f'[{in_uid}] New password required - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'
-                                            
-
+                        msg = f'[{in_uid}] New password required'
             else:
                 warn, msg = style.LOGIN_FAIL_TEXT, f'[{in_uid}] is already registered' 
-
     else:
         if session.get('has_login', False):  return redirect(url_for('route_home'))
         msg = args.register
         warn = style.LOGIN_REG_TEXT 
-        
     return render_template('new.html', msg = msg,  warn = warn)
-# ------------------------------------------------------------------------------------------
-# logout
-# ------------------------------------------------------------------------------------------
+
 @app.route('/logout')
 def route_logout():
     r""" logout a user and redirect to login page """
@@ -2706,24 +2555,21 @@ def route_logout():
     else:                       dprint(f'๏ 💀 {session["uid"]} ◦ {session["named"]} was removed out of {session["sess"]} due to invalid uid via {request.remote_addr}') 
     session.clear()
     return redirect(url_for('route_login'))
-# ------------------------------------------------------------------------------------------
-# download
-# ------------------------------------------------------------------------------------------
+
 @app.route('/downloads', methods =['GET'], defaults={'req_path': ''})
 @app.route('/downloads/<path:req_path>')
 def route_downloads(req_path):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if 'D' not in session['admind']:  return redirect(url_for('route_home'))
-    
     if not req_path:
         dfl = GET_FILE_LIST(DOWNLOAD_FOLDER_PATHS[session['sess']])
     else:
         dfl=[]
-        abs_path = os.path.join(DOWNLOAD_FOLDER_PATHS[session['sess']], req_path) # Joining the base and the requested path
+        abs_path = os.path.join(DOWNLOAD_FOLDER_PATHS[session['sess']], req_path)
         if not os.path.exists(abs_path): 
-            sprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
-            return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
-        if os.path.isfile(abs_path):  #(f"◦ sending file ")
+            sprint(f"⇒ requested file was not found {abs_path}") 
+            return abort(404) 
+        if os.path.isfile(abs_path): 
             if ("html" in request.args): 
                 dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
                 try: hmsg = HConv.convertx(abs_path, args.scripts, style)
@@ -2731,11 +2577,9 @@ def route_downloads(req_path):
                 return hmsg 
             else: 
                 dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
-                return send_file(abs_path, as_attachment=False) # Check if path is a file and serve
+                return send_file(abs_path, as_attachment=False) 
     return render_template('downloads.html', dfl=dfl)
-# ------------------------------------------------------------------------------------------
-# uploads
-# ------------------------------------------------------------------------------------------
+
 @app.route('/uploads', methods =['GET', 'POST'], defaults={'req_path': ''})
 @app.route('/uploads/<path:req_path>')
 def route_uploads(req_path):
@@ -2747,9 +2591,7 @@ def route_uploads(req_path):
         submitted = int(session['uid'] in dbsubs[session['sess']])
         score = dbsubs[session['sess']][session['uid']][2] if submitted>0 else -1
     else: submitted, score = -1, -1
-
     ufl = GET_FILE_LIST(folder_name, number=True)
-
     if  app.config['disableupload'][session['sess']]: status = [(-1, f'Uploads are disabled')]
     else:
         REQUIRED_FILES = app.config['running'][session['sess']]['required']
@@ -2757,11 +2599,11 @@ def route_uploads(req_path):
         if REQUIRED_FILES: UPLOAD_STATUS.append((-1, f'accepted files [{len(REQUIRED_FILES)}]: {REQUIRED_FILES}'))
         status=UPLOAD_STATUS
     if req_path:
-        abs_path = os.path.join(folder_name, req_path)# Joining the base and the requested path
+        abs_path = os.path.join(folder_name, req_path)
         if not os.path.exists(abs_path): 
-            sprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
-            return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
-        if os.path.isfile(abs_path):  #(f"◦ sending file ")
+            sprint(f"⇒ requested file was not found {abs_path}") 
+            return abort(404)
+        if os.path.isfile(abs_path): 
             if ("html" in request.args): 
                 dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
                 try: hmsg = HConv.convertx(abs_path, args.scripts, style)
@@ -2776,13 +2618,10 @@ def route_uploads(req_path):
                         dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted file ({req_path}) via {request.remote_addr}") 
                         return redirect(url_for('route_uploads'))
                     except:return f"Error deleting the file"
-                
             else: 
                 dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
-                return send_file(abs_path, as_attachment=False) # Check if path is a file and serve
-
+                return send_file(abs_path, as_attachment=False)
     else:
-        
         if form.validate_on_submit() and ('U' in session['admind']):
             dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items for {session["sess"]} via {request.remote_addr}")
             if app.config['muc']==0 or app.config['disableupload'][session['sess']]: 
@@ -2795,20 +2634,15 @@ def route_uploads(req_path):
                         result = []
                         n_success = 0
                         fcount = len(ufl)
-                        #---------------------------------------------------------------------------------
                         for file in form.file.data:
                             isvalid, sf = VALIDATE_FILENAME(secure_filename(file.filename),
                                         app.config['running'][session['sess']]['required'],
                                         app.config['running'][session['sess']]['extra'],)
                             isvalid = isvalid or ('+' in session['admind'])
-                        #---------------------------------------------------------------------------------
-                            
                             if not isvalid:
                                 why_failed =  f"✗ File not accepted [{sf}] " if app.config['running'][session['sess']]['required'] else f"✗ Extension is invalid [{sf}] "
                                 result.append((0, why_failed))
                                 continue
-
-                            
                             if fcount>=app.config['muc']:
                                 why_failed = f"✗ Upload limit reached [{sf}] "
                                 result.append((0, why_failed))
@@ -2823,43 +2657,36 @@ def route_uploads(req_path):
                                 fcount+=1
                             except FileNotFoundError: 
                                 return redirect(url_for('route_logout'))
-                        #---------------------------------------------------------------------------------
-                            
                         result_show = ''.join([f'\t{r[-1]}\n' for r in result])
                         result_show = result_show[:-1]
                         dprint(f'๏ ✅ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s) for {session["sess"]}\n{result_show}') 
                         ufl = GET_FILE_LIST(folder_name, number=True)
                         status=result
-        
-
     return render_template('uploads.html', ufl=ufl, submitted=submitted, score=score, form=form, status=status)
-# ------------------------------------------------------------------------------------------
-# reports
-# ------------------------------------------------------------------------------------------
+
 @app.route('/reports', methods =['GET'], defaults={'req_path': ''})
 @app.route('/reports/<path:req_path>')
 def route_reports(req_path):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if 'R' not in session['admind']:  return redirect(url_for('route_home'))
     folder_name=os.path.join(REPORT_FOLDER_PATH, session['uid'])
-    
     if not req_path:
         rfl = os.listdir(folder_name)
     else:
         rfl=[]
-        abs_path = os.path.join( folder_name, req_path)# Joining the base and the requested path
+        abs_path = os.path.join( folder_name, req_path)
         if not os.path.exists(abs_path): 
-            sprint(f"⇒ requested file was not found {abs_path}") #Return 404 if path doesn't exist
-            return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
-        if os.path.isfile(abs_path):  #(f"◦ sending file ")
+            sprint(f"⇒ requested file was not found {abs_path}")
+            return abort(404) 
+        if os.path.isfile(abs_path):
             dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the report {req_path} via {request.remote_addr}')
-            return send_file(abs_path) # Check if path is a file and serve
+            return send_file(abs_path) 
     return render_template('reports.html', rfl=rfl)
-# ------------------------------------------------------------------------------------------
+
 @app.route('/generate_report', methods =['GET'])
 def route_generate_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
-    if not ('+' in session['admind']): return abort(404)
+    if not (('G' in session['admind']) or ('+' in session['admind'])): return abort(404)
     from pandas import DataFrame
     session_reports_user = {u:{
         'Session' : [],
@@ -2872,9 +2699,6 @@ def route_generate_report():
         'Evaluator' : [],
     } for u in dbevalset}
     for s,d in app.config['running'].items():
-        #sprint(f'Session [{s}]')
-        # s = 'lab0'
-        # d = dict (required, extra, uploads, eval)
         session_report_df = dict(
                     User = [],
                     Name = [],
@@ -2888,38 +2712,22 @@ def route_generate_report():
                     EvaluatorName = [],
                 )
         REQUIRED_FILES = d['required']
-        #sprint(f'[{REQUIRED_FILES=}]')
         for u in dbevalset:
-            #sprint(f'[{u=}]')
             userfolder = os.path.join(UPLOAD_FOLDER_PATHS[s], u)
-            #sprint(f'[{userfolder=}]')
-            # check if folder exists to confirm login (attendance)
             uLogin = os.path.isdir(userfolder)
-            #sprint(f'[{uLogin=}]')
-            # check if user has uploaded anything
             uFiles = os.listdir(userfolder) if uLogin else None
-            #sprint(f'[{uFiles=}]')
-            # check if user has uploaded required files
             uHas = bool(uFiles) if uLogin else None
-            #sprint(f'[{uHas=}]')
             if REQUIRED_FILES:
                 if uHas is None: uHasReq=None
                 else:
                     if uHas: uHasReq = not (False in [rf in uFiles for rf in REQUIRED_FILES])
                     else: uHasReq=False
             else: uHasReq=...
-              
-            #sprint(f'[{uHasReq=}]')
 
-            # check evaluation 
             dbs, loaded = READ_DB_FROM_DISK(EVAL_XL_PATHS[s], 0)
             if not loaded:
                 sprint(f'Cannot read evaluation for {s}')
                 continue
-            
-            # LOGIN_ORD = ['ADMIN','UID','NAME','PASS']
-            # EVAL_ORD = ['UID', 'NAME', 'SCORE', 'REMARK', 'BY']
-            # 🔴🟠🟡🟢🔵⚫🟤🟣⚪🟩🟦🟪🟨🟧🟥🟫⬛⬜◼️◻️◾
 
             uEvaluated = (u in dbs)
             _, _, uNAME, _ = db[u]
@@ -2928,7 +2736,6 @@ def route_generate_report():
                 _, _, eNAME, _ = db[uBY]
             else:  uSCORE, uREMARK, uBY, eNAME = '', '', '', ''
             
-
             Ltxt = '🟩' if uLogin else '🟥'
             Utxt = '🟢' if uHas else ('⚫' if uHas is None else '🔴')
             Rtxt = ('🟡' if uHasReq is ... else '🟢') if uHasReq else ('⚫' if uHas is None else '🔴')
@@ -2954,13 +2761,11 @@ def route_generate_report():
             session_report_df['Evaluator'].append(uBY) 
             session_report_df['EvaluatorName'].append(eNAME) 
 
-    
         df = DataFrame(session_report_df).sort_values(by='User', ascending=True)   
         report_name = f'report_{s}.html'
         report_path = os.path.join( REPORT_FOLDER_PATH, session['uid'], report_name)
         html_table = df.to_html(index=False)        
         with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, s, html_table))
-    
     for u,r in session_reports_user.items():
         _, _, uNAME, _ = db[u]
         df = DataFrame(r)  
@@ -2970,50 +2775,15 @@ def route_generate_report():
         report_path = os.path.join(report_dir, report_name)
         html_table = df.to_html(index=False)        
         with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, f"{u} {args.emoji} {uNAME}", html_table))
-            
     return redirect(url_for('route_reports'))
 
-
-@app.route('/switch/', methods =['GET'], defaults={'req_uid': ''})
-@app.route('/switch/<req_uid>')
-def route_switch(req_uid):
-    if not session.get('has_login', False): return redirect(url_for('route_login'))
-    
-    session['rethome'] = ''
-    if not req_uid: 
-        #sprint(request.args)
-        if request.args: 
-            if 'u' in request.args: session['rethome'] = 'u' 
-            if 'e' in request.args: session['rethome'] = 'e' 
-            if 'd' in request.args: session['rethome'] = 'd' 
-        return render_template('switcher.html')
-    
-    else:
-        if req_uid not in app.config['running']: return render_template('switcher.html')
-        else:
-            previous_sess = session['sess']
-            if previous_sess != req_uid:
-                session['sess'] = req_uid
-                folder_name = os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'])
-                try: os.makedirs(folder_name, exist_ok=True)
-                except:
-                    sprint(f'✗ directory could not be created @ {folder_name} :: Force logout user {session["uid"]}')
-                    session['has_login'] = False
-                    return redirect(url_for('route_logout'))
-                dprint(f'๏ 🙃 {session["uid"]} ◦ {session["named"]} has switched from {previous_sess} to {session["sess"]} via {request.remote_addr}') 
-                
-
-            if 'e' in request.args: return redirect(url_for('route_eval')) 
-            if 'u' in request.args: return redirect(url_for('route_uploads')) 
-            if 'd' in request.args: return redirect(url_for('route_downloads')) 
-            return redirect(url_for('route_home')) 
-            
 @app.route('/generate_eval_template', methods =['GET'])
 def route_generate_eval_template():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
     return send_file(DICT2BUFF({k:[v[LOGIN_ORD_MAPPING["UID"]], v[LOGIN_ORD_MAPPING["NAME"]], "", "",] for k,v in db.items() if '-' not in v[LOGIN_ORD_MAPPING["ADMIN"]]} , ["UID", "NAME", "SCORE", "REMARKS"]),
                     download_name=f"eval_{app.config['topic']}_{session['uid']}.csv", as_attachment=True)
+
 @app.route('/generate_live_report', methods =['GET'])
 def route_generate_live_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
@@ -3027,9 +2797,6 @@ def route_generate_live_report():
     msg = f"Total [{len(dbevalset)}]"
     if len(dbevalset) != len(finished_uids) + len(pending_uids) + len(not_uploaded_uids) + len(absent_uids): msg+=f" [!] Count Mismatch!"
     pending_uids, absent_uids, finished_uids, not_uploaded_uids = sorted(list(pending_uids)), sorted(list(absent_uids)), sorted(list(finished_uids)), sorted(list(not_uploaded_uids))
-    #{NEWLINE.join(finished_uids)} {NEWLINE.join(pending_uids)} {NEWLINE.join(absent_uids)}
-    
-    
     htable0="""
     <html>
         <head>
@@ -3097,7 +2864,6 @@ def route_generate_live_report():
         </tr>
     """
     htable3 = ''
-    #EVAL_ORD = ['UID', 'NAME', 'SCORE', 'REMARK', 'BY']
     counter = { k:0 for k in dbevaluatorset}
     for k in sorted(list(dbsubs[session['sess']].keys())):
         v = dbsubs[session['sess']][k]
@@ -3128,11 +2894,36 @@ def route_generate_live_report():
     htable4+=f"""</table><br><hr></body></html>"""
     return render_template_string( htable0+htable1+htable11+htable2+htable3+htable4)
 
-    
+@app.route('/switch/', methods =['GET'], defaults={'req_uid': ''})
+@app.route('/switch/<req_uid>')
+def route_switch(req_uid):
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    session['rethome'] = ''
+    if not req_uid: 
+        #sprint(request.args)
+        if request.args: 
+            if 'u' in request.args: session['rethome'] = 'u' 
+            if 'e' in request.args: session['rethome'] = 'e' 
+            if 'd' in request.args: session['rethome'] = 'd' 
+        return render_template('switcher.html')
+    else:
+        if req_uid not in app.config['running']: return render_template('switcher.html')
+        else:
+            previous_sess = session['sess']
+            if previous_sess != req_uid:
+                session['sess'] = req_uid
+                folder_name = os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'])
+                try: os.makedirs(folder_name, exist_ok=True)
+                except:
+                    sprint(f'✗ directory could not be created @ {folder_name} :: Force logout user {session["uid"]}')
+                    session['has_login'] = False
+                    return redirect(url_for('route_logout'))
+                dprint(f'๏ 🙃 {session["uid"]} ◦ {session["named"]} has switched from {previous_sess} to {session["sess"]} via {request.remote_addr}') 
+            if 'e' in request.args: return redirect(url_for('route_eval')) 
+            if 'u' in request.args: return redirect(url_for('route_uploads')) 
+            if 'd' in request.args: return redirect(url_for('route_downloads')) 
+            return redirect(url_for('route_home')) 
 
-# ------------------------------------------------------------------------------------------
-# eval
-# ------------------------------------------------------------------------------------------
 @app.route('/eval', methods =['GET', 'POST'], defaults={'req_uid': ''})
 @app.route('/eval/<req_uid>')
 def route_eval(req_uid):
@@ -3149,10 +2940,8 @@ def route_eval(req_uid):
             else:
                 if len(form.file.data)!=1:  status, success = f"Expecting only one csv file", False
                 else:
-                    #---------------------------------------------------------------------------------
                     file = form.file.data[0]
                     isvalid, sf = VALIDATE_FILENAME_SUBMIT(secure_filename(file.filename))
-                    #---------------------------------------------------------------------------------
                     if not isvalid: status, success = f"FileName is invalid '{sf}'", False
                     else:
                         try: 
@@ -3182,7 +2971,7 @@ def route_eval(req_uid):
                                             results.append((in_uid,f'[{in_uid}] {named} is not in evaluation list.', False))
                                         else:
                                             scored = dbsubs[session["sess"]].get(in_query, None)                               
-                                            if scored is None: # not found
+                                            if scored is None:
                                                 if not in_score:
                                                     results.append((in_uid,f'Require numeric value to assign score to [{in_uid}] {named}.', False))
                                                 else:
@@ -3236,7 +3025,7 @@ def route_eval(req_uid):
                                 status, success = f'[{in_uid}] {named} is not in evaluation list.', False
                             else:
                                 scored = dbsubs[session["sess"]].get(in_query, None)                               
-                                if scored is None: # not found
+                                if scored is None: 
                                     if not in_score:
                                         status, success = f'Require numeric value to assign score to [{in_uid}] {named}.', False
                                     else:
@@ -3259,7 +3048,6 @@ def route_eval(req_uid):
                                         status, success = f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information.', False
                                         dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} for {session["sess"]} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
                                         sprint(f'\tHint: Set the score to "inf"')
-
                 else: status, success =  "You are not allow to evaluate.", False
             else: status, success =  "Evaluation is disabled.", False
         else: status, success = f"You posted nothing!", False
@@ -3275,8 +3063,6 @@ def route_eval(req_uid):
                 if iseval:
                     in_uid = f'{req_uid}'
                     if in_uid: 
-                    
-
                         in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
                         record = db.get(in_query, None)
                         if record is not None: 
@@ -3287,20 +3073,11 @@ def route_eval(req_uid):
                                 status, success =  f"Evaluation was reset for {record[1]} ◦ {record[2]}", True
                             else: status, success =  f"User {record[1]} ◦ {record[2]} has not been evaluated", False
                         else: status, success =  f"User '{in_query}' not found", False
-                    else: status, success =  f"User-id was not provided", False
+                    else: status, success =  f"Username was not provided", False
                 else: status, success =  "You are not allow to reset evaluation", False
             else: status, success =  "Evaluation reset is disabled for this session", False
             if success: persist_subdb(session['sess'])
-
-
     return render_template('evaluate.html', success=success, status=status, form=form, results=results)
-
-# ------------------------------------------------------------------------------------------
-
-
-# ------------------------------------------------------------------------------------------
-# home - upload
-# ------------------------------------------------------------------------------------------
 
 @app.route('/home', methods =['GET'])
 def route_home():
@@ -3311,9 +3088,7 @@ def route_home():
         return redirect(url_for('route_home'))
             
     return render_template_string(HOME_PAGE_STR[0]+ BOARD_PAGES[session['sess']] + HOME_PAGE_STR[-1])
-# ------------------------------------------------------------------------------------------
-# purge
-# ------------------------------------------------------------------------------------------
+
 @app.route('/purge', methods =['GET'])
 def route_purge():
     r""" purges all files that a user has uploaded in their respective uplaod directory
@@ -3330,14 +3105,7 @@ def route_purge():
         for f in file_list: os.remove(os.path.join(folder_name, f))
         dprint(f'๏ 🔥 {session["uid"]} ◦ {session["named"]} purged uploads for {session["sess"]} via {request.remote_addr}')
     return redirect(url_for('route_uploads'))
-# ------------------------------------------------------------------------------------------
 
-
-
-
-# ------------------------------------------------------------------------------------------
-# store
-# ------------------------------------------------------------------------------------------
 def list_store_dir(abs_path):
     dirs, files = [], []
     with os.scandir(abs_path) as it:
@@ -3346,7 +3114,7 @@ def list_store_dir(abs_path):
             elif item.is_dir(): dirs.append((item.name, item.name.startswith(".")))
             else: pass
     return dirs, files
-# ------------------------------------------------------------------------------------------
+
 @app.route('/hidden_show/<path:user_enable>', methods =['GET'])
 def route_hidden_show(user_enable=''):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
@@ -3357,7 +3125,7 @@ def route_hidden_show(user_enable=''):
     else:
         session['hidden_storeuser'] = (user_enable[1]!='0')
         return redirect(url_for('route_storeuser'))
-# ------------------------------------------------------------------------------------------
+
 @app.route('/store', methods =['GET', 'POST'])
 @app.route('/store/', methods =['GET', 'POST'])
 @app.route('/store/<path:subpath>', methods =['GET', 'POST'])
@@ -3372,10 +3140,8 @@ def route_store(subpath=""):
         dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
         result = []
         n_success = 0
-        #---------------------------------------------------------------------------------
         for file in form.file.data:
             isvalid, sf = VALIDATE_FILENAME_SUBMIT(secure_filename(file.filename))
-        #---------------------------------------------------------------------------------
             if not isvalid:
                 why_failed =  f"✗ File not accepted [{sf}]"
                 result.append((0, why_failed))
@@ -3387,20 +3153,16 @@ def route_store(subpath=""):
                 result.append((1, why_failed))
                 n_success+=1
             except FileNotFoundError:  return redirect(url_for('route_logout'))
-        #---------------------------------------------------------------------------------
-            
         result_show = ''.join([f'\t{r[-1]}\n' for r in result])
         result_show = result_show[:-1]
         dprint(f'๏ ✅ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s) to the store\n{result_show}') 
         return redirect(url_for('route_store', subpath=subpath)) 
     else:
-
         if not os.path.exists(abs_path):
             if not request.args: return abort(404)
             else:
                 if not can_admin: return "You cannot perform this action"
-                if '?' in request.args: # create this dir
-
+                if '?' in request.args:
                     if "." not in os.path.basename(abs_path):
                         try:
                             os.makedirs(abs_path)
@@ -3424,7 +3186,6 @@ def route_store(subpath=""):
                             return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
                         except:
                             return f"Error deleting the directory"
-
                     else: return f"Invalid args for store actions"
                 else: return f"Cannot Delete this directory"
                             
@@ -3434,28 +3195,23 @@ def route_store(subpath=""):
                 return send_file(abs_path, as_attachment=False)
             else:
                 if 'get' in request.args:
-                    dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
-                             
+                    dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
                     return send_file(abs_path, as_attachment=True)
-                
-                elif 'del' in request.args: #delete this file
+                elif 'del' in request.args:
                     if not can_admin: return "You cannot perform this action"
                     try:
                         os.remove(abs_path)
                         dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
                         return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
                     except:return f"Error deleting the file"
-                    #else: return f"Directory name cannot contain (.)"
                 elif ("html" in request.args): 
                     dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
                     try:  hmsg = HConv.convertx(abs_path, args.scripts, style)
                     except: hmsg = f"Exception while converting notebook to web-page"
                     return hmsg
                 else: return f"Invalid args for store actions"
-                            
-        
         else: return abort(404)
-# ------------------------------------------------------------------------------------------
+
 @app.route('/storeuser', methods =['GET'])
 @app.route('/storeuser/', methods =['GET'])
 @app.route('/storeuser/<path:subpath>', methods =['GET'])
@@ -3464,12 +3220,10 @@ def route_storeuser(subpath=""):
     if ('X' not in session['admind']):  return abort(404)
     abs_path = os.path.join(app.config['storeuser'], subpath)
     if not os.path.exists(abs_path): return abort(404)
-        
     if os.path.isdir(abs_path):
         dirs, files = list_store_dir(abs_path)
         return render_template('storeuser.html', dirs=dirs, files=files, subpath=subpath, )
     elif os.path.isfile(abs_path): 
-        
         if ("html" in request.args): 
             dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
             try: hmsg = HConv.convertx(abs_path, args.scripts, style)
@@ -3479,11 +3233,6 @@ def route_storeuser(subpath=""):
             dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded {subpath} from user-store via {request.remote_addr}")
             return send_file(abs_path, as_attachment=("get" in request.args))
     else: return abort(404)
-# ------------------------------------------------------------------------------------------
-
-# ------------------------------------------------------------------------------------------
-# administrative and password reset
-# ------------------------------------------------------------------------------------------
 
 def persist_db(SESS):
     r""" writes both db to disk """
@@ -3511,8 +3260,6 @@ def reload_db(SESS):
 def toggle_upload(SESS):
     r""" disables uploads by setting app.config['']"""
     app.config['disableupload'][SESS] = not app.config['disableupload'][SESS]
-
-    
     if app.config['disableupload'][SESS]: 
         STATUS, SUCCESS =  f"Uploads are now disabled for {SESS}", True
         dowhat = 'disabled'
@@ -3521,7 +3268,6 @@ def toggle_upload(SESS):
         dowhat = 'enabled'
     dprint(f"๏ ❗ {session['uid']} ◦ {session['named']} has {dowhat} uploads for {SESS} via {request.remote_addr}")
     return STATUS, SUCCESS 
-
 
 @app.route('/x/', methods =['GET'], defaults={'req_uid': ''})
 @app.route('/x/<req_uid>')
@@ -3551,7 +3297,7 @@ def route_repassx(req_uid):
                     if in_uid: 
                         in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
                         valid_query = VALIDATE_UID(in_query)
-                        if not valid_query: STATUS, SUCCESS = f'[{in_uid}] Not a valid user-id' , False
+                        if not valid_query: STATUS, SUCCESS = f'[{in_uid}] Not a valid username' , False
                         else:
                             named = request.args.get('name', "")
                             admind = request.args.get('access', "")
@@ -3572,7 +3318,6 @@ def route_repassx(req_uid):
                                     db[in_query][0] = admind
                                     dprint(f"๏ 👤 {session['uid']} ◦ {session['named']} just updated access for {in_query} from {radmind} to {admind} via {request.remote_addr}")
                                     STATUS, SUCCESS =  f"Updated Access for {in_query} from [{radmind}] to [{admind}]", True
-
                                 if named and named!=rnamed: # trying to rename
                                     valid_name = VALIDATE_NAME(named)
                                     if not valid_name: 
@@ -3581,17 +3326,11 @@ def route_repassx(req_uid):
                                         db[in_query][2] = named
                                         dprint(f"๏ 👤 {session['uid']} ◦ {session['named']} just updated name for {in_query} from {rnamed} to {named} via {request.remote_addr}")
                                         STATUS, SUCCESS =  f"Updated Name for {in_query} from [{rnamed}] to [{named}]", True
-                                
-                                
-                                #STATUS, SUCCESS =  f"User '{in_query}' already exists", False
-
-
-                    else: STATUS, SUCCESS =  f"User-id was not provided", False
+                    else: STATUS, SUCCESS =  f"Username was not provided", False
                 except: STATUS, SUCCESS = f'Invalid request args ... Hint: use (name, access)'
             else: STATUS, SUCCESS =  f"Admin Access is Disabled", False
         else:
             if app.config['repass']:
-                
                 if iseval or isadmin:
                     in_uid = f'{req_uid}'
                     if in_uid: 
@@ -3605,13 +3344,10 @@ def route_repassx(req_uid):
                                 STATUS, SUCCESS =  f"Password was reset for {uid} {named}", True
                             else: STATUS, SUCCESS =  f"You cannot reset password for account '{in_query}'", False
                         else: STATUS, SUCCESS =  f"User '{in_query}' not found", False
-                    else: STATUS, SUCCESS =  f"User-id was not provided", False
+                    else: STATUS, SUCCESS =  f"Username was not provided", False
                 else: STATUS, SUCCESS =  "You are not allow to reset passwords", False
             else: STATUS, SUCCESS =  "Password reset is disabled for this session", False
-        
     return render_template('evaluate.html',  status=STATUS, success=SUCCESS, form=form, results=results)
-# ------------------------------------------------------------------------------------------
-
 
 @app.route('/p/', methods =['GET'], defaults={'req_path': ''})
 @app.route('/p/<path:req_path>')
@@ -3621,29 +3357,24 @@ def route_public(req_path):
         if request.args:
             if "?" in request.args:
                 if session.get('has_login', False): app.config['pfl'] = GET_FILE_LIST(PUBLIC_FOLDER_PATH)
-                return redirect(url_for('route_public'))
-                
+                return redirect(url_for('route_public'))  
     else:
-        abs_path = os.path.join(PUBLIC_FOLDER_PATH, req_path) # Joining the base and the requested path
-        if PUBLIC_FOLDER_PATH not in abs_path:  return abort(404) # not a subpath
-        if not os.path.exists(abs_path):        return abort(404) # (f"◦ requested file was not found") #Return 404 if path doesn't exist
+        abs_path = os.path.join(PUBLIC_FOLDER_PATH, req_path) 
+        if PUBLIC_FOLDER_PATH not in abs_path:  return abort(404)
+        if not os.path.exists(abs_path):        return abort(404)
         if os.path.isfile(abs_path):            
             if app.config['publiclog']:
                 info = request.environ
                 txt=f'📢 Public Link was accessed via {request.remote_addr}\n'
                 for k,v in info.items(): txt+=(f'\t{k}:{v}\n')
                 sprint(f'{txt}')
-            
-            return send_file(abs_path, as_attachment=("?" in request.args)) # Check if path is a file and serve
+            return send_file(abs_path, as_attachment=("?" in request.args))
     return render_template('publics.html')
 
-#%% [READY TO SERVE]
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# DO NOT WRITE ANY NEW CODE AFTER THIS
+# [Serve]
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-#%% [SERVER] @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 def endpoints(athost):
     if athost=='0.0.0.0':
@@ -3675,9 +3406,7 @@ sprint('↷ persisted login-db [{}]'.format(write_logindb_to_disk(db)))
 sprint('↷ persisted eval-db [{}]'.format(dump_evaldb_to_disk(dbsubs)))
 sprint('◉ server up-time was [{}]'.format(end_time - start_time))
 sprint(f'...Finished!')
-#%% [END]
-# ✓
-# ✗
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # author: Nelson.S
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
