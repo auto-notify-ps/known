@@ -912,9 +912,9 @@ def TEMPLATES(style, script_mathjax):
                     <li>
                     <a href="{{ url_for('route_storeuser', subpath=subpath + '/' + file, get='') }}" target="_blank">"""+f'{style.icon_getfile}'+"""</a> 
                     <a href="{{ url_for('route_storeuser', subpath=subpath + '/' + file) }}" target="_blank">{{ file }}</a>
-                    {% if file.lower().endswith('.ipynb') %}
+                    
                     <a href="{{ url_for('route_storeuser', subpath=subpath + '/' + file, html='') }}" target="_blank">"""+f'{style.icon_gethtml}'+"""</a> 
-                    {% endif %}
+                    
                     </li>
                 {% endif %}
                 
@@ -1009,9 +1009,7 @@ def TEMPLATES(style, script_mathjax):
                         {% endif %}
                         <a href="{{ url_for('route_store', subpath=subpath + '/' + file, get='') }}">"""+f'{style.icon_getfile}'+"""</a> 
                         <a href="{{ url_for('route_store', subpath=subpath + '/' + file) }}" target="_blank" >{{ file }}</a>
-                        {% if file.lower().endswith('.ipynb') %}
                         <a href="{{ url_for('route_store', subpath=subpath + '/' + file, html='') }}" target="_blank">"""+f'{style.icon_gethtml}'+"""</a> 
-                        {% endif %}
                         </li>
                     {% endif %}
                 
@@ -2036,7 +2034,7 @@ def FAVICON(): return [
 # ------------------------------------------------------------------------------------------
 sprint(f'Starting...')
 if parsed.https: sprint(f'↪ https is enabled, assume that reverse proxy engine is running ... ')
-if not has_nbconvert: sprint(f'↪ nbconvert package was not found, ipynb-to-html rendering will not work ... ')
+if not has_nbconvert: sprint(f'↪ nbconvert package was not found, notebook-to-html rendering will not work ... ')
 sprint(f'↪ Logging @ {LOGFILE}')
 
 
@@ -2330,33 +2328,19 @@ def VALIDATE_FILENAME_SUBMIT(filename):
 
 # ------------------------------------------------------------------------------------------
 
-class HConv: # html converter
 
-    @staticmethod
-    def convertx(abs_path, scripts, template):
-        new_abs_path = f'{abs_path}.html'
-        if abs_path.lower().endswith(".ipynb"):
-            try:
-                x = __class__.nb2html(abs_path, scripts=scripts, template=template)
-                return True, x #(f"rendered Notebook to HTML @ {new_abs_path}")
-            except: return False, (f"failed to rendered Notebook to HTML @ {new_abs_path}") 
-        else: return False, (f"Cannot render this file as HTML: {os.path.basename(abs_path)}")
-    
-    @staticmethod
-    def nb2html(source_notebook, scripts=True, template='lab', html_title=None, parsed_title='Notebook',):
-        if html_title is None: 
-            html_title = os.path.basename(source_notebook)
-            iht = html_title.rfind('.')
-            if not iht<0: html_title = html_title[:iht]
-            if not html_title: html_title = (parsed_title if parsed_title else os.path.basename(os.path.dirname(source_notebook)))
-        try:    
-            page, _ = HTMLExporter(template_name=template).from_file(source_notebook,  dict(  metadata = dict( name = f'{html_title}' )    )) 
-            if not scripts:
-                soup = BeautifulSoup(page, 'html.parser')
-                for script in soup.find_all('script'): script.decompose()  # Find all script tags and remove them
-                page = soup.prettify()
-        except: page = None
-        return  page
+#-----------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------
+#%% HTML/CSS 
+#-----------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------
+
 
 def GET_SCRIPT(url):
     output_name = os.path.basename(url)
@@ -2374,27 +2358,11 @@ def GET_SCRIPT(url):
             sprint(f'↪ Failed to download script. Error code: {e}')
     return output_name
 
-
-
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#%% HTML/CSS 
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------------
-
-
 # ------------------------------------------------------------------------------------------
 # html pages
 # ------------------------------------------------------------------------------------------
-
-HTML_TEMPLATES, CSS_TEMPLATES, HOME_PAGE_STR = TEMPLATES(style, 
-    script_mathjax=(f'"{S_MATHJAX}"' if args.live else f'"{{{{ url_for("static", filename="{GET_SCRIPT(S_MATHJAX)}") }}}}"') )
+SCRIPT_MATHJAX=(f'"{S_MATHJAX}"' if args.live else f'"{{{{ url_for("static", filename="{GET_SCRIPT(S_MATHJAX)}") }}}}"') 
+HTML_TEMPLATES, CSS_TEMPLATES, HOME_PAGE_STR = TEMPLATES(style, script_mathjax=SCRIPT_MATHJAX)
 # ------------------------------------------------------------------------------------------
 for k,v in HTML_TEMPLATES.items():
     h = os.path.join(HTMLDIR, f"{k}.html")
@@ -2418,6 +2386,79 @@ if not os.path.exists(favicon_path):
         with open( favicon_path, 'wb') as f: f.write((b''.join([i.to_bytes() for i in FAVICON()])))         
     except: pass
 # ------------------------------------------------------------------------------------------
+
+
+class HConv: # html converter
+
+
+    @staticmethod
+    def convertx(abs_path, scripts, style):
+        
+        if abs_path.lower().endswith(".ipynb"):
+            try: return __class__.nb2html(abs_path, scripts=scripts, style=style) 
+            except Exception as e: return (f"failed to rendered Notebook to HTML @ {abs_path}\n{e}") 
+        elif abs_path.lower().endswith(".md"):
+            try: return __class__.md2html(abs_path, scripts=scripts, style=style)
+            except Exception as e: return (f"failed to rendered Markdown to HTML @ {abs_path}\n{e}") 
+        else: return send_file(abs_path, as_attachment=False) 
+
+    @staticmethod
+    def GETMDPAGE(title, board_content, script_mathjax, style): return f"""
+    <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>{title}</title>
+            <link rel="stylesheet" href="{{{{ url_for('static', filename='style.css') }}}}">			
+            <link rel="icon" href="{{{{ url_for('static', filename='favicon.ico') }}}}">
+            <!-- MathJax for math rendering -->
+            <script src={script_mathjax} async></script>
+        <style type="text/css">
+        mjx-container[jax="CHTML"][display="true"]  {{ text-align: left; }}
+        .board_content {{
+            padding: 2px 10px 2px;
+            background-color: {style.bg_board}; 
+            color: {style.fg_board}; 
+            font-size: {style.fontsize_board}; 
+            font-family: {style.font_board};
+            border-style: {style.border_board};
+            border-radius: {style.brad_board};
+            border-color: {style.bcol_board};
+            text-decoration: none;
+        }}
+        </style></head><body>
+        <div class="board_content">{board_content}</div><br></body></html>"""
+
+    @staticmethod
+    def md2html(source_notebook, scripts, style, html_title=None, parsed_title='Markdown',):
+        if html_title is None: 
+            html_title = os.path.basename(source_notebook)
+            iht = html_title.rfind('.')
+            if not iht<0: html_title = html_title[:iht]
+            if not html_title: html_title = (parsed_title if parsed_title else os.path.basename(os.path.dirname(source_notebook)))
+
+        with open(source_notebook, 'r', encoding='utf-8')as f: md_text =f.read()
+        page = __class__.GETMDPAGE(
+            title=html_title,
+            board_content=markdown.markdown(md_text, extensions=['fenced_code']),
+            script_mathjax=(SCRIPT_MATHJAX if scripts else ""),
+            style=style )
+        return  page
+    
+    
+    @staticmethod
+    def nb2html(source_notebook, scripts, style, html_title=None, parsed_title='Notebook',):
+        if html_title is None: 
+            html_title = os.path.basename(source_notebook)
+            iht = html_title.rfind('.')
+            if not iht<0: html_title = html_title[:iht]
+            if not html_title: html_title = (parsed_title if parsed_title else os.path.basename(os.path.dirname(source_notebook))) 
+        page, _ = HTMLExporter(template_name=style.template_board).from_file(source_notebook,  dict(  metadata = dict( name = f'{html_title}' )    )) 
+        if not scripts:
+            soup = BeautifulSoup(page, 'html.parser')
+            for script in soup.find_all('script'): script.decompose()  # Find all script tags and remove them
+            page = soup.prettify()
+        return  page
+
 
 
 # ------------------------------------------------------------------------------------------
@@ -2685,10 +2726,9 @@ def route_downloads(req_path):
         if os.path.isfile(abs_path):  #(f"◦ sending file ")
             if ("html" in request.args): 
                 dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
-                try:
-                    hstatus, hmsg = HConv.convertx(abs_path, args.scripts, style.template_board)
-                except: hstatus, hmsg = False, f"Exception while converting {req_path} to a web-page"
-                return hmsg #if hstatus else  send_file(abs_path, as_attachment=True)
+                try: hmsg = HConv.convertx(abs_path, args.scripts, style)
+                except: hmsg = f"Exception while converting {req_path} to a web-page"
+                return hmsg 
             else: 
                 dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
                 return send_file(abs_path, as_attachment=False) # Check if path is a file and serve
@@ -2724,10 +2764,9 @@ def route_uploads(req_path):
         if os.path.isfile(abs_path):  #(f"◦ sending file ")
             if ("html" in request.args): 
                 dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
-                try:
-                    hstatus, hmsg = HConv.convertx(abs_path, args.scripts, style.template_board)
-                except: hstatus, hmsg = False, f"Exception while converting {req_path} to a web-page"
-                return hmsg #if hstatus else  send_file(abs_path, as_attachment=True)
+                try: hmsg = HConv.convertx(abs_path, args.scripts, style)
+                except: hmsg = f"Exception while converting {req_path} to a web-page"
+                return hmsg 
             elif ("del" in request.args):
                 if app.config['disableupload'][session['sess']] or submitted>0: 
                     return f"Cannot delete this file now."
@@ -3409,9 +3448,8 @@ def route_store(subpath=""):
                     #else: return f"Directory name cannot contain (.)"
                 elif ("html" in request.args): 
                     dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
-                    try:
-                        hstatus, hmsg = HConv.convertx(abs_path, args.scripts, style.template_board)
-                    except: hstatus, hmsg = False, f"Exception while converting notebook to web-page"
+                    try:  hmsg = HConv.convertx(abs_path, args.scripts, style)
+                    except: hmsg = f"Exception while converting notebook to web-page"
                     return hmsg
                 else: return f"Invalid args for store actions"
                             
@@ -3434,9 +3472,8 @@ def route_storeuser(subpath=""):
         
         if ("html" in request.args): 
             dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
-            try:
-                hstatus, hmsg = HConv.convertx(abs_path, args.scripts, style.template_board)
-            except: hstatus, hmsg = False, f"Exception while converting notebook to web-page"
+            try: hmsg = HConv.convertx(abs_path, args.scripts, style)
+            except: hmsg = f"Exception while converting notebook to web-page"
             return hmsg
         else: 
             dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded {subpath} from user-store via {request.remote_addr}")
