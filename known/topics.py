@@ -3,11 +3,11 @@ __doc__=f"""
 
 > Flask-based web app for sharing files and quiz evaluation contained in a single script
 
-> [Download Script](https://gist.githubusercontent.com/auto-notify-ps/713d45a235f77e760f467a7c6bf6ee84/raw/dd7a7150fefc5ccd577e2a39f9eb79d80fd50c36/topics.py)
+> [Download Script](https://raw.githubusercontent.com/auto-notify-ps/known/refs/heads/main/known/topics.py)
 
-> [View Gist](https://gist.github.com/auto-notify-ps/713d45a235f77e760f467a7c6bf6ee84) 
+> [View Script](https://github.com/auto-notify-ps/known/blob/main/known/topics.py) 
 
-> [Other Gists](https://gist.github.com/auto-notify-ps)
+> [GitHub-Repo](https://github.com/auto-notify-ps/known)
 
 
 ## QuickStart
