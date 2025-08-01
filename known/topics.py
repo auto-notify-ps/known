@@ -7,9 +7,6 @@ __doc__=f"""
 
 > [View Script](https://github.com/auto-notify-ps/known/blob/main/known/topics.py) 
 
-> [GitHub-Repo](https://github.com/auto-notify-ps/known)
-
-
 ## QuickStart
 
 ```bash
@@ -61,8 +58,6 @@ pip install Flask Flask-WTF waitress requests markdown beautifulsoup4 nbconvert
         * `-`   Not included in evaluation
         * `+`   Admin access enabled
     * The access string can contain multiple permissions and is specified in the `ADMIN` column of the `login.csv` file.
-
-    * Note: Evaluators (with `X` access) cannot perform any admin actions except for resetting password through the `/x` url.
 
 * **Store Actions** : `store/subpath?`
     * Create Folder : `store/subpath/my_folder??` (Only if not existing)
@@ -669,7 +664,9 @@ def TEMPLATES(style, script_mathjax):
                 <input id="uid" name="uid" type="text" placeholder="... username ..." class="txt_login"/>
                 <br>
                 <br>
+                <div class="tooltip-container">
                 <input id="passwd" name="passwd" type="password" placeholder="... password ..." class="txt_login"/>
+                <div class="tooltip-text">alpha-numeric, can have _ . @ ~ ! # $ % ^ & * + ? ` - = < > [ ] ( ) { }</div></div>
                 <br>
                 <br>
                 {% if config.ssologin %}
@@ -876,9 +873,9 @@ def TEMPLATES(style, script_mathjax):
             <!-- Breadcrumb for navigation -->
             <div class="files_status"> Path: 
                 {% if subpath %}
-                    <a href="{{ url_for('route_storeuser') }}" class="btn_store">{{ config.storeusername }}</a>{% for part in subpath.split('/') %}🔹<a href="{{ url_for('route_storeuser', subpath='/'.join(subpath.split('/')[:loop.index])) }}" class="btn_store">{{ part }}</a>{% endfor %}  
+                    <a href="{{ url_for('route_storeuser') }}" class="btn_store">{{ session.sess }}</a>{% for part in subpath.split('/') %}🔹<a href="{{ url_for('route_storeuser', subpath='/'.join(subpath.split('/')[:loop.index])) }}" class="btn_store">{{ part }}</a>{% endfor %}  
                 {% else %}
-                    <a href="{{ url_for('route_storeuser') }}" class="btn_store">{{ config.storeusername }}</a>
+                    <a href="{{ url_for('route_storeuser') }}" class="btn_store">{{ session.sess }}</a>
                 {% endif %}
             </div>
             <hr>
@@ -1674,7 +1671,7 @@ h1 {{
 </style>
 """
 
-def REPORT_PAGE(report_name, html_heading, html_table): return \
+def REPORT_PAGE(report_name, html_heading, html_table, update_time): return \
 f"""
 <html>
 <head>
@@ -1683,7 +1680,8 @@ f"""
 </head>
 <body>
 <h1>{html_heading}</h1>
-{html_table}              
+{html_table}          
+<h3>Last Updated at {update_time}</h3>    
 </body>
 </html>
 """
@@ -2399,8 +2397,6 @@ app.secret_key =          APP_SECRET_KEY
 app.config['base'] =      BASEDIR
 app.config['store'] =     STORE_FOLDER_PATH
 app.config['storename'] =  os.path.basename(STORE_FOLDER_PATH)
-app.config['storeuser'] =     UPLOAD_FOLDER_PATH
-app.config['storeusername'] =  os.path.basename(UPLOAD_FOLDER_PATH)
 app.config['emoji'] =     args.emoji
 app.config['bridge'] =     args.bridge
 app.config['topic'] =     args.topic
@@ -2454,10 +2450,10 @@ def route_login():
                         dprint(f'๏ 🤗 {uid} ◦ {named} just joined via {request.remote_addr}')
                     else: # new password is invalid valid
                         warn = style.LOGIN_NEW_TEXT
-                        msg=f'[{uid}] New password is invalid - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'
+                        msg=f'[{in_uid}] New password is invalid - try something else'  
                 else: #new password not provided                
                     warn = style.LOGIN_NEW_TEXT
-                    msg = f'[{uid}] New password required - can use any of the alphabets (A-Z, a-z), numbers (0-9), underscore (_), dot (.) and at-symbol (@) only'                       
+                    msg = f'[{uid}] New password required' 
             else: # re login
                 if in_passwd: # password provided 
                     if in_passwd==passwd:
@@ -2687,6 +2683,7 @@ def route_reports(req_path):
 def route_generate_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('G' in session['admind']) or ('+' in session['admind'])): return abort(404)
+    now = str(datetime.datetime.now())
     from pandas import DataFrame
     session_reports_user = {u:{
         'Session' : [],
@@ -2765,7 +2762,7 @@ def route_generate_report():
         report_name = f'report_{s}.html'
         report_path = os.path.join( REPORT_FOLDER_PATH, session['uid'], report_name)
         html_table = df.to_html(index=False)        
-        with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, s, html_table))
+        with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, s, html_table, now))
     for u,r in session_reports_user.items():
         _, _, uNAME, _ = db[u]
         df = DataFrame(r)  
@@ -2774,7 +2771,7 @@ def route_generate_report():
         os.makedirs(report_dir, exist_ok=True)
         report_path = os.path.join(report_dir, report_name)
         html_table = df.to_html(index=False)        
-        with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, f"{u} {args.emoji} {uNAME}", html_table))
+        with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, f"{u} {args.emoji} {uNAME}", html_table, now))
     return redirect(url_for('route_reports'))
 
 @app.route('/generate_eval_template', methods =['GET'])
@@ -2952,7 +2949,7 @@ def route_eval(req_uid):
                             for k,v in score_dict.items():
                                 in_uid = f'{v[0]}'.strip() 
                                 in_score = f'{v[2]}'.strip() 
-                                in_remark = f'{v[3]}'.strip()
+                                in_remark = f'{v[3]}'.strip().replace(",", ";")
                                 if not (in_score or in_remark): continue
                                 if in_score:
                                     try: _ = float(in_score)
@@ -3218,7 +3215,7 @@ def route_store(subpath=""):
 def route_storeuser(subpath=""):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if ('X' not in session['admind']):  return abort(404)
-    abs_path = os.path.join(app.config['storeuser'], subpath)
+    abs_path = os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], subpath)
     if not os.path.exists(abs_path): return abort(404)
     if os.path.isdir(abs_path):
         dirs, files = list_store_dir(abs_path)
