@@ -472,7 +472,7 @@ def TEMPLATES(style, script_mathjax):
         </style>
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
-            <div class="userword">{{session.uid}} <a href="{{ url_for('route_public') }}">{{ config.emoji }}</a> {{session.named}}</div>
+            <div class="userword">{{session.named}} <a href="{{ url_for('route_public') }}">{{ config.emoji }}</a> {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -518,7 +518,7 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch', e='') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
-            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -776,7 +776,7 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch', d='') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
-            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -854,7 +854,7 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
-            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -927,7 +927,7 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
-            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -1017,12 +1017,11 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch', u='') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
-            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
             <a href="{{ url_for('route_home') }}" class="btn_home">Home</a>
-            <a href="{{ url_for('route_uploads') }}" class="btn_refresh">Refresh</a>
             </div>
             <br>
             <div class="files_status">"""+f'{style.uploads_}'+"""</div>
@@ -1066,8 +1065,11 @@ def TEMPLATES(style, script_mathjax):
                             }
                         }
                     </script>
-
-                    <div class="status">
+                    {% endif %}
+                {% else %}
+                    <div class="upword">Your Score is {{ score }}</div><br>
+                {% endif %}
+                <div class="status">
                     <ol>
                     {% for s,f in status %}
                     {% if s %}
@@ -1083,24 +1085,6 @@ def TEMPLATES(style, script_mathjax):
                     </ol>
                 </div>
                 <br>
-                    {% endif %}
-
-                {% else %}
-                    <div class="upword">You have been evaluated.</div><br>
-                {% endif %}
-                
-                <div class="files_list_down">
-                <p class="files_status">Session Status ({{ session.sess }}) </p>
-                    <ul>
-                    {% for stext in statusdict %}
-                    <li>{{ stext }}</li>
-                    {% endfor %}
-                    </ul>
-                </div>
-                <br>
-                
-
-
                 </div>
                 <br>
             {% endif %}
@@ -1127,7 +1111,7 @@ def TEMPLATES(style, script_mathjax):
         <!-- ---------------------------------------------------------->
         <div align="left" class="pagecontent">
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
-            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            <div class="userword">{{session.named}} {{ config.emoji }} {{session.uid}}</div>
             <br>
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
@@ -2599,14 +2583,10 @@ def route_uploads(req_path):
     if 'U' not in session['admind']:  return redirect(url_for('route_home'))
     form = UploadFileForm()
     folder_name = os.path.join( UPLOAD_FOLDER_PATHS[session['sess']], session['uid']) 
-
-    statusdict, submitted = [], -1
-    if EVAL_XL_PATHS[session['sess']]: submitted = int(session['uid'] in dbsubs[session['sess']])
-        
-
-
-
-
+    if EVAL_XL_PATHS[session['sess']]:
+        submitted = int(session['uid'] in dbsubs[session['sess']])
+        score = dbsubs[session['sess']][session['uid']][2] if submitted>0 else -1
+    else: submitted, score = -1, -1
     ufl = GET_FILE_LIST(folder_name, number=True)
     if  app.config['disableupload'][session['sess']]: status = [(-1, f'Uploads are disabled')]
     else:
@@ -2678,44 +2658,7 @@ def route_uploads(req_path):
                         dprint(f'๏ ✅ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s) for {session["sess"]}\n{result_show}') 
                         ufl = GET_FILE_LIST(folder_name, number=True)
                         status=result
-
-    if EVAL_XL_PATHS[session['sess']]:
-        u = session['uid']
-        s = session['sess']
-        
-        if (u in dbevalset) and (s in dbsubs): 
-            REQUIRED_FILES = app.config['running'][s]['required']
-            userfolder = os.path.join(UPLOAD_FOLDER_PATHS[s], u)
-            uLogin = os.path.isdir(userfolder)
-            uFiles = os.listdir(userfolder) if uLogin else None
-            uHas = bool(uFiles) if uLogin else None
-            if REQUIRED_FILES:
-                if uHas is None: uHasReq=None
-                else:
-                    if uHas: uHasReq = not (False in [rf in uFiles for rf in REQUIRED_FILES])
-                    else: uHasReq=False
-            else: uHasReq=...
-            
-            dbs = dbsubs[s]
-            uEvaluated = (u in dbs)
-            _, _, uNAME, _ = db[u]
-            if uEvaluated:
-                _, _, uSCORE, uREMARK, uBY = dbs[u]
-                _, _, eNAME, _ = db[uBY]
-            else:  uSCORE, uREMARK, uBY, eNAME = '', '', '', ''
-            
-            Ltxt = '🟩' if uLogin else '🟥'
-            Utxt = '🟢' if uHas else ('⚫' if uHas is None else '🔴')
-            Rtxt = ('🟡' if uHasReq is ... else '🟢') if uHasReq else ('⚫' if uHas is None else '🔴')
-            Etxt = '✅' if uEvaluated else '❌'
-            statusdict.append(f'L: {Ltxt}')
-            statusdict.append(f'U: {Utxt}')
-            statusdict.append(f'R: {Rtxt}')
-            statusdict.append(f'E: {Etxt}')
-            statusdict.append(f'Score: {uSCORE}')
-            statusdict.append(f'Remark: {uREMARK}')
-            statusdict.append(f'Evaluator: {uBY} {eNAME}')
-    return render_template('uploads.html', ufl=ufl, submitted=submitted, statusdict=statusdict, form=form, status=status)
+    return render_template('uploads.html', ufl=ufl, submitted=submitted, score=score, form=form, status=status)
 
 @app.route('/reports', methods =['GET'], defaults={'req_path': ''})
 @app.route('/reports/<path:req_path>')
@@ -2736,6 +2679,93 @@ def route_reports(req_path):
             return send_file(abs_path) 
     return render_template('reports.html', rfl=rfl)
 
+
+@app.route('/status', methods =['GET'])
+def route_status():
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    u = session['uid']
+    s = session['sess']
+    if (u in dbevalset) and (s in dbsubs): 
+        d = app.config['running'][s]
+        REQUIRED_FILES = d['required']
+        userfolder = os.path.join(UPLOAD_FOLDER_PATHS[s], u)
+        uLogin = os.path.isdir(userfolder)
+        uFiles = os.listdir(userfolder) if uLogin else None
+        uHas = bool(uFiles) if uLogin else None
+        if REQUIRED_FILES:
+            if uHas is None: uHasReq=None
+            else:
+                if uHas: uHasReq = not (False in [rf in uFiles for rf in REQUIRED_FILES])
+                else: uHasReq=False
+        else: uHasReq=...
+        
+        dbs = dbsubs[s]
+        uEvaluated = (u in dbs)
+        _, _, uNAME, _ = db[u]
+        if uEvaluated:
+            _, _, uSCORE, uREMARK, uBY = dbs[u]
+            _, _, eNAME, _ = db[uBY]
+        else:  uSCORE, uREMARK, uBY, eNAME = '', '', '', ''
+        
+        Ltxt = '🟩' if uLogin else '🟥'
+        Utxt = '🟢' if uHas else ('⚫' if uHas is None else '🔴')
+        Rtxt = ('🟡' if uHasReq is ... else '🟢') if uHasReq else ('⚫' if uHas is None else '🔴')
+        Etxt = '✅' if uEvaluated else '❌'
+
+    return f"""
+    <html><head><title>{u} Live Status</title></head>
+    <body>
+    <div>
+    <h2>{u} {args.emoji} {uNAME}</h2>
+    <ul>
+    <li>Session: {s}</li>
+    <li>L: {Ltxt}</li>
+    <li>U: {Utxt}</li>
+    <li>R: {Rtxt}</li>
+    <li>E: {Etxt}</li>
+    <li>Score: {uSCORE}</li>
+    <li>Remark: {uREMARK}</li>
+    <li>Evaluator: {uBY} {eNAME}</li>
+    </ul>
+    </div>
+    </body></html>
+    """
+    # session_reports_user[u]['Session'].append(s)
+    # session_reports_user[u]['L'].append(Ltxt)
+    # session_reports_user[u]['U'].append(Utxt)
+    # session_reports_user[u]['R'].append(Rtxt)
+    # session_reports_user[u]['E'].append(Etxt)
+    # session_reports_user[u]['Score'].append(uSCORE)
+    # session_reports_user[u]['Remark'].append(uREMARK)
+    # session_reports_user[u]['Evaluator'].append(uBY)
+
+    # session_report_df['User'].append(u)
+    # session_report_df['Name'].append(uNAME) 
+    # session_report_df['L'].append(Ltxt)
+    # session_report_df['U'].append(Utxt) 
+    # session_report_df['R'].append(Rtxt) 
+    # session_report_df['E'].append(Etxt) 
+    # session_report_df['Score'].append(uSCORE) 
+    # session_report_df['Remark'].append(uREMARK) 
+    # session_report_df['Evaluator'].append(uBY) 
+    # session_report_df['EvaluatorName'].append(eNAME) 
+    # df = DataFrame(session_report_df).sort_values(by='User', ascending=True)   
+    # report_name = f'report_{s}.html'
+    # report_path = os.path.join( REPORT_FOLDER_PATH, session['uid'], report_name)
+    # html_table = df.to_html(index=False)        
+    # with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, s, html_table, now))
+
+
+    # for u,r in session_reports_user.items():
+    #     _, _, uNAME, _ = db[u]
+    #     df = DataFrame(r)  
+    #     report_name = f'report.html'
+    #     report_dir =  os.path.join( REPORT_FOLDER_PATH, u)
+    #     os.makedirs(report_dir, exist_ok=True)
+    #     report_path = os.path.join(report_dir, report_name)
+    #     html_table = df.to_html(index=False)        
+    #     with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, f"{u} {args.emoji} {uNAME}", html_table, now))
+    # return redirect(url_for('route_reports'))
 
 @app.route('/generate_report', methods =['GET'])
 def route_generate_report():
@@ -3060,12 +3090,12 @@ def route_eval(req_uid):
         if 'uid' in request.form and 'score' in request.form:
             if EVAL_XL_PATHS[session['sess']]:
                 if ('X' in session['admind']) or ('+' in session['admind']):
-                    in_uid = f"{request.form['uid']}".strip().replace(",", ";")
-                    in_score = f"{request.form['score']}".strip().replace(",", ";")
+                    in_uid = f"{request.form['uid']}"
+                    in_score = f"{request.form['score']}"
                     if in_score:
                         try: _ = float(in_score)
                         except: in_score=''
-                    in_remark = f'{request.form["remark"]}'.strip().replace(",", ";") if 'remark' in request.form else ''
+                    in_remark = f'{request.form["remark"]}' if 'remark' in request.form else ''
                     in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
                     valid_query = VALIDATE_UID(in_query) 
                     if not valid_query : 
