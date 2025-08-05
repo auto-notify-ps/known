@@ -10,7 +10,7 @@ __doc__=f"""
 ## QuickStart
 
 ```bash
-pip install Flask Flask-WTF waitress requests markdown beautifulsoup4 nbconvert
+pip install Flask Flask-WTF waitress requests markdown beautifulsoup4 pandas nbconvert
 ```
 
 ## Notes
@@ -140,7 +140,9 @@ try:
     import markdown
     from waitress import serve
     from bs4 import BeautifulSoup
-except: exit(f'[!] The required Flask packages missing:\n  ⇒ pip install Flask Flask-WTF waitress requests markdown beautifulsoup4 nbconvert')
+    from pandas import DataFrame
+    import pandas as pd
+except: exit(f'[!] The required Flask packages missing:\n  ⇒ pip install Flask Flask-WTF waitress requests markdown beautifulsoup4 pandas nbconvert')
 try:
     from nbconvert import HTMLExporter
     has_nbconvert=True
@@ -525,6 +527,7 @@ def TEMPLATES(style, script_mathjax):
             <a href="{{ url_for('route_home') }}" class="btn_home">Home</a>
             <a href="{{ url_for('route_eval') }}" class="btn_refresh">Refresh</a>
             <a href="{{ url_for('route_storeuser') }}" class="btn_store">User-Store</a>
+            <a href="{{ url_for('route_reportsuser') }}" class="btn_board">User-Reports</a>
             <button class="btn_purge_large" onclick="confirm_repass()">"""+'Reset Password' + """</button>
                     <script>
                         function confirm_repass() {
@@ -839,6 +842,97 @@ def TEMPLATES(style, script_mathjax):
         </body>
     </html>
     """,
+
+    # ******************************************************************************************
+    reportsuser = """
+    <html>
+        <head>
+            <meta charset="UTF-8">
+            <title> """+f'{style.icon_store}'+""" {{ config.topic }} | {{ session.uid }} </title>
+            <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">      
+            <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+        </head>
+        <body>
+        <!-- ---------------------------------------------------------->
+        </br>
+        <!-- ---------------------------------------------------------->
+        <div align="left" class="pagecontent">
+            <div class="topic_mid">{{ config.topic }} {{ config.bridge }} {{ session.sess }}</div><hr>
+            <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
+            <br>
+            <div class="bridge">
+            <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
+            <a href="{{ url_for('route_home') }}" class="btn_home">Home</a>
+            <a href="{{ url_for('route_eval') }}" class="btn_submit">"""+f'{style.eval_}'+"""</a>
+            <a href="{{ url_for('route_storeuser', subpath=subpath) }}" class="btn_board">Files</a>
+            </div>
+            <br>
+            {% if "X" in session.admind or "+" in session.admind %}
+            <form action="{{ url_for('route_reportsuser', subpath=subpath) }}" method="post">                
+                <textarea rows="5" cols="60" id="comment" name="comment" type="text" placeholder="comment" class="txt_comment"></textarea>
+                <br>
+                <br>
+                <input type="submit" class="btn_submit" value="Submit Comment"> 
+                <br>   
+                <br> 
+            </form>
+            {% endif %}
+            <hr>
+            <!-- Breadcrumb for navigation -->
+            <div class="files_status"> Path: 
+                {% if subpath %}
+                    <a href="{{ url_for('route_reportsuser') }}" class="btn_store">.</a>{% for part in subpath.split('/') %}🔹<a href="{{ url_for('route_reportsuser', subpath='/'.join(subpath.split('/')[:loop.index])) }}" class="btn_store">{{ part }}</a>{% endfor %}  
+                {% else %}
+                    <a href="{{ url_for('route_reportsuser') }}" class="btn_store">.</a>
+                {% endif %}
+            </div>
+            <hr>
+            <!-- Directory Listing -->
+            <div class="files_list_up">
+                <p class="files_status">Folders</p>
+                {% for (dir,hdir) in dirs %}
+                    {% if (not hdir) %}
+                        <a href="{{ url_for('route_reportsuser', subpath=subpath + '/' + dir) }}" class="btn_folder">{{ dir }}</a>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <hr>
+            <div class="files_list_down">
+                <p class="files_status">Files</p>
+                <ol>
+                {% for i, file, hfile in files %}
+                    {% if (not hfile) %}
+                        <li>
+                        {% if '+' in session.admind or 'X' in session.admind %}
+                        <button class="btn_del" onclick="confirm_del_{{ i }}()">"""+f'{style.icon_delfile}'+"""</button>
+                        <script>
+                            function confirm_del_{{ i }}() {
+                            let res = confirm("Delete File?\\n\\n\\t {{ file }}");
+                            if (res == true) {
+                                location.href = "{{ url_for('route_reportsuser', subpath=subpath + '/' + file, del='') }}";
+                                }
+                            }
+                        </script>
+                        <span> . . . </span>
+                        {% endif %}
+                        <a href="{{ url_for('route_reportsuser', subpath=subpath + '/' + file, get='') }}">"""+f'{style.icon_getfile}'+"""</a> 
+                        <a href="{{ url_for('route_reportsuser', subpath=subpath + '/' + file) }}" target="_blank" >{{ file }}</a>
+                        <a href="{{ url_for('route_reportsuser', subpath=subpath + '/' + file, html='') }}" target="_blank">"""+f'{style.icon_gethtml}'+"""</a> 
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                </ol>
+            </div>
+            <br>
+        </div>
+        <!-- ---------------------------------------------------------->
+        </br>
+        <!-- ---------------------------------------------------------->
+        </body>
+    </html>
+    """,
+    # ******************************************************************************************
+
     # ******************************************************************************************
     storeuser = """
     <html>
@@ -860,6 +954,7 @@ def TEMPLATES(style, script_mathjax):
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
             <a href="{{ url_for('route_home') }}" class="btn_home">Home</a>
             <a href="{{ url_for('route_eval') }}" class="btn_submit">"""+f'{style.eval_}'+"""</a>
+            <a href="{{ url_for('route_reportsuser', subpath=subpath) }}" class="btn_report">"""+f'{style.report_}'+"""</a>
             {% if not subpath %}
             {% if session.hidden_storeuser %}
                 <a href="{{ url_for('route_hidden_show', user_enable='10') }}" class="btn_disable">"""+f'{style.icon_hidden}'+"""</a>
@@ -1139,7 +1234,9 @@ def TEMPLATES(style, script_mathjax):
             <div class="files_list_down">
                 <ol>
                 {% for file in rfl %}
-                <li><a href="{{ (request.path + '/' if request.path != '/' else '') + file }}"  target="_blank">{{ file }}</a></li>
+                <li><a href="{{ (request.path + '/' if request.path != '/' else '') + file }}"  target="_blank">{{ file }}</a>
+                <a href="{{ (request.path + '/' if request.path != '/' else '') + file }}?html"" target="_blank">"""+f'{style.icon_gethtml}'+"""</a>
+                </li>
                 <br>
                 {% endfor %}
                 </ol>
@@ -1355,6 +1452,26 @@ def TEMPLATES(style, script_mathjax):
     }}
 
     .bridge{{ line-height: 2; }}
+
+    .txt_comment{{
+        text-align: left;
+        font-family: {style.font_};
+        border: 1px;
+        background:  {style.btn_lpurple};
+        appearance: none;
+        position: relative;
+        border-radius: 3px;
+        padding: 5px 5px 5px 5px;
+        line-height: 1.5;
+        color: {style.btn_purple};
+        font-size: 16px;
+        font-weight: 350;
+    }}
+    ::placeholder {{
+        color: {style.btn_purple};
+        opacity: 1;
+        font-family: {style.font_};   
+    }}
 
     .txt_submit{{
         text-align: left;
@@ -1684,7 +1801,24 @@ h1 {{
     font-family: {style.font_};
 }}
 
+ul {{
+    font-family: {style.font_};
+    font-size: large;
+}}
+
 </style>
+"""
+def CSV_PAGE(html_title, html_table): return \
+f"""
+<html>
+<head>
+<title>{html_title}</title>
+{TABLE_STYLED()}
+</head>
+<body>
+{html_table}      
+</body>
+</html>
 """
 
 def REPORT_PAGE(report_name, html_heading, html_table, update_time): return \
@@ -2206,6 +2340,7 @@ try: os.makedirs(REPORT_FOLDER_PATH, exist_ok=True)
 except: fexit(f'[!] reports folder @ {REPORT_FOLDER_PATH} was not found and could not be created')
 sprint(f'⚙ Reports Folder: {REPORT_FOLDER_PATH}')
 
+
 #-----------------------------------------------------------------------------------------
 # file-name and uploads validation
 #-----------------------------------------------------------------------------------------
@@ -2292,8 +2427,11 @@ class HConv: # html converter
             try: return __class__.nb2html(abs_path, scripts=scripts, style=style) 
             except Exception as e: return (f"failed to rendered Notebook to HTML @ {abs_path}\n{e}") 
         elif abs_path.lower().endswith(".md"):
-            try: return __class__.md2html(abs_path, scripts=scripts, style=style)
+            try: return render_template_string(__class__.md2html(abs_path, scripts=scripts, style=style))
             except Exception as e: return (f"failed to rendered Markdown to HTML @ {abs_path}\n{e}") 
+        elif abs_path.lower().endswith(".csv"):
+            try: return render_template_string(__class__.csv2html(abs_path, scripts=scripts, style=style))
+            except Exception as e: return (f"failed to rendered CSV to HTML @ {abs_path}\n{e}") 
         else: return send_file(abs_path, as_attachment=False) 
 
     @staticmethod
@@ -2322,6 +2460,18 @@ class HConv: # html converter
         </style></head><body>
         <div class="board_content">{board_content}</div><br></body></html>"""
 
+    @staticmethod
+    def csv2html(source_notebook, scripts, style, html_title=None, parsed_title='CSV',):
+        if html_title is None: 
+            html_title = os.path.basename(source_notebook)
+            iht = html_title.rfind('.')
+            if not iht<0: html_title = html_title[:iht]
+            if not html_title: html_title = (parsed_title if parsed_title else os.path.basename(os.path.dirname(source_notebook)))
+        with open(source_notebook, 'r', encoding='utf-8')as f: md_text =f.read()
+        html_table = pd.read_csv(source_notebook).to_html(index=False)
+        page=CSV_PAGE(html_title, html_table)
+        return  page
+    
     @staticmethod
     def md2html(source_notebook, scripts, style, html_title=None, parsed_title='Markdown',):
         if html_title is None: 
@@ -2385,7 +2535,7 @@ def write_evaldb_to_disk(dbsub_frame, SESS, verbose=True): # will change the ord
             else:  sprint(f'⇒ PermissionError - {EVAL_XL_PATH} might be open, close it first.')
     return ressub
 def dump_evaldb_to_disk(dbsubs_frame, verbose=True): # will change the order
-    ressub = [write_evaldb_to_disk(dbsubs_frame[SESS], SESS) for SESS in EVAL_XL_PATHS]
+    ressub = [write_evaldb_to_disk(dbsubs_frame[SESS], SESS, verbose=verbose) for SESS in EVAL_XL_PATHS]
     return not (False in ressub)
 #<----------- create database 
 db =    read_logindb_from_disk() 
@@ -2393,6 +2543,12 @@ dbsubs ={ k:read_evaldb_from_disk(k) for k in EVAL_XL_PATHS }
 sprint('↷ persisted eval-db [{}]'.format(dump_evaldb_to_disk(dbsubs)))
 dbevalset = set([k for k,v in db.items() if '-' not in v[0]])
 dbevaluatorset = sorted(list(set([k for k,v in db.items() if 'X' in v[0]])))
+
+def create_reports_path():
+    for u in db:
+        report_dir =  os.path.join( REPORT_FOLDER_PATH, u)
+        os.makedirs(report_dir, exist_ok=True)
+create_reports_path()
 # ------------------------------------------------------------------------------------------
 
 
@@ -2474,10 +2630,7 @@ def route_login():
                 if in_passwd: # password provided 
                     if in_passwd==passwd:
                         folder_name = os.path.join(UPLOAD_FOLDER_PATHS[in_sess], uid)
-                        folder_report = os.path.join(REPORT_FOLDER_PATH, uid) 
-                        try:
-                            os.makedirs(folder_name, exist_ok=True)
-                            os.makedirs(folder_report, exist_ok=True)
+                        try: os.makedirs(folder_name, exist_ok=True)
                         except:
                             sprint(f'✗ directory could not be created @ {folder_name} :: Force logout user {uid}')
                             session['has_login'] = False
@@ -2732,8 +2885,14 @@ def route_reports(req_path):
             sprint(f"⇒ requested file was not found {abs_path}")
             return abort(404) 
         if os.path.isfile(abs_path):
-            dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the report {req_path} via {request.remote_addr}')
-            return send_file(abs_path) 
+            if ("html" in request.args): 
+                dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
+                try: hmsg = HConv.convertx(abs_path, args.scripts, style)
+                except: hmsg = f"Exception while converting {req_path} to a web-page"
+                return hmsg 
+            else: 
+                dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the report {req_path} via {request.remote_addr}')
+                return send_file(abs_path) 
     return render_template('reports.html', rfl=rfl)
 
 
@@ -2742,7 +2901,7 @@ def route_generate_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('G' in session['admind']) or ('+' in session['admind'])): return abort(404)
     now = str(datetime.datetime.now())
-    from pandas import DataFrame
+    
     session_reports_user = {u:{
         'Session' : [],
         'L' : [], 
@@ -2826,7 +2985,7 @@ def route_generate_report():
         df = DataFrame(r)  
         report_name = f'report.html'
         report_dir =  os.path.join( REPORT_FOLDER_PATH, u)
-        os.makedirs(report_dir, exist_ok=True)
+        if not os.path.isdir(report_dir): continue
         report_path = os.path.join(report_dir, report_name)
         html_table = df.to_html(index=False)        
         with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, f"{u} {args.emoji} {uNAME}", html_table, now))
@@ -2849,7 +3008,7 @@ def route_generate_live_report():
     pending_uids = remaining_uids.difference(absent_uids)
     not_uploaded_uids = set([puid for puid in pending_uids if not os.listdir(os.path.join( UPLOAD_FOLDER_PATHS[session['sess']], puid))])
     pending_uids = pending_uids.difference(not_uploaded_uids)
-    msg = f"Total [{len(dbevalset)}]"
+    msg = f"{session['sess']}"
     if len(dbevalset) != len(finished_uids) + len(pending_uids) + len(not_uploaded_uids) + len(absent_uids): msg+=f" [!] Count Mismatch!"
     pending_uids, absent_uids, finished_uids, not_uploaded_uids = sorted(list(pending_uids)), sorted(list(absent_uids)), sorted(list(finished_uids)), sorted(list(not_uploaded_uids))
     htable0="""
@@ -2868,6 +3027,14 @@ def route_generate_live_report():
     tr {{vertical-align: top;}}
     </style>
     <h2> {msg} </h2>
+    <ul>
+    <li>⚫ [{len(dbevalset)}] Total</li>
+    <li>🟢 [{len(finished_uids)}] Evaluated</li>
+    <li>🟡 [{len(pending_uids)}] Pending</li>
+    <li>🔵 [{len(not_uploaded_uids)}] No-Upload</li>
+    <li>🔴 [{len(absent_uids)}] Absent</li>
+    </ul>
+    <hr>
     <table border="1" style="color: black;">
         <tr> <th>Pending [{len(pending_uids)}]</th> <th>NAME</th> </tr>
 
@@ -3288,6 +3455,80 @@ def route_storeuser(subpath=""):
             dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded {subpath} from user-store via {request.remote_addr}")
             return send_file(abs_path, as_attachment=("get" in request.args))
     else: return abort(404)
+
+
+@app.route('/reportsuser', methods =['GET', 'POST'])
+@app.route('/reportsuser/', methods =['GET', 'POST'])
+@app.route('/reportsuser/<path:subpath>', methods =['GET', 'POST'])
+def route_reportsuser(subpath=""):
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    if not (('X' in session['admind']) or ('+' in session['admind'])) :  return abort(404)
+    abs_path = os.path.join(REPORT_FOLDER_PATH, subpath)
+
+    if request.method == 'POST': 
+        if 'comment' in request.form:
+
+            dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} commented {subpath} via {request.remote_addr}")
+            in_comment = f"{request.form['comment']}".strip()
+            
+            sf = f"{fnow('%Y-%m-%d-%H-%M-%S-%f')}_comment_from_{session['uid']}.md"
+            file_name = os.path.join(abs_path, sf)            
+            try: 
+                with open(file_name, 'w') as f: f.write(in_comment)
+            except FileNotFoundError:  return redirect(url_for('route_logout'))
+        return redirect(url_for('route_reportsuser', subpath=subpath)) 
+    else:
+        if not os.path.exists(abs_path):
+            if not request.args: return abort(404)
+            else:
+                if '?' in request.args:
+                    if "." not in os.path.basename(abs_path):
+                        try:
+                            os.makedirs(abs_path)
+                            dprint(f"๏ 📁 {session['uid']} ◦ {session['named']} created new directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
+                            return redirect(url_for('route_reportsuser', subpath=subpath))
+                        except: return f"Error creating the directory"
+                    else: return f"Directory name cannot contain (.)"
+                else: return f"Invalid args for store actions"
+        if os.path.isdir(abs_path):
+            if not request.args: 
+                dirs, files = list_store_dir(abs_path)
+                return render_template('reportsuser.html', dirs=dirs, files=files, subpath=subpath)
+            else:
+                if "." not in os.path.basename(abs_path) and os.path.abspath(abs_path)!=os.path.abspath(app.config['store']): #delete this dir
+                    if '!' in request.args:
+                        try:
+                            import shutil
+                            shutil.rmtree(abs_path)
+                            dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted the directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                            return redirect(url_for('route_reportsuser', subpath=os.path.dirname(subpath)))
+                        except:
+                            return f"Error deleting the directory"
+                    else: return f"Invalid args for store actions"
+                else: return f"Cannot Delete this directory"
+                            
+        elif os.path.isfile(abs_path):
+            if not request.args: 
+                #dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
+                return send_file(abs_path, as_attachment=False)
+            else:
+                if 'get' in request.args:
+                    dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                    return send_file(abs_path, as_attachment=True)
+                elif 'del' in request.args:
+                    try:
+                        os.remove(abs_path)
+                        dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                        return redirect(url_for('route_reportsuser', subpath=os.path.dirname(subpath)))
+                    except:return f"Error deleting the file"
+                elif ("html" in request.args): 
+                    dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
+                    try:  hmsg = HConv.convertx(abs_path, args.scripts, style)
+                    except: hmsg = f"Exception while converting notebook to web-page"
+                    return hmsg
+                else: return f"Invalid args for store actions"
+        else: return abort(404)
+
 
 def persist_db(SESS):
     r""" writes both db to disk """
