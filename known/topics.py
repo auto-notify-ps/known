@@ -2353,17 +2353,32 @@ sprint(f'⚙ Upload Settings ({len(INITIAL_UPLOAD_STATUS)})')
 for s in INITIAL_UPLOAD_STATUS: sprint(f' ⇒ {s[1]}')
 def VALIDATE_FILENAME(filename, required_files, allowed_extra):   
     sprint(f'Validating {filename}')
+    renamed=False
     if '.' in filename: 
         name, ext = filename.rsplit('.', 1)
         safename = f'{name}.{ext.lower()}'
-        if required_files:  isvalid = bool(safename) if allowed_extra else (safename in required_files)
+        if required_files:  
+            if len(required_files)==1:
+                required_name = list(required_files).pop()
+                isvalid = True
+                if safename != required_name:
+                    safename = required_name
+                    renamed = True
+            else: isvalid = bool(safename) if allowed_extra else (safename in required_files)
         else:               isvalid = bool(safename) 
     else:               
         name, ext = filename, ''
         safename = f'{name}'
-        if required_files:  isvalid = bool(safename) if allowed_extra else (safename in required_files)
+        if required_files:  
+            if len(required_files)==1:
+                required_name = list(required_files).pop()
+                isvalid = True
+                if safename != required_name:
+                    safename = required_name
+                    renamed = True
+            else: isvalid = bool(safename) if allowed_extra else (safename in required_files)
         else:               isvalid = bool(safename) 
-    return isvalid, safename
+    return isvalid, safename, renamed
 def VALIDATE_FILENAME_SUBMIT(filename): 
     if '.' in filename: 
         name, ext = filename.rsplit('.', 1)
@@ -2792,7 +2807,7 @@ def route_uploads(req_path):
                 return send_file(abs_path, as_attachment=False)
     else:
         if form.validate_on_submit() and ('U' in session['admind']):
-            dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items for {session["sess"]} via {request.remote_addr}")
+            dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items for {session['sess']} via {request.remote_addr}")
             if app.config['muc']==0 or app.config['disableupload'][session['sess']]: 
                 status=[(0, f'✗ Uploads are disabled')]
             else:
@@ -2804,7 +2819,7 @@ def route_uploads(req_path):
                         n_success = 0
                         fcount = len(ufl)
                         for file in form.file.data:
-                            isvalid, sf = VALIDATE_FILENAME(secure_filename(file.filename),
+                            isvalid, sf, renamed = VALIDATE_FILENAME(secure_filename(file.filename),
                                         app.config['running'][session['sess']]['required'],
                                         app.config['running'][session['sess']]['extra'],)
                             isvalid = isvalid or ('+' in session['admind'])
@@ -2820,7 +2835,8 @@ def route_uploads(req_path):
                             file_name = os.path.join(folder_name, sf)
                             try: 
                                 file.save(file_name) 
-                                why_failed = f"✓ Uploaded new file [{sf}] "
+                                if renamed: why_failed = f"✓ Uploaded new file, renamed to [{sf}] "
+                                else: why_failed = f"✓ Uploaded new file [{sf}] "
                                 result.append((1, why_failed))
                                 n_success+=1
                                 fcount+=1
@@ -3155,7 +3171,7 @@ def route_eval(req_uid):
     results = []
     global db
     if form.validate_on_submit():
-        dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items for {session["sess"]} via {request.remote_addr}")
+        dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items for {session['sess']} via {request.remote_addr}")
         if  not ('X' in session['admind']): status, success =  "You are not allowed to evaluate.", False
         else: 
             if not EVAL_XL_PATHS[session['sess']]: status, success =  "Evaluation is disabled.", False
@@ -3201,7 +3217,7 @@ def route_eval(req_uid):
                                                     if has_req_files:
                                                         dbsubs[session["sess"]][in_query] = [uid, named, in_score, in_remark, submitter]
                                                         results.append((in_uid,f'Score/Remark Created for [{in_uid}] {named}, current score is {in_score}.', True))
-                                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} for {session["sess"]} via {request.remote_addr}")
+                                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} for {session['sess']} via {request.remote_addr}")
                                                     else:
                                                         results.append((in_uid,f'User [{in_uid}] {named} has not uploaded the required files yet.', False))
                                             else:
@@ -3211,10 +3227,10 @@ def route_eval(req_uid):
                                                     dbsubs[session["sess"]][in_query][-1] = submitter # incase of inf score
                                                     if in_score or in_remark : results.append((in_uid,f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', True))
                                                     else: results.append((in_uid,f'Nothing was updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', False))
-                                                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {session["sess"]} via {request.remote_addr}")
+                                                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {session['sess']} via {request.remote_addr}")
                                                 else:
                                                     results.append((in_uid,f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information.', False))
-                                                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named}  for {session["sess"]} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
+                                                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named}  for {session['sess']} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
                                                     sprint(f'\tHint: Set the score to "inf"')
                             vsu = [vv for nn,kk,vv in results]
                             vsuc = vsu.count(True)
@@ -3255,7 +3271,7 @@ def route_eval(req_uid):
                                         if has_req_files:
                                             dbsubs[session["sess"]][in_query] = [uid, named, in_score, in_remark, submitter]
                                             status, success = f'Score/Remark Created for [{in_uid}] {named}, current score is {in_score}.', True
-                                            dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} for {session["sess"]} via {request.remote_addr}")
+                                            dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} for {session['sess']} via {request.remote_addr}")
                                         else:
                                             status, success = f'User [{in_uid}] {named} has not uploaded the required files yet.', False
                                 else:
@@ -3265,10 +3281,10 @@ def route_eval(req_uid):
                                         dbsubs[session["sess"]][in_query][-1] = submitter # incase of inf score
                                         if in_score or in_remark : status, success =    f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', True
                                         else: status, success =                         f'Nothing was updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', False
-                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {session["sess"]} via {request.remote_addr}")
+                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {session['sess']} via {request.remote_addr}")
                                     else:
                                         status, success = f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information.', False
-                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} for {session["sess"]} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
+                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} for {session['sess']} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
                                         sprint(f'\tHint: Set the score to "inf"')
                 else: status, success =  "You are not allow to evaluate.", False
             else: status, success =  "Evaluation is disabled.", False
@@ -3291,7 +3307,7 @@ def route_eval(req_uid):
                             erecord = dbsubs[session["sess"]].get(in_query, None)
                             if erecord is not None:
                                 del dbsubs[session["sess"]][in_query]
-                                dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {erecord[1]} (already evaluated by [{erecord[-1]}] with score [{erecord[2]}]) for {session["sess"]} via {request.remote_addr}")
+                                dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {erecord[1]} (already evaluated by [{erecord[-1]}] with score [{erecord[2]}]) for {session['sess']} via {request.remote_addr}")
                                 status, success =  f"Evaluation was reset for {record[1]} ◦ {record[2]}", True
                             else: status, success =  f"User {record[1]} ◦ {record[2]} has not been evaluated", False
                         else: status, success =  f"User '{in_query}' not found", False
