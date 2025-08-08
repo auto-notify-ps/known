@@ -222,6 +222,12 @@ def VALIDATE_PASS(instr):     return rematch(instr, r'^[a-zA-Z0-9~!@#$%^&*()_+{}
 def VALIDATE_UID(instr):      return rematch(instr, r'^[a-zA-Z0-9._@]+$') and instr[0]!="."
 def VALIDATE_NAME(instr):     return rematch(instr, r'^[a-zA-Z0-9]+(?: [a-zA-Z0-9]+)*$')
 
+def VALIDATE_PATH(base, req):
+    target = os.path.abspath(os.path.join(base, req))
+    rel = os.path.relpath(target, base)
+    if rel.startswith(os.pardir + os.sep) or rel == os.pardir: return None
+    else: return target
+
 def DICT2CSV(path, d, ord):
     with open(path, 'w', encoding='utf-8') as f: 
         f.write(CSV_DELIM.join(ord)+SSV_DELIM)
@@ -378,6 +384,10 @@ style = dict(
         icon_delfile=   '⛔',
         icon_gethtml=   '🌐',
         icon_hidden=    '👁️',
+        icon_filem=     '▪️',
+        icon_reportm=   '▫️',
+        icon_folderLR=  '📁',
+        icon_reportLR=  '🪧',                                             
 
         LOGIN_REG_TEXT =        '👤',
         LOGIN_NEED_TEXT =       '🔒',
@@ -881,7 +891,7 @@ def TEMPLATES(style, script_mathjax):
             <!-- Breadcrumb for navigation -->
             <div class="files_status"> Path: 
                 {% if subpath %}
-                    <a href="{{ url_for('route_reportsuser') }}" class="btn_store">.</a>{% for part in subpath.split('/') %}🔹<a href="{{ url_for('route_reportsuser', subpath='/'.join(subpath.split('/')[:loop.index])) }}" class="btn_store">{{ part }}</a>{% endfor %}  
+                    <a href="{{ url_for('route_reportsuser') }}" class="btn_store">.</a>{% for part in subpath.split('/') %}{{ config.bridge }}<a href="{{ url_for('route_reportsuser', subpath='/'.join(subpath.split('/')[:loop.index])) }}" class="btn_store">{{ part }}</a>{% endfor %}  
                 {% else %}
                     <a href="{{ url_for('route_reportsuser') }}" class="btn_store">.</a>
                 {% endif %}
@@ -968,7 +978,7 @@ def TEMPLATES(style, script_mathjax):
             <!-- Breadcrumb for navigation -->
             <div class="files_status"> Path: 
                 {% if subpath %}
-                    <a href="{{ url_for('route_storeuser') }}" class="btn_store">{{ session.sess }}</a>{% for part in subpath.split('/') %}🔹<a href="{{ url_for('route_storeuser', subpath='/'.join(subpath.split('/')[:loop.index])) }}" class="btn_store">{{ part }}</a>{% endfor %}  
+                    <a href="{{ url_for('route_storeuser') }}" class="btn_store">{{ session.sess }}</a>{% for part in subpath.split('/') %}{{ config.bridge }}<a href="{{ url_for('route_storeuser', subpath='/'.join(subpath.split('/')[:loop.index])) }}" class="btn_store">{{ part }}</a>{% endfor %}  
                 {% else %}
                     <a href="{{ url_for('route_storeuser') }}" class="btn_store">{{ session.sess }}</a>
                 {% endif %}
@@ -1047,7 +1057,7 @@ def TEMPLATES(style, script_mathjax):
             <!-- Breadcrumb for navigation -->
             <div class="files_status"> Path: 
                 {% if subpath %}
-                    <a href="{{ url_for('route_store') }}" class="btn_store">{{ config.storename }}</a>{% for part in subpath.split('/') %}🔹<a href="{{ url_for('route_store', subpath='/'.join(subpath.split('/')[:loop.index])) }}" class="btn_store">{{ part }}</a>{% endfor %}  
+                    <a href="{{ url_for('route_store') }}" class="btn_store">{{ config.storename }}</a>{% for part in subpath.split('/') %}{{ config.bridge }}<a href="{{ url_for('route_store', subpath='/'.join(subpath.split('/')[:loop.index])) }}" class="btn_store">{{ part }}</a>{% endfor %}  
                 {% else %}
                     <a href="{{ url_for('route_store') }}" class="btn_store">{{ config.storename }}</a>
                 {% endif %}
@@ -2745,7 +2755,9 @@ def route_downloads(req_path):
         dfl = GET_FILE_LIST(DOWNLOAD_FOLDER_PATHS[session['sess']])
     else:
         dfl=[]
-        abs_path = os.path.join(DOWNLOAD_FOLDER_PATHS[session['sess']], req_path)
+        
+        abs_path = VALIDATE_PATH(DOWNLOAD_FOLDER_PATHS[session['sess']], req_path)
+        if abs_path is None: return abort(404) 
         if not os.path.exists(abs_path): 
             sprint(f"⇒ requested file was not found {abs_path}") 
             return abort(404) 
@@ -2783,7 +2795,8 @@ def route_uploads(req_path):
         if REQUIRED_FILES: UPLOAD_STATUS.append((-1, f'accepted files [{len(REQUIRED_FILES)}]: {REQUIRED_FILES}'))
         status=UPLOAD_STATUS
     if req_path:
-        abs_path = os.path.join(folder_name, req_path)
+        abs_path = VALIDATE_PATH(folder_name, req_path)
+        if abs_path is None: return abort(404) 
         if not os.path.exists(abs_path): 
             sprint(f"⇒ requested file was not found {abs_path}") 
             return abort(404)
@@ -2896,7 +2909,8 @@ def route_reports(req_path):
         rfl = os.listdir(folder_name)
     else:
         rfl=[]
-        abs_path = os.path.join( folder_name, req_path)
+        abs_path = VALIDATE_PATH( folder_name, req_path)
+        if abs_path is None: return abort(404) 
         if not os.path.exists(abs_path): 
             sprint(f"⇒ requested file was not found {abs_path}")
             return abort(404) 
@@ -3018,15 +3032,19 @@ def route_generate_eval_template():
 def route_generate_live_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
-    finished_uids = set(dbsubs[session['sess']].keys())
+    sess = session['sess']
+    REQUIRED_FILES=app.config['running'][sess]['required']
+    finished_uids = set(dbsubs[sess].keys())
     remaining_uids = dbevalset.difference(finished_uids)
-    absent_uids = set([puid for puid in remaining_uids if not os.path.isdir(os.path.join( UPLOAD_FOLDER_PATHS[session['sess']], puid))])
+    absent_uids = set([puid for puid in remaining_uids if not os.path.isdir(os.path.join( UPLOAD_FOLDER_PATHS[sess], puid))])
     pending_uids = remaining_uids.difference(absent_uids)
-    not_uploaded_uids = set([puid for puid in pending_uids if not os.listdir(os.path.join( UPLOAD_FOLDER_PATHS[session['sess']], puid))])
+    not_uploaded_uids = set([puid for puid in pending_uids if not os.listdir(os.path.join( UPLOAD_FOLDER_PATHS[sess], puid))])
     pending_uids = pending_uids.difference(not_uploaded_uids)
-    msg = f"{session['sess']}"
+    msg = f"{sess}"
     if len(dbevalset) != len(finished_uids) + len(pending_uids) + len(not_uploaded_uids) + len(absent_uids): msg+=f" [!] Count Mismatch!"
     pending_uids, absent_uids, finished_uids, not_uploaded_uids = sorted(list(pending_uids)), sorted(list(absent_uids)), sorted(list(finished_uids)), sorted(list(not_uploaded_uids))
+    FileMarker=style.icon_filem
+    ReportMarker=style.icon_reportm
     htable0="""
     <html>
         <head>
@@ -3038,86 +3056,105 @@ def route_generate_live_report():
         <body>
     """ + f"""
     <style>
-    td {{padding: 10px;}}
-    th {{padding: 5px;}}
-    tr {{vertical-align: top;}}
+    a {{ text-decoration: none; }}
+    table {{ border-collapse: seperate;  }}
+    table td {{padding: 10px; border:4px solid #aaa;}}
+    table th {{padding: 5px; border:4px solid #aaa;}}
+    table tr {{vertical-align: top;}}
     </style>
-    <h2> {msg} </h2>
+    <h2 id="h_status"> {msg} </h2>
     <ul>
-    <li>⚫ [{len(dbevalset)}] Total</li>
-    <li>🟢 [{len(finished_uids)}] Evaluated</li>
-    <li>🟡 [{len(pending_uids)}] Pending</li>
-    <li>🔵 [{len(not_uploaded_uids)}] No-Upload</li>
-    <li>🔴 [{len(absent_uids)}] Absent</li>
+    <li>⚫ [{len(dbevalset)}] <a href="#h_total">Total</a></li>
+    <li>🟢 [{len(finished_uids)}] <a href="#h_evaluated">Evaluated</a></li>
+    <li>🟡 [{len(pending_uids)}] <a href="#h_pending">Pending</a></li>
+    <li>🔵 [{len(not_uploaded_uids)}] <a href="#h_noupload">No-Upload</a></li>
+    <li>🔴 [{len(absent_uids)}] <a href="#h_absent">Absent</a></li>
     </ul>
     <hr>
-    <table border="1" style="color: black;">
-        <tr> <th>Pending [{len(pending_uids)}]</th> <th>NAME</th> </tr>
+    <h3 id="h_pending"> Pending [{len(pending_uids)}] <a href="#h_status">🔝</a></h3>
+    <table style="background-color: #ffffde; color: black;">
+        <tr> <th>ROLL</th> <th>NAME</th> </th> <th>Files</th> <th>Reports</th> </tr>
 
     """
     htable1=''
     for pu in pending_uids:
+        lt = " ".join([f"""<a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}') }" target="_blank">{FileMarker}{r}</a><a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], pu))]) 
+        ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{ReportMarker}{r}</a><a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
         htable1+=f""" 
         <tr>
-        <td><a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">{pu}</a></td>
+        <td>{pu}</td>
         <td>{db[pu][2]}</td>
+        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">Files{style.icon_folderLR}</a><br>{lt}</td>
+        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_reportLR}</a><br>{ct}</td>
         </tr>
         """
     htable1+=f"""</table>
     <br>
-    <table border="1" style="color: blue;">
-        <tr> <th>No-Upload [{len(not_uploaded_uids)}]</th><th>NAME</th> </tr>
+    <h3 id="h_noupload"> No-Upload [{len(not_uploaded_uids)}] <a href="#h_status">🔝</a></h3>
+    <table style="background-color: #f6fcff; color: black;">
+        <tr> <th>ROLL</th> <th>NAME</th> </th> <th>Files</th> <th>Reports</th> </tr>
     """
     htable11=''
     for pu in not_uploaded_uids:
+        ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{ReportMarker}{r}</a><a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
         htable11+=f""" 
         <tr>
-        <td><a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">{pu}</a></td>
+        <td>{pu}</td>
         <td>{db[pu][2]}</td>
+        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">Files{style.icon_folderLR}</a></td>
+        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_reportLR}</a><br>{ct}</td>
         </tr>
         """
     htable11+=f"""</table>
     <br>
-    <table border="1" style="color: maroon;">
-        <tr> <th>Absent [{len(absent_uids)}]</th><th>NAME</th> </tr>
+    <h3 id="h_absent"> Absent [{len(absent_uids)}] <a href="#h_status">🔝</a></h3>
+    <table style="background-color: #fff8f8; color: black;">
+        <tr> <th>ROLL</th> <th>NAME</th> </th> <th>Reports</th> </tr>
     """
     htable2 = ''
     for pu in absent_uids:
+        ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{ReportMarker}{r}</a><a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
         htable2+=f""" 
         <tr>
         <td>{pu}</td>
         <td>{db[pu][2]}</td>
+        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_reportLR}</a><br>{ct}</td>
         </tr>
         """
     htable2+=f"""</table>
     <br>
-    <table border="1" style="color: black;">
+    <h3 id="h_evaluated"> Evaluated [{len(finished_uids)}] <a href="#h_status">🔝</a></h3>
+    <table style="background-color: #f0ffe1; color: black;">
         <tr>
-            <th>Evaluated [{len(finished_uids)}]</th>
+            <th>ROLL</th>
             <th>NAME</th>
             <th>SCORE</th>
-            <th>REMARK</th>
+            <th>USER-DATA</th>
             <th>EVALUATOR</th>
             
         </tr>
     """
     htable3 = ''
     counter = { k:0 for k in dbevaluatorset}
-    for k in sorted(list(dbsubs[session['sess']].keys())):
-        v = dbsubs[session['sess']][k]
+    for k in sorted(list(dbsubs[sess].keys())):
+        v = dbsubs[sess][k]
+        pu = v[0]
+        lt = " ".join([f"""<a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}') }" target="_blank">{FileMarker}{r}</a><a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(UPLOAD_FOLDER_PATHS[sess], pu))]) 
+        ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{ReportMarker}{r}</a><a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
         counter[v[4]]+=1
         htable3+=f"""
         <tr>
-            <td><a href="{ url_for('route_storeuser', subpath=v[0]) }" target="_blank">{v[0]}</a></td>
+            <td>{pu}</td>
             <td>{v[1]}</td>
             <td>{v[2]}</td>
-            <td>{v[3]}</td>
+            <td style="text-align: left;vertical-align: top;">Remark: {v[3]}<br><a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_reportLR}</a><br>{ct}<a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">Files{style.icon_folderLR}</a><br>{lt}</td>
             <td>{v[4]}</td>
         </tr>
         """
     htable3+=f"""</table><br>
-    <h2>Evaluator Stats<h2>
-    <table border="1" style="color: black;">
+    
+    <h3 id="h_total"> Evaluator Stats [{len(counter)}] <a href="#h_status">🔝</a></h3>
+    <table style="color: black;">
         <tr><th>Evaluator</th><th>Name</th><th>Count</th></tr>
     """
     htable4 = ''
@@ -3371,7 +3408,8 @@ def route_store(subpath=""):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if ('A' not in session['admind']) :  return abort(404)
     form = UploadFileForm()
-    abs_path = os.path.join(app.config['store'], subpath)
+    abs_path = VALIDATE_PATH(app.config['store'], subpath)
+    if abs_path is None: return abort(404) 
     can_admin = (('X' in session['admind']) or ('+' in session['admind']))
     if form.validate_on_submit():
         if not can_admin: return "You cannot perform this action"
@@ -3456,7 +3494,8 @@ def route_store(subpath=""):
 def route_storeuser(subpath=""):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if ('X' not in session['admind']):  return abort(404)
-    abs_path = os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], subpath)
+    abs_path = VALIDATE_PATH(UPLOAD_FOLDER_PATHS[session['sess']], subpath)
+    if abs_path is None: return abort(404) 
     if not os.path.exists(abs_path): return abort(404)
     if os.path.isdir(abs_path):
         dirs, files = list_store_dir(abs_path)
@@ -3479,8 +3518,8 @@ def route_storeuser(subpath=""):
 def route_reportsuser(subpath=""):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])) :  return abort(404)
-    abs_path = os.path.join(REPORT_FOLDER_PATH, subpath)
-
+    abs_path = VALIDATE_PATH(REPORT_FOLDER_PATH, subpath)
+    if abs_path is None: return abort(404) 
     if request.method == 'POST': 
         if 'comment' in request.form:
 
@@ -3671,8 +3710,8 @@ def route_public(req_path):
                 if session.get('has_login', False): app.config['pfl'] = GET_FILE_LIST(PUBLIC_FOLDER_PATH)
                 return redirect(url_for('route_public'))  
     else:
-        abs_path = os.path.join(PUBLIC_FOLDER_PATH, req_path) 
-        if PUBLIC_FOLDER_PATH not in abs_path:  return abort(404)
+        abs_path = VALIDATE_PATH(PUBLIC_FOLDER_PATH, req_path) 
+        if abs_path is None: return abort(404) 
         if not os.path.exists(abs_path):        return abort(404)
         if os.path.isfile(abs_path):            
             if app.config['publiclog']:
