@@ -3467,7 +3467,7 @@ def route_store(subpath=""):
                             
         elif os.path.isfile(abs_path):
             if not request.args: 
-                dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
+                dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed ({subpath}) via {request.remote_addr}")
                 return send_file(abs_path, as_attachment=False)
             else:
                 if 'get' in request.args:
@@ -3564,7 +3564,7 @@ def route_reportsuser(subpath=""):
                             
         elif os.path.isfile(abs_path):
             if not request.args: 
-                dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
+                dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed ({subpath}) via {request.remote_addr}")
                 return send_file(abs_path, as_attachment=False)
             else:
                 if 'get' in request.args:
