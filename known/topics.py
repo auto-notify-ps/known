@@ -3467,7 +3467,7 @@ def route_store(subpath=""):
                             
         elif os.path.isfile(abs_path):
             if not request.args: 
-                #dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
+                dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
                 return send_file(abs_path, as_attachment=False)
             else:
                 if 'get' in request.args:
@@ -3526,7 +3526,7 @@ def route_reportsuser(subpath=""):
             dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} commented {subpath} via {request.remote_addr}")
             in_comment = f"{request.form['comment']}".strip()
             
-            sf = f"{fnow('%Y-%m-%d-%H-%M-%S-%f')}_comment_from_{session['uid']}.md"
+            sf = f"{fnow('%Y-%m-%d-%H-%M-%S')}_comment_from_{session['uid']}.md"
             file_name = os.path.join(abs_path, sf)            
             try: 
                 with open(file_name, 'w') as f: f.write(in_comment)
@@ -3564,7 +3564,7 @@ def route_reportsuser(subpath=""):
                             
         elif os.path.isfile(abs_path):
             if not request.args: 
-                #dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
+                dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
                 return send_file(abs_path, as_attachment=False)
             else:
                 if 'get' in request.args:
