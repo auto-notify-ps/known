@@ -1188,21 +1188,23 @@ def TEMPLATES(style, script_mathjax):
                     </ol>
                 </div>
                 <br>
-                    {% endif %}
+                {% endif %}
 
                 {% else %}
                     <div class="upword">You have been evaluated.</div><br>
                 {% endif %}
                 
+                {% if statusdict %}
                 <div class="files_list_down">
-                <p class="files_status">Session Status ({{ session.sess }}) </p>
+                <p class="files_status">Session Status</p>
                     <ul>
-                    {% for stext in statusdict %}
-                    <li>{{ stext }}</li>
+                    {% for k,v in statusdict.items() %}
+                    <li>{{ k }}: {{ v }}</li>
                     {% endfor %}
                     </ul>
                 </div>
                 <br>
+                {% endif %}
                 
 
 
@@ -1241,6 +1243,11 @@ def TEMPLATES(style, script_mathjax):
             <br>
             <div class="files_status">"""+f'{style.report_}'+"""</div>
             <br>
+
+            {% if statusdict %}
+            {{ statusdict|safe }}
+            {% endif %}
+
             <div class="files_list_down">
                 <ol>
                 {% for file in rfl %}
@@ -1818,6 +1825,7 @@ ul {{
 
 </style>
 """
+
 def CSV_PAGE(html_title, html_table): return \
 f"""
 <html>
@@ -2780,7 +2788,7 @@ def route_uploads(req_path):
     form = UploadFileForm()
     folder_name = os.path.join( UPLOAD_FOLDER_PATHS[session['sess']], session['uid']) 
 
-    statusdict, submitted = [], -1
+    submitted = -1
     if EVAL_XL_PATHS[session['sess']]: submitted = int(session['uid'] in dbsubs[session['sess']])
         
 
@@ -2861,10 +2869,37 @@ def route_uploads(req_path):
                         ufl = GET_FILE_LIST(folder_name, number=True)
                         status=result
 
-    if EVAL_XL_PATHS[session['sess']]:
-        u = session['uid']
-        s = session['sess']
-        
+    statusdict = get_session_status(session['uid'], session['sess'])
+    return render_template('uploads.html', ufl=ufl, submitted=submitted, statusdict=statusdict, form=form, status=status)
+
+
+def status_dict_template(Session, Login, Uploaded, Required_Files, Evaluated, Score, Remark, Evaluator ):
+    return {
+            'Session': Session,
+            'L': Login,
+            'U': Uploaded,
+            'R': Required_Files,
+            'E': Evaluated,
+            'Score': Score,
+            'Remark': Remark,
+            'Evaluator': Evaluator,
+        }
+
+
+def get_user_status(u): 
+    ustatus = ""
+    if (u in dbevalset): 
+        ux=status_dict_template([],[],[],[],[],[],[],[])
+        for s in dbsubs:
+            ust = get_session_status(u, s)
+            for k,v in ust.items(): ux[k].append(v)
+        ustatus=f"\n<div>\n{TABLE_STYLED()}\n{DataFrame(ux).to_html(index=False)}\n</div>\n"
+
+    return ustatus
+
+def get_session_status(u, s):
+    status = None
+    if EVAL_XL_PATHS[s]:
         if (u in dbevalset) and (s in dbsubs): 
             REQUIRED_FILES = app.config['running'][s]['required']
             userfolder = os.path.join(UPLOAD_FOLDER_PATHS[s], u)
@@ -2890,14 +2925,9 @@ def route_uploads(req_path):
             Utxt = '🟢' if uHas else ('⚫' if uHas is None else '🔴')
             Rtxt = ('🟡' if uHasReq is ... else '🟢') if uHasReq else ('⚫' if uHas is None else '🔴')
             Etxt = '✅' if uEvaluated else '❌'
-            statusdict.append(f'L: {Ltxt}')
-            statusdict.append(f'U: {Utxt}')
-            statusdict.append(f'R: {Rtxt}')
-            statusdict.append(f'E: {Etxt}')
-            statusdict.append(f'Score: {uSCORE}')
-            statusdict.append(f'Remark: {uREMARK}')
-            statusdict.append(f'Evaluator: {uBY} {eNAME}')
-    return render_template('uploads.html', ufl=ufl, submitted=submitted, statusdict=statusdict, form=form, status=status)
+            status = status_dict_template( f'{s}', f'{Ltxt}', f'{Utxt}', f'{Rtxt}', f'{Etxt}', f'{uSCORE}', f'{uREMARK}', f'{uBY} {eNAME}',)
+    return status
+
 
 @app.route('/reports', methods =['GET'], defaults={'req_path': ''})
 @app.route('/reports/<path:req_path>')
@@ -2906,7 +2936,7 @@ def route_reports(req_path):
     if 'R' not in session['admind']:  return redirect(url_for('route_home'))
     folder_name=os.path.join(REPORT_FOLDER_PATH, session['uid'])
     if not req_path:
-        rfl = os.listdir(folder_name)
+        rfl = sorted(os.listdir(folder_name))
     else:
         rfl=[]
         abs_path = VALIDATE_PATH( folder_name, req_path)
@@ -2923,7 +2953,7 @@ def route_reports(req_path):
             else: 
                 dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the report {req_path} via {request.remote_addr}')
                 return send_file(abs_path) 
-    return render_template('reports.html', rfl=rfl)
+    return render_template('reports.html', rfl=rfl, statusdict=get_user_status(session['uid']))
 
 
 @app.route('/generate_report', methods =['GET'])
@@ -3012,12 +3042,18 @@ def route_generate_report():
         with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, s, html_table, now))
     for u,r in session_reports_user.items():
         _, _, uNAME, _ = db[u]
-        df = DataFrame(r)  
-        report_name = f'report.html'
-        report_dir =  os.path.join( REPORT_FOLDER_PATH, u)
-        if not os.path.isdir(report_dir): continue
-        report_path = os.path.join(report_dir, report_name)
-        html_table = df.to_html(index=False)        
+        html_table = DataFrame(r).to_html(index=False)        
+        report_path = os.path.join(REPORT_FOLDER_PATH, session['uid'], f'{u}.html')
+
+        #report_name = f'report.html'
+        #report_dir =  os.path.join( REPORT_FOLDER_PATH, u)
+        #if not os.path.isdir(report_dir): continue
+        #report_path = os.path.join(report_dir, report_name)
+    
+        #try: os.path.remove(report_path)
+        #except: pass
+        os.remove(os.path.join( REPORT_FOLDER_PATH, u, f'report.html'))
+
         with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, f"{u} {args.emoji} {uNAME}", html_table, now))
     return redirect(url_for('route_reports'))
 
