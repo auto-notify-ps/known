@@ -3424,7 +3424,7 @@ def list_store_dir(abs_path):
             if item.is_file(): files.append((i, item.name, item.name.startswith(".")))
             elif item.is_dir(): dirs.append((item.name, item.name.startswith(".")))
             else: pass
-    return sorted(dirs), sorted(files)
+    return sorted(dirs, key=lambda e: e[0]), sorted(files, key=lambda e: e[1])
 
 @app.route('/hidden_show/<path:user_enable>', methods =['GET'])
 def route_hidden_show(user_enable=''):
