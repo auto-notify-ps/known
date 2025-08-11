@@ -3424,7 +3424,7 @@ def list_store_dir(abs_path):
             if item.is_file(): files.append((i, item.name, item.name.startswith(".")))
             elif item.is_dir(): dirs.append((item.name, item.name.startswith(".")))
             else: pass
-    return dirs, files
+    return sorted(dirs), sorted(files)
 
 @app.route('/hidden_show/<path:user_enable>', methods =['GET'])
 def route_hidden_show(user_enable=''):
@@ -3562,7 +3562,7 @@ def route_reportsuser(subpath=""):
             dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} commented {subpath} via {request.remote_addr}")
             in_comment = f"{request.form['comment']}".strip()
             
-            sf = f"{fnow('%Y-%m-%d-%H-%M-%S')}_comment_from_{session['uid']}.md"
+            sf = f"{fnow('%Y-%m-%d-%H-%M-%S')}-{session['uid']}.md"
             file_name = os.path.join(abs_path, sf)            
             try: 
                 with open(file_name, 'w') as f: f.write(in_comment)
