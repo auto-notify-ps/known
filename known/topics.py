@@ -3026,7 +3026,7 @@ def route_generate_report():
     
         #try: os.path.remove(report_path)
         #except: pass
-        os.remove(os.path.join( REPORT_FOLDER_PATH, u, f'report.html'))
+        #os.remove(os.path.join( REPORT_FOLDER_PATH, u, f'report.html'))
 
         with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, f"{u} {args.emoji} {uNAME}", html_table, now))
     return redirect(url_for('route_reports'))
