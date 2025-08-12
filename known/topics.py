@@ -2980,7 +2980,7 @@ def route_generate_report():
             uEvaluated = (u in dbs)
             _, _, uNAME, _ = db[u]
             if uEvaluated:
-                _, _, uSCORE, uREMARK, uBY = dbs[u]
+                _, uSCORE, uREMARK, uBY = dbs[u]
                 _, _, eNAME, _ = db[uBY]
             else:  uSCORE, uREMARK, uBY, eNAME = '', '', '', ''
             
