@@ -208,7 +208,7 @@ NEWLINE = '\n'
 TABLINE = '\t'
 LOGIN_ORD = ['ADMIN','UID','NAME','PASS']
 LOGIN_ORD_MAPPING = {v:i for i,v in enumerate(LOGIN_ORD)}
-EVAL_ORD = ['UID', 'SCORE', 'REMARK', 'BY']
+EVAL_ORD = ['UID', 'NAME', 'SCORE', 'REMARK', 'BY']
 DEFAULT_USER = 'admin'
 DEFAULT_ACCESS = f'DAURGX-+'
 MAX_STR_LEN = 250
@@ -415,7 +415,7 @@ common = dict(
     register     = "Register User",         # msg shown on register (new-user) page
     emoji        = "🔘",                   # emoji shown of login page and seperates uid - name
     bridge       = "🔹",
-    rename       = 0,                       # if rename=1, allows users to update their names through /re??=NewName
+    rename       = 0,                       # if rename=1, allows users to update their names when logging in
     repass       = 1,                       # if repass=1, allows admins and evaluators to reset passwords for users - should be enabled in only one session
     reeval       = 1,                       # if reeval=1, allows evaluators to reset evaluation
     maxupcount   = -1,                     # maximum number of files that can be uploaded by a user (keep -1 for no limit and 0 to disable uploading)
@@ -691,6 +691,11 @@ def TEMPLATES(style, script_mathjax):
                 <br>
                 <br>
                 {% endif %}
+                {% if config.rename>0 %}
+                <input id="named" name="named" type="text" placeholder="... update-name ..." class="txt_login"/>
+                <div class="tooltip-text">(optional, provide only if you intend to change existing name) must alphabetic</div></div>
+                <br>
+                {% endif %}
                 <br>
                 <input type="submit" class="btn_login" value=""" +f'"{style.login_}"'+ """> 
                 <br>
@@ -744,6 +749,11 @@ def TEMPLATES(style, script_mathjax):
                 <div class="tooltip-container">
                 <input id="passwd" name="passwd" type="password" placeholder="... password ..." class="txt_login"/>
                 <div class="tooltip-text">alpha-numeric, can have _ . @ ~ ! # $ % ^ & * + ? ` - = < > [ ] ( ) { }</div></div>
+                <br>
+                <br>
+                <div class="tooltip-container">
+                <input id="named" name="named" type="text" placeholder="... name ..." class="txt_login"/>
+                <div class="tooltip-text">(optional, provide only if you intend to change existing name) must alphabetic</div></div>
                 <br>
                 <br>
                 <input type="submit" class="btn_board" value=""" + f'"{style.new_}"' +"""> 
@@ -2621,11 +2631,12 @@ def route_login():
         global db
         in_uid = f"{request.form['uid']}"
         in_passwd = f"{request.form['passwd']}"
+        in_name = f'{request.form["named"]}' if 'named' in request.form else ''
         if 'sess' in request.form : in_sess =  f"{request.form['sess']}"
         else: in_sess = app.config['dses']
         if in_sess not in app.config['running']: in_sess = app.config['dses']
         in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
-        valid_query = VALIDATE_UID(in_query)
+        valid_query, valid_name = VALIDATE_UID(in_query) , VALIDATE_NAME(in_name)
         if not valid_query : record=None
         else: record = db.get(in_query, None)
         if record is not None: 
@@ -2634,6 +2645,12 @@ def route_login():
                 if in_passwd: # new password provided
                     if VALIDATE_PASS(in_passwd): # new password is valid
                         db[uid][3]=in_passwd 
+                        if in_name!=named and valid_name and (app.config['rename']>0) : 
+                            db[uid][2]=in_name
+                            dprint(f'๏ 💬 {uid} ◦ {named} updated name to "{in_name}" via {request.remote_addr}') 
+                            named = in_name
+                        else: 
+                            if in_name: sprint(f'⇒ {uid} ◦ {named} provided name "{in_name}" could not be updated') 
                         warn = style.LOGIN_CREATE_TEXT
                         msg = f'[{uid}] ({named}) New password was created successfully'
                         dprint(f'๏ 🤗 {uid} ◦ {named} just joined via {request.remote_addr}')
@@ -2657,12 +2674,19 @@ def route_login():
                     
                         session['has_login'] = True
                         session['uid'] = uid
-                        session['named'] = named
                         session['admind'] = admind + app.config['apac']
                         session['sess'] = in_sess
                         session['hidden_store'] = False
                         session['hidden_storeuser'] = True
                         
+                        if in_name!=named and  valid_name and  (app.config['rename']>0): 
+                            session['named'] = in_name
+                            db[uid][2] = in_name
+                            dprint(f'๏ 💬 {uid} ◦ {named} updated name to "{in_name}" via {request.remote_addr}') 
+                            named = in_name
+                        else: 
+                            session['named'] = named
+                            if in_name: sprint(f'⇒ {uid} ◦ {named} provided name "{in_name}" could not be updated')  
                         dprint(f'๏ 🌝 {session["uid"]} ◦ {session["named"]} has logged in to {session["sess"]} via {request.remote_addr}') 
                         return redirect(url_for('route_home'))
                     else:  
@@ -2687,17 +2711,20 @@ def route_new():
         global db
         in_uid = f"{request.form['uid']}"
         in_passwd = f"{request.form['passwd']}"
+        in_name = f'{request.form["named"]}' if 'named' in request.form else ''
         in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
-        valid_query = VALIDATE_UID(in_query) 
+        valid_query, valid_name = VALIDATE_UID(in_query) , VALIDATE_NAME(in_name)
         if not valid_query:
             warn, msg = style.LOGIN_FAIL_TEXT, f'[{in_uid}] Not a valid username' 
+        elif not valid_name:
+            warn, msg = style.LOGIN_FAIL_TEXT, f'[{in_name}] Not a valid name' 
         else:
             record = db.get(in_query, None)
             if record is None: 
                 if not app.config['reg']:
                     warn, msg = style.LOGIN_FAIL_TEXT, f'[{in_uid}] not allowed to register' 
                 else:
-                    admind, uid, named = app.config['reg'], in_query, "No Name"
+                    admind, uid, named = app.config['reg'], in_query, in_name
                     if in_passwd: # new password provided
                         if VALIDATE_PASS(in_passwd): # new password is valid
                             db[uid] = [admind, uid, named, in_passwd]
@@ -2891,7 +2918,7 @@ def get_session_status(u, s):
             uEvaluated = (u in dbs)
             _, _, uNAME, _ = db[u]
             if uEvaluated:
-                _, uSCORE, uREMARK, uBY = dbs[u]
+                _, _, uSCORE, uREMARK, uBY = dbs[u]
                 _, _, eNAME, _ = db[uBY]
             else:  uSCORE, uREMARK, uBY, eNAME = '', '', '', ''
             
@@ -3151,14 +3178,14 @@ def route_generate_live_report():
         pu = v[0]
         lt = " ".join([f"""<a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}') }" target="_blank">{FileMarker}{r}</a><a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(UPLOAD_FOLDER_PATHS[sess], pu))]) 
         ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{ReportMarker}{r}</a><a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
-        counter[v[3]]+=1
+        counter[v[4]]+=1
         htable3+=f"""
         <tr>
             <td>{pu}</td>
-            <td>{db[pu][2]}</td>
             <td>{v[1]}</td>
-            <td style="text-align: left;vertical-align: top;">Remark: {v[2]}<br><a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_reportLR}</a><br>{ct}<a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">Files{style.icon_folderLR}</a><br>{lt}</td>
-            <td>{v[3]}</td>
+            <td>{v[2]}</td>
+            <td style="text-align: left;vertical-align: top;">Remark: {v[3]}<br><a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_reportLR}</a><br>{ct}<a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">Files{style.icon_folderLR}</a><br>{lt}</td>
+            <td>{v[4]}</td>
         </tr>
         """
     htable3+=f"""</table><br>
@@ -3262,18 +3289,18 @@ def route_eval(req_uid):
                                                 else:
                                                     has_req_files = GetUserFiles(uid, session['sess'], app.config['running'][session['sess']]['required'])
                                                     if has_req_files:
-                                                        dbsubs[session["sess"]][in_query] = [uid, in_score, in_remark, submitter]
+                                                        dbsubs[session["sess"]][in_query] = [uid, named, in_score, in_remark, submitter]
                                                         results.append((in_uid,f'Score/Remark Created for [{in_uid}] {named}, current score is {in_score}.', True))
                                                         dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} for {session['sess']} via {request.remote_addr}")
                                                     else:
                                                         results.append((in_uid,f'User [{in_uid}] {named} has not uploaded the required files yet.', False))
                                             else:
-                                                if scored[-1] == submitter or abs(float(scored[1])) == float('inf') or ('+' in session['admind']):
-                                                    if in_score:  dbsubs[session["sess"]][in_query][1] = in_score
-                                                    if in_remark: dbsubs[session["sess"]][in_query][2] = in_remark
+                                                if scored[-1] == submitter or abs(float(scored[2])) == float('inf') or ('+' in session['admind']):
+                                                    if in_score:  dbsubs[session["sess"]][in_query][2] = in_score
+                                                    if in_remark: dbsubs[session["sess"]][in_query][3] = in_remark
                                                     dbsubs[session["sess"]][in_query][-1] = submitter # incase of inf score
-                                                    if in_score or in_remark : results.append((in_uid,f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][1]}. Remark is [{dbsubs[session["sess"]][in_query][2]}].', True))
-                                                    else: results.append((in_uid,f'Nothing was updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][1]}. Remark is [{dbsubs[session["sess"]][in_query][2]}].', False))
+                                                    if in_score or in_remark : results.append((in_uid,f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', True))
+                                                    else: results.append((in_uid,f'Nothing was updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', False))
                                                     dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {session['sess']} via {request.remote_addr}")
                                                 else:
                                                     results.append((in_uid,f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information.', False))
@@ -3316,18 +3343,18 @@ def route_eval(req_uid):
                                     else:
                                         has_req_files = GetUserFiles(uid, session['sess'], app.config['running'][session['sess']]['required'])
                                         if has_req_files:
-                                            dbsubs[session["sess"]][in_query] = [uid, in_score, in_remark, submitter]
+                                            dbsubs[session["sess"]][in_query] = [uid, named, in_score, in_remark, submitter]
                                             status, success = f'Score/Remark Created for [{in_uid}] {named}, current score is {in_score}.', True
                                             dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} for {session['sess']} via {request.remote_addr}")
                                         else:
                                             status, success = f'User [{in_uid}] {named} has not uploaded the required files yet.', False
                                 else:
-                                    if scored[-1] == submitter or abs(float(scored[1])) == float('inf') or ('+' in session['admind']):
-                                        if in_score:  dbsubs[session["sess"]][in_query][1] = in_score
-                                        if in_remark: dbsubs[session["sess"]][in_query][2] = in_remark
+                                    if scored[-1] == submitter or abs(float(scored[2])) == float('inf') or ('+' in session['admind']):
+                                        if in_score:  dbsubs[session["sess"]][in_query][2] = in_score
+                                        if in_remark: dbsubs[session["sess"]][in_query][3] = in_remark
                                         dbsubs[session["sess"]][in_query][-1] = submitter # incase of inf score
-                                        if in_score or in_remark : status, success =    f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][1]}. Remark is [{dbsubs[session["sess"]][in_query][2]}].', True
-                                        else: status, success =                         f'Nothing was updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][1]}. Remark is [{dbsubs[session["sess"]][in_query][2]}].', False
+                                        if in_score or in_remark : status, success =    f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', True
+                                        else: status, success =                         f'Nothing was updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][2]}. Remark is [{dbsubs[session["sess"]][in_query][3]}].', False
                                         dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {session['sess']} via {request.remote_addr}")
                                     else:
                                         status, success = f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information.', False
@@ -3354,7 +3381,7 @@ def route_eval(req_uid):
                             erecord = dbsubs[session["sess"]].get(in_query, None)
                             if erecord is not None:
                                 del dbsubs[session["sess"]][in_query]
-                                dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {record[2]} (already evaluated by [{erecord[-1]}] with score [{erecord[1]}]) for {session['sess']} via {request.remote_addr}")
+                                dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {erecord[1]} (already evaluated by [{erecord[-1]}] with score [{erecord[2]}]) for {session['sess']} via {request.remote_addr}")
                                 status, success =  f"Evaluation was reset for {record[1]} ◦ {record[2]}", True
                             else: status, success =  f"User {record[1]} ◦ {record[2]} has not been evaluated", False
                         else: status, success =  f"User '{in_query}' not found", False
@@ -3730,12 +3757,11 @@ def route_rename():
             else: record = db.get(session['uid'], None)
             if record is None: return abort(404)
             admind, uid, named, passwd = record
-            if in_name==named: return redirect(url_for('route_home')) 
+            if in_name==named:  return "❗ Provided the same name, not updating ..."
             db[uid][2]=in_name
             session['named'] = in_name
             dprint(f'๏ 💬 {uid} ◦ {named} updated name to "{in_name}" via {request.remote_addr}') 
-            # f"✅ Updated name to {in_name}"
-            return redirect(url_for('route_home')) 
+            return f"✅ Updated name to {in_name}"
     return abort(404)
 
 
