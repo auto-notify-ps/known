@@ -503,6 +503,17 @@ def TEMPLATES(style, script_mathjax):
             {% if 'R' in session.admind %}
             <a href="{{ url_for('route_reports') }}" class="btn_report">"""+f'{style.report_}'+"""</a>
             {% endif %}
+            {% if config.rename %}
+            <button class="btn_purge_large" onclick="confirm_rename()">"""+'Rename' + """</button>
+                <script>
+                    function confirm_rename() {
+                    let res = prompt("{{ session.uid }} current name is {{ session.named }}. Enter New Name below:", ""); 
+                    if (res != null) {
+                        location.href = "{{ url_for('route_rename',name='::::') }}".replace("::::", res);
+                        }
+                    }
+                </script>
+            {% endif %}
             </div>               
         <!-- ---------------------------------------------------------->
         <br><div class="board_content">""", f"""
@@ -2745,12 +2756,12 @@ def route_downloads(req_path):
             return abort(404) 
         if os.path.isfile(abs_path): 
             if ("html" in request.args): 
-                dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
+                #dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
                 try: hmsg = HConv.convertx(abs_path, args.scripts, style)
                 except: hmsg = f"Exception while converting {req_path} to a web-page"
                 return hmsg 
             else: 
-                dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
+                #dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
                 return send_file(abs_path, as_attachment=False) 
     return render_template('downloads.html', dfl=dfl)
 
@@ -2920,12 +2931,12 @@ def route_reports(req_path):
             return abort(404) 
         if os.path.isfile(abs_path):
             if ("html" in request.args): 
-                dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
+                #dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
                 try: hmsg = HConv.convertx(abs_path, args.scripts, style)
                 except: hmsg = f"Exception while converting {req_path} to a web-page"
                 return hmsg 
             else: 
-                dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the report {req_path} via {request.remote_addr}')
+                #dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the report {req_path} via {request.remote_addr}')
                 return send_file(abs_path) 
     return render_template('reports.html', rfl=rfl, statusdict=get_user_status(session['uid']))
 
@@ -3478,11 +3489,11 @@ def route_store(subpath=""):
                             
         elif os.path.isfile(abs_path):
             if not request.args: 
-                dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed ({subpath}) via {request.remote_addr}")
+                #dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed ({subpath}) via {request.remote_addr}")
                 return send_file(abs_path, as_attachment=False)
             else:
                 if 'get' in request.args:
-                    dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                    #dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
                     return send_file(abs_path, as_attachment=True)
                 elif 'del' in request.args:
                     if not can_admin: return "You cannot perform this action"
@@ -3492,7 +3503,7 @@ def route_store(subpath=""):
                         return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
                     except:return f"Error deleting the file"
                 elif ("html" in request.args): 
-                    dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
+                    #dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
                     try:  hmsg = HConv.convertx(abs_path, args.scripts, style)
                     except: hmsg = f"Exception while converting notebook to web-page"
                     return hmsg
@@ -3513,12 +3524,12 @@ def route_storeuser(subpath=""):
         return render_template('storeuser.html', dirs=dirs, files=files, subpath=subpath, )
     elif os.path.isfile(abs_path): 
         if ("html" in request.args): 
-            dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
+            #dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
             try: hmsg = HConv.convertx(abs_path, args.scripts, style)
             except: hmsg = f"Exception while converting notebook to web-page"
             return hmsg
         else: 
-            dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded {subpath} from user-store via {request.remote_addr}")
+            #dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded {subpath} from user-store via {request.remote_addr}")
             return send_file(abs_path, as_attachment=("get" in request.args))
     else: return abort(404)
 
@@ -3533,15 +3544,16 @@ def route_reportsuser(subpath=""):
     if abs_path is None: return abort(404) 
     if request.method == 'POST': 
         if 'comment' in request.form:
-
-            dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} commented {subpath} via {request.remote_addr}")
             in_comment = f"{request.form['comment']}".strip()
-            
-            sf = f"{fnow('%Y-%m-%d-%H-%M-%S')}-{session['uid']}.md"
-            file_name = os.path.join(abs_path, sf)            
-            try: 
-                with open(file_name, 'w') as f: f.write(in_comment)
-            except FileNotFoundError:  return redirect(url_for('route_logout'))
+            if in_comment:
+                sf = f"{fnow('%Y-%m-%d-%H-%M-%S')}-{session['uid']}.md"
+                file_name = os.path.join(abs_path, sf)            
+                try: 
+                    with open(file_name, 'w') as f: f.write(in_comment)
+                    dprint(f"๏ 🗣️  {session['uid']} ◦ {session['named']} commented {subpath} via {request.remote_addr}")
+                except FileNotFoundError:  
+                    dprint(f"๏ ❗  {session['uid']} ◦ {session['named']} failed commenting {subpath} via {request.remote_addr}")
+                    return redirect(url_for('route_logout'))
         return redirect(url_for('route_reportsuser', subpath=subpath)) 
     else:
         if not os.path.exists(abs_path):
@@ -3575,11 +3587,11 @@ def route_reportsuser(subpath=""):
                             
         elif os.path.isfile(abs_path):
             if not request.args: 
-                dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed ({subpath}) via {request.remote_addr}")
+                #(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed ({subpath}) via {request.remote_addr}")
                 return send_file(abs_path, as_attachment=False)
             else:
                 if 'get' in request.args:
-                    dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                    #dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
                     return send_file(abs_path, as_attachment=True)
                 elif 'del' in request.args:
                     try:
@@ -3588,7 +3600,7 @@ def route_reportsuser(subpath=""):
                         return redirect(url_for('route_reportsuser', subpath=os.path.dirname(subpath)))
                     except:return f"Error deleting the file"
                 elif ("html" in request.args): 
-                    dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
+                    #dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
                     try:  hmsg = HConv.convertx(abs_path, args.scripts, style)
                     except: hmsg = f"Exception while converting notebook to web-page"
                     return hmsg
@@ -3721,10 +3733,10 @@ def route_rename():
     r""" reset user password"""
     if not session.get('has_login', False): return redirect(url_for('route_login')) # "Not Allowed - Requires Login"
     if len(request.args)==1:
-        if '?' in request.args:
+        if '?' in request.args or 'name' in request.args:
             if not (app.config['rename']>0): return "❌ This session does not allow renaming ..."
 
-            in_name=f'{request.args['?']}'.strip()
+            in_name=(f'{request.args['?']}' if '?' in request.args else f'{request.args['name']}'  ).strip() 
             valid_name =  VALIDATE_NAME(in_name)
             if not valid_name : return "❗ Invalid Name - Could not be updated, try again ... Name should be alphabetic only, cannot contain dot(.)"
             else: record = db.get(session['uid'], None)
