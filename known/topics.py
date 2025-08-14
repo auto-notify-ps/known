@@ -1527,7 +1527,7 @@ def TEMPLATES(style, script_mathjax):
         border-radius: 3px;
         padding: 9px 12px;
         line-height: 1.4;
-        color: rgb(0, 0, 0);
+        color: {style.fgcolor};
         font-size: 16px;
         font-weight: 400;
         height: 40px;
