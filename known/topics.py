@@ -383,11 +383,9 @@ style = dict(
         icon_getfile=   '⬇️',
         icon_delfile=   '⛔',
         icon_gethtml=   '🌐',
+        icon_movefile=  '🧿',
         icon_hidden=    '👁️',
-        icon_filem=     '▪️',
-        icon_reportm=   '▫️',
-        icon_folderLR=  '📁',
-        icon_reportLR=  '🪧',                                             
+        icon_em=        '▪️',                                       
 
         LOGIN_REG_TEXT =        '👤',
         LOGIN_NEED_TEXT =       '🔒',
@@ -504,7 +502,7 @@ def TEMPLATES(style, script_mathjax):
             <a href="{{ url_for('route_reports') }}" class="btn_report">"""+f'{style.report_}'+"""</a>
             {% endif %}
             {% if config.rename %}
-            <button class="btn_purge_large" onclick="confirm_rename()">"""+'Rename' + """</button>
+            <button title="Change Your Name" class="btn_purge_large" onclick="confirm_rename()">"""+'Rename' + """</button>
                 <script>
                     function confirm_rename() {
                     let res = prompt("{{ session.uid }} current name is {{ session.named }}. Enter New Name below:", ""); 
@@ -549,18 +547,13 @@ def TEMPLATES(style, script_mathjax):
             <a href="{{ url_for('route_eval') }}" class="btn_refresh">Refresh</a>
             <a href="{{ url_for('route_storeuser') }}" class="btn_store">User-Store</a>
             <a href="{{ url_for('route_reportsuser') }}" class="btn_board">User-Reports</a>
-            <button class="btn_purge_large" onclick="confirm_repass()">"""+'Reset Password' + """</button>
-                    <script>
-                        function confirm_repass() {
-                        let res = prompt("Enter UID to reset password", ""); 
-                        if (res != null) {
-                            location.href = "{{ url_for('route_repassx',req_uid='::::') }}".replace("::::", res);
-                            }
-                        }
-                    </script>
+            {% if "G" in session.admind %}
+            <a href="{{ url_for('route_generate_report') }}" target="_blank" class="btn_download">Session-Report</a>
+            {% endif %}
             </div>
-        {% if config.running[session.sess].eval %}    
+          
             <div class="bridge">
+            {% if config.running[session.sess].eval %}  
             <a href="{{ url_for('route_generate_live_report') }}" target="_blank" class="btn_board">Live-Report</a>
             <button class="btn_reeval_large" onclick="confirm_reeval()">"""+'Reset Evaluation' + """</button>
                     <script>
@@ -571,10 +564,18 @@ def TEMPLATES(style, script_mathjax):
                             }
                         }
                     </script>
-            <a href="{{ url_for('route_generate_report') }}" target="_blank" class="btn_download">Session-Report</a>
+            {% endif %}
+            <button class="btn_purge_large" onclick="confirm_repass()">"""+'Reset Password' + """</button>
+                    <script>
+                        function confirm_repass() {
+                        let res = prompt("Enter UID to reset password", ""); 
+                        if (res != null) {
+                            location.href = "{{ url_for('route_repassx',req_uid='::::') }}".replace("::::", res);
+                            }
+                        }
+            </script>
             </div>
             <br>
-            {% endif %}
             {% if success %}
             <span class="admin_mid" style="animation-name: fader_admin_success;">✓ {{ status }} </span>
             {% else %}
@@ -604,7 +605,8 @@ def TEMPLATES(style, script_mathjax):
             </form>
             <a href="{{ url_for('route_generate_eval_template') }}" class="btn_black">Get CSV-Template</a>
             {% if has_group %}
-            <a href="{{ url_for('route_live_report') }}" class="btn_submit" target="_blank">Group Report</a>
+            <a href="{{ url_for('route_live_report') }}" class="btn_board" target="_blank">Group-Report</a>
+            <a href="{{ url_for('route_reset_report') }}" class="btn_purge_large" target="_blank">Reset Group</a>
             {% endif %}
         </div>
         {% endif %}
@@ -1135,18 +1137,27 @@ def TEMPLATES(style, script_mathjax):
             <a href="{{ url_for('route_uploads') }}" class="btn_refresh">Refresh</a>
             </div>
             <br>
-            <div class="files_status">"""+f'{style.uploads_}'+"""</div>
+            <div class="files_status">"""+f'{style.uploads_}'+' {{statusdict["R"]}}'+"""</div>
             <br>
             <div class="files_list_down">
                 <ol>
                 {% for i, file in ufl %}
                 <li>
-                <button class="btn_del" onclick="confirm_del_{{ i }}()">"""+f'{style.icon_delfile}'+"""</button>
+                <button title="Delete" class="btn_del" onclick="confirm_del_{{ i }}()">"""+f'{style.icon_delfile}'+"""</button>
                 <script>
                     function confirm_del_{{ i }}() {
                     let res = confirm("Delete File?\\n\\n\\t {{ file }}");
                     if (res == true) {
                         location.href = "{{ url_for('route_uploads', req_path='/' + file, del='') }}";
+                        }
+                    }
+                </script>
+                <button title="Rename" class="btn_del" onclick="confirm_move_{{ i }}()">"""+f'{style.icon_movefile}'+"""</button>
+                <script>
+                    function confirm_move_{{ i }}() {
+                    let res = prompt("Enter new name for file \\n\\n\\t {{ file }}");
+                    if (res != null) {
+                        location.href = "{{ url_for('route_uploads', req_path='/' + file, move='::::') }}".replace("::::", res);
                         }
                     }
                 </script>
@@ -1166,7 +1177,7 @@ def TEMPLATES(style, script_mathjax):
                         {{form.hidden_tag()}}
                         {{form.file()}}
                         {{form.submit()}}
-                    <button class="btn_purge" onclick="confirm_purge()">Purge</button>
+                    <button title="Delete all files" class="btn_purge" onclick="confirm_purge()">Purge</button>
                     </form>
                     <script>
                         function confirm_purge() {
@@ -1196,22 +1207,16 @@ def TEMPLATES(style, script_mathjax):
                 {% endif %}
 
                 {% else %}
-                    <div class="upword">You have been evaluated.</div><br>
-                {% endif %}
-                
-                {% if statusdict %}
-                <div class="files_list_down">
-                <p class="files_status">Session Status</p>
+                    <div class="upword">✅ Evaluation</div><br>
+                    {% if statusdict %}
+                    <div class="files_list_down">
                     <ul>
-                    {% for k,v in statusdict.items() %}
-                    <li>{{ k }}: {{ v }}</li>
-                    {% endfor %}
+                    <li>Score: {{ statusdict["Score"] }}</li>
+                    <li>Remark: {{ statusdict["Remark"] }}</li>
+                    <li>Evaluator: {{ statusdict["Evaluator"] }}</li>
                     </ul>
-                </div>
-                <br>
+                    {% endif %}
                 {% endif %}
-                
-
 
                 </div>
                 <br>
@@ -1289,7 +1294,7 @@ def TEMPLATES(style, script_mathjax):
     }}
 
     .files_list_up{{
-        padding: 10px 10px;
+        padding: 2px 2px;
         background-color: {style.flu_bgcolor}; 
         color: {style.flu_fgcolor};
         font-size: medium;
@@ -1299,7 +1304,7 @@ def TEMPLATES(style, script_mathjax):
     }}
 
     .files_list_down{{
-        padding: 10px 10px;
+        padding: 2px 2px;
         background-color: {style.fld_bgcolor}; 
         color: {style.fld_fgcolor};
         font-size: large;
@@ -1583,14 +1588,13 @@ def TEMPLATES(style, script_mathjax):
     }}
     
     .btn_del {{
-        
+        padding: 0px;
         background-color: transparent;
         border-style: none;
-        border-radius: 10px;
         color: #FFFFFF;
         font-size: large;
         font-family: {style.font_};
-        animation-duration: 5s;
+        animation-duration: 3s;
         animation-name: faderdel;
     }}
     @keyframes faderdel {{from  {{color: transparent; }} to {{background-color: transparent;}} }}
@@ -2384,32 +2388,17 @@ sprint(f'⚙ Upload Settings ({len(INITIAL_UPLOAD_STATUS)})')
 for s in INITIAL_UPLOAD_STATUS: sprint(f' ⇒ {s[1]}')
 def VALIDATE_FILENAME(filename, required_files, allowed_extra):   
     sprint(f'Validating {filename}')
-    renamed=False
     if '.' in filename: 
         name, ext = filename.rsplit('.', 1)
         safename = f'{name}.{ext.lower()}'
-        if required_files:  
-            if len(required_files)==1:
-                required_name = list(required_files).pop()
-                isvalid = True
-                if safename != required_name:
-                    safename = required_name
-                    renamed = True
-            else: isvalid = bool(safename) if allowed_extra else (safename in required_files)
+        if required_files:  isvalid = bool(safename) if allowed_extra else (safename in required_files)
         else:               isvalid = bool(safename) 
     else:               
         name, ext = filename, ''
         safename = f'{name}'
-        if required_files:  
-            if len(required_files)==1:
-                required_name = list(required_files).pop()
-                isvalid = True
-                if safename != required_name:
-                    safename = required_name
-                    renamed = True
-            else: isvalid = bool(safename) if allowed_extra else (safename in required_files)
+        if required_files:  isvalid = bool(safename) if allowed_extra else (safename in required_files)
         else:               isvalid = bool(safename) 
-    return isvalid, safename, renamed
+    return isvalid, safename
 def VALIDATE_FILENAME_SUBMIT(filename): 
     if '.' in filename: 
         name, ext = filename.rsplit('.', 1)
@@ -2805,12 +2794,12 @@ def route_uploads(req_path):
             sprint(f"⇒ requested file was not found {abs_path}") 
             return abort(404)
         if os.path.isfile(abs_path): 
-            if ("html" in request.args): 
+            if ('html' in request.args): 
                 dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
                 try: hmsg = HConv.convertx(abs_path, args.scripts, style)
                 except: hmsg = f"Exception while converting {req_path} to a web-page"
                 return hmsg 
-            elif ("del" in request.args):
+            elif ('del' in request.args):
                 if 'X' not in session['admind'] or '+' not in session['admind']: 
                     if app.config['disableupload'][session['sess']] or submitted>0: 
                         return f"Cannot delete this file now."
@@ -2819,6 +2808,20 @@ def route_uploads(req_path):
                     dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted file ({req_path}) via {request.remote_addr}") 
                     return redirect(url_for('route_uploads'))
                 except:return f"Error deleting the file"
+            elif ('move' in request.args):
+                if 'X' not in session['admind'] or '+' not in session['admind']: 
+                    if app.config['disableupload'][session['sess']] or submitted>0:  return f"Cannot rename this file now."
+                filename=request.args.get('move', '')
+                if filename: 
+                    isvalid, sf = VALIDATE_FILENAME(secure_filename(filename),
+                                        app.config['running'][session['sess']]['required'],
+                                        app.config['running'][session['sess']]['extra'],)
+                    new_path = os.path.join(os.path.dirname(abs_path), sf)
+                    try:
+                        os.rename(abs_path, new_path)
+                        dprint(f"๏ ❗ {session['uid']} ◦ {session['named']} renamed file ({req_path}) via {request.remote_addr}") 
+                    except: pass
+                return redirect(url_for('route_uploads'))
             else: 
                 dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
                 return send_file(abs_path, as_attachment=False)
@@ -2836,24 +2839,23 @@ def route_uploads(req_path):
                         n_success = 0
                         fcount = len(ufl)
                         for file in form.file.data:
-                            isvalid, sf, renamed = VALIDATE_FILENAME(secure_filename(file.filename),
+                            isvalid, sf = VALIDATE_FILENAME(secure_filename(file.filename),
                                         app.config['running'][session['sess']]['required'],
                                         app.config['running'][session['sess']]['extra'],)
-                            isvalid = isvalid or ('+' in session['admind'])
+                            isvalid = isvalid or ('+' in session['admind']) or ('X' in session['admind'])
                             if not isvalid:
-                                why_failed =  f"✗ File not accepted [{sf}] " if app.config['running'][session['sess']]['required'] else f"✗ Extension is invalid [{sf}] "
+                                why_failed =  f"✗ File not accepted [{sf}]"
                                 result.append((0, why_failed))
                                 continue
                             if fcount>=app.config['muc']:
-                                why_failed = f"✗ Upload limit reached [{sf}] "
+                                why_failed = f"✗ Upload limit reached [{sf}]"
                                 result.append((0, why_failed))
                                 continue
                             
                             file_name = os.path.join(folder_name, sf)
                             try: 
                                 file.save(file_name) 
-                                if renamed: why_failed = f"✓ Uploaded new file, renamed to [{sf}] "
-                                else: why_failed = f"✓ Uploaded new file [{sf}] "
+                                why_failed = f"✓ Uploaded new file [{sf}]"
                                 result.append((1, why_failed))
                                 n_success+=1
                                 fcount+=1
@@ -3077,8 +3079,8 @@ def route_generate_live_report():
     msg = f"{sess}"
     if len(dbevalset) != len(finished_uids) + len(pending_uids) + len(not_uploaded_uids) + len(absent_uids): msg+=f" [!] Count Mismatch!"
     pending_uids, absent_uids, finished_uids, not_uploaded_uids = sorted(list(pending_uids)), sorted(list(absent_uids)), sorted(list(finished_uids)), sorted(list(not_uploaded_uids))
-    FileMarker=style.icon_filem
-    ReportMarker=style.icon_reportm
+    FileMarker=style.icon_em
+    ReportMarker=style.icon_em
     htable0="""
     <html>
         <head>
@@ -3119,8 +3121,8 @@ def route_generate_live_report():
         <tr>
         <td>{pu}</td>
         <td>{db[pu][2]}</td>
-        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">Files{style.icon_folderLR}</a><br>{lt}</td>
-        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_reportLR}</a><br>{ct}</td>
+        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">Files{style.icon_uploads}</a><br>{lt}</td>
+        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_report}</a><br>{ct}</td>
         </tr>
         """
     htable1+=f"""</table>
@@ -3136,8 +3138,8 @@ def route_generate_live_report():
         <tr>
         <td>{pu}</td>
         <td>{db[pu][2]}</td>
-        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">Files{style.icon_folderLR}</a></td>
-        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_reportLR}</a><br>{ct}</td>
+        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">Files{style.icon_uploads}</a></td>
+        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_report}</a><br>{ct}</td>
         </tr>
         """
     htable11+=f"""</table>
@@ -3153,7 +3155,7 @@ def route_generate_live_report():
         <tr>
         <td>{pu}</td>
         <td>{db[pu][2]}</td>
-        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_reportLR}</a><br>{ct}</td>
+        <td style="text-align: left;vertical-align: top;"><a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_report}</a><br>{ct}</td>
         </tr>
         """
     htable2+=f"""</table>
@@ -3186,14 +3188,14 @@ def route_generate_live_report():
             
             <td style="text-align: left;vertical-align: top;">
             <a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">
-            Files{style.icon_folderLR}</a>
+            Files{style.icon_uploads}</a>
             <br>
             {lt}
             </td>
 
             <td style="text-align: left;vertical-align: top;">
             <a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">
-            Reports{style.icon_reportLR}</a>
+            Reports{style.icon_report}</a>
             <br>
             {ct}
             </td>
@@ -3263,8 +3265,19 @@ def route_switch(req_uid):
 
 
 
+@app.route('/reset_report', methods =['GET'])
+def route_reset_report():
+    if not session.get('has_login', False): return redirect(url_for('route_login'))
+    if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
+    #sess = session['sess']
+    #submitter = session['uid']
+    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], f"group.csv"))
+    has_group = os.path.isfile(grpfile)
+    if has_group:  os.remove(grpfile)
+    return redirect(url_for('route_eval'))
+    
 
-
+    
 
 
 
@@ -3283,8 +3296,8 @@ def route_live_report():
 
     REQUIRED_FILES=app.config['running'][sess]['required']
     msg = f"{sess}"
-    FileMarker=style.icon_filem
-    ReportMarker=style.icon_reportm
+    FileMarker=style.icon_em
+    ReportMarker=style.icon_em
     results={}
 
     if request.method == 'POST':
@@ -3411,7 +3424,7 @@ def route_live_report():
         upload_folder = os.path.join(UPLOAD_FOLDER_PATHS[sess], k)
         upload_str = ""
         if os.path.isdir(upload_folder):
-            upload_str += f"""<a href="{ url_for('route_storeuser', subpath=k) }" target="_blank">Files{style.icon_folderLR}</a><br>"""
+            upload_str += f"""<a href="{ url_for('route_storeuser', subpath=k) }" target="_blank">Files{style.icon_uploads}</a><br>"""
             files = os.listdir(upload_folder)
             if not files: status="🔵"
             else:
@@ -3448,7 +3461,7 @@ def route_live_report():
             </td>
 
             <td style="text-align: left;vertical-align: top;">
-            <a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_reportLR}</a>
+            <a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_report}</a>
             <br>
             {report_str}
             </td>
@@ -3702,7 +3715,7 @@ def route_store(subpath=""):
             file_name = os.path.join(abs_path, sf)            
             try: 
                 file.save(file_name) 
-                why_failed = f"✓ Uploaded new file [{sf}] "
+                why_failed = f"✓ Uploaded new file [{sf}]"
                 result.append((1, why_failed))
                 n_success+=1
             except FileNotFoundError:  return redirect(url_for('route_logout'))
@@ -3904,7 +3917,7 @@ def route_repassx(req_uid):
     r""" reset user password"""
     if not session.get('has_login', False): return redirect(url_for('route_login')) # "Not Allowed - Requires Login"
     iseval, isadmin = ('X' in session['admind']), ('+' in session['admind'])
-    if not (iseval) or not (isadmin): return abort(404)
+    if not ((iseval) or (isadmin)): return abort(404)
     form = UploadFileForm()
     results = []
     grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], f"group.csv"))
