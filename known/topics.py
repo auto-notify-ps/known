@@ -3149,8 +3149,10 @@ def route_generate_live_report():
         <tr>
             <th>ROLL</th>
             <th>NAME</th>
+            <th>Files</th>
+            <th>Reports</th>
             <th>SCORE</th>
-            <th>USER-DATA</th>
+            <th>REMARK</th>
             <th>EVALUATOR</th>
             
         </tr>
@@ -3167,19 +3169,23 @@ def route_generate_live_report():
         <tr>
             <td>{pu}</td>
             <td>{db[pu][2]}</td>
-            <td>{v[1]}</td>
+            
             <td style="text-align: left;vertical-align: top;">
-            Remark: {v[2]}
-            <br>
             <a href="{ url_for('route_storeuser', subpath=pu) }" target="_blank">
             Files{style.icon_folderLR}</a>
             <br>
             {lt}
+            </td>
+
+            <td style="text-align: left;vertical-align: top;">
             <a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">
             Reports{style.icon_reportLR}</a>
             <br>
             {ct}
             </td>
+
+            <td>{v[1]}</td>
+            <td>{v[2]}</td>
             <td>{v[3]}</td>
         </tr>
         """
