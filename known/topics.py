@@ -1790,9 +1790,13 @@ def TEMPLATES(style, script_mathjax):
 def TABLE_STYLED(): return \
 f"""
 <style>
+
+h1, h2, h3, h4, h5, h6 {{
+    font-family: {style.font_};
+}}
+
 table {{
     border-collapse: collapse;
-
     margin: 1em 0;
     font-family: {style.font_};
     font-size: large;
@@ -1836,6 +1840,8 @@ f"""
 <html>
 <head>
 <title>{html_title}</title>
+<link rel="stylesheet" href="{{{{ url_for('static', filename='style.css') }}}}">     
+<link rel="icon" href="{{{{ url_for('static', filename='favicon.ico') }}}}">
 {TABLE_STYLED()}
 </head>
 <body>
@@ -1849,6 +1855,8 @@ f"""
 <html>
 <head>
 <title>{report_name}</title>
+<link rel="stylesheet" href="{{{{ url_for('static', filename='style.css') }}}}">     
+<link rel="icon" href="{{{{ url_for('static', filename='favicon.ico') }}}}">
 {TABLE_STYLED()}
 </head>
 <body>
@@ -3077,6 +3085,7 @@ def route_generate_live_report():
             <meta charset="UTF-8">
             <title> {{ session.sess }} Live Report </title>
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+            <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
             """ + TABLE_STYLED() + """
         </head>
         <body>
@@ -3326,6 +3335,7 @@ def route_live_report():
             <meta charset="UTF-8">
             <title> {{ session.sess }} Report </title>
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+            <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
             """ + TABLE_STYLED() + """
         </head>
         <body>
