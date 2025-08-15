@@ -1209,7 +1209,7 @@ def TEMPLATES(style, script_mathjax):
                 {% endif %}
 
                 {% else %}
-                    <div class="upword">✅ Evaluation</div><br>
+                    <div class="userword">✅ Evaluation</div><br>
                     {% if statusdict %}
                     <div class="files_list_down">
                     <ul>
@@ -1345,14 +1345,6 @@ def TEMPLATES(style, script_mathjax):
         font-weight:  {style.fontw};
         font-family: {style.font_};    
         font-size: xxx-large;
-    }}
-
-    .upword{{
-        color: {style.fgcolor};
-        font-weight:  {style.fontw};
-        font-family: {style.font_};    
-        font-size: xx-large;
-
     }}
 
     .status{{
@@ -1562,17 +1554,6 @@ def TEMPLATES(style, script_mathjax):
         color:  {style.btn_fg}; 
         font-weight: {style.btn_fw}; 
         font-size: large;
-        border-radius: 10px;
-        font-family: {style.font_};
-        text-decoration: none;
-    }}
-
-    .btn_refresh_small {{
-        padding: 2px 10px 2px;
-        background-color: {style.btn_igreen};
-        color: {style.btn_fg}; 
-        font-size: small;
-        border-style: none;
         border-radius: 10px;
         font-family: {style.font_};
         text-decoration: none;
@@ -3044,16 +3025,6 @@ def route_generate_report():
         _, _, uNAME, _ = db[u]
         html_table = DataFrame(r).to_html(index=False)        
         report_path = os.path.join(REPORT_FOLDER_PATH, session['uid'], f'{u}.html')
-
-        #report_name = f'report.html'
-        #report_dir =  os.path.join( REPORT_FOLDER_PATH, u)
-        #if not os.path.isdir(report_dir): continue
-        #report_path = os.path.join(report_dir, report_name)
-    
-        #try: os.path.remove(report_path)
-        #except: pass
-        #os.remove(os.path.join( REPORT_FOLDER_PATH, u, f'report.html'))
-
         with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, f"{u} {args.emoji} {uNAME}", html_table, now))
     return redirect(url_for('route_reports'))
 
@@ -3061,8 +3032,6 @@ def route_generate_report():
 def route_generate_eval_template():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
-    # return send_file(DICT2BUFF({k:[v[LOGIN_ORD_MAPPING["UID"]], v[LOGIN_ORD_MAPPING["NAME"]], "", "",] for k,v in db.items() if '-' not in v[LOGIN_ORD_MAPPING["ADMIN"]]} , ["UID", "NAME", "SCORE", "REMARKS"]),
-    #                 download_name=f"eval_{app.config['topic']}_{session['uid']}.csv", as_attachment=True)
     return send_file(DICT2BUFF({k:[v[LOGIN_ORD_MAPPING["UID"]], v[LOGIN_ORD_MAPPING["NAME"]],] for k,v in db.items() if '-' not in v[LOGIN_ORD_MAPPING["ADMIN"]]} , ["UID", "NAME",]),
                     download_name=f"group.csv", as_attachment=True)
 
@@ -3256,17 +3225,6 @@ def route_switch(req_uid):
             if 'd' in request.args: return redirect(url_for('route_downloads')) 
             return redirect(url_for('route_home')) 
 
-
-
-
-
-
-
-
-
-
-
-
 @app.route('/reset_report', methods =['GET'])
 def route_reset_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
@@ -3277,11 +3235,6 @@ def route_reset_report():
     has_group = os.path.isfile(grpfile)
     if has_group:  os.remove(grpfile)
     return redirect(url_for('route_eval'))
-    
-
-    
-
-
 
 @app.route('/live_report', methods =['GET', 'POST'])
 def route_live_report():
@@ -3488,32 +3441,6 @@ def route_live_report():
     return render_template_string( htable0+htable3, results=results)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @app.route('/eval', methods =['GET', 'POST'], defaults={'req_uid': ''})
 @app.route('/eval/<req_uid>')
 def route_eval(req_uid):
@@ -3631,18 +3558,6 @@ def route_eval(req_uid):
             else: status, success =  "Evaluation reset is disabled for this session", False
             if success: persist_subdb(session['sess'])
     return render_template('evaluate.html', success=success, status=status, form=form, results=results, has_group=has_group)
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 @app.route('/home', methods =['GET'])
