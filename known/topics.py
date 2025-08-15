@@ -1051,6 +1051,9 @@ def TEMPLATES(style, script_mathjax):
                 <a href="{{ url_for('route_hidden_show', user_enable='01') }}" class="btn_enable">"""+f'{style.icon_hidden}'+"""</a>
             {% endif %}
             {% endif %}
+            </div>
+            <br>
+            <div>
             {% if "X" in session.admind or "+" in session.admind %}
             <form method='POST' enctype='multipart/form-data'>
                 {{form.hidden_tag()}}
@@ -1059,7 +1062,6 @@ def TEMPLATES(style, script_mathjax):
             </form>
             {% endif %}
             </div>
-            <br>
             <hr>
             <!-- Breadcrumb for navigation -->
             <div class="files_status"> Path: 
