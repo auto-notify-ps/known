@@ -3228,7 +3228,7 @@ def route_live_report():
     results={}
 
     if request.method == 'POST':
-        
+        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updating evaluation for {sess} via {request.remote_addr}")
         for i,uid in enumerate(gset, 1):
             #named = db[uid][2]
             if not f'score_{uid}' in request.form: continue
@@ -3254,15 +3254,18 @@ def route_live_report():
                     if has_req_files:
                         dbsubs[sess][uid] = [uid, in_score, in_remark, submitter]
                         results[uid] = '✅' #(f'Score/Remark Created for [{uid}] {named}, current score is {in_score}.', True)
+                        dprint(f"\t ➕ {submitter} ◦ {session['named']} evaluated {uid} for {sess} via {request.remote_addr}")
                         #dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} for {sess} via {request.remote_addr}")
                     else:
                         results[uid] = '❗' #(f'User [{uid}] {named} has not uploaded the required files yet.', False)
             else:
                 if scored[-1] == submitter or ('+' in session['admind']):
                     if in_score:  
+                        p_score = dbsubs[sess][uid][1] 
                         dbsubs[sess][uid][1] = in_score
                         dbsubs[sess][uid][2] = in_remark
                         results[uid] = '✅'
+                        if p_score!=in_score: dprint(f"\t ✔️  {submitter} ◦ {session['named']} re-evaluated {uid} for {sess} via {request.remote_addr}")
                     else: results[uid] = '❌'
 
                     #dbsubs[sess][uid][-1] = submitter # incase of inf score
@@ -3405,7 +3408,7 @@ def route_live_report():
 
     htable3+="""</table><br> </form><hr></div>
         </body></html>"""
-
+    
     return render_template_string( htable0+htable3, results=results)
 
 
