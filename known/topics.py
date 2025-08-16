@@ -3248,16 +3248,14 @@ def route_live_report():
                 except: in_score=''                      
             if scored is None:
                 if not in_score:
-                    results[uid] = '❌' #(f'Require numeric value to assign score', False)
+                    results[uid] = '❌' # invalid score
                 else:
                     has_req_files = GetUserFiles(uid, sess, REQUIRED_FILES)
                     if has_req_files:
                         dbsubs[sess][uid] = [uid, in_score, in_remark, submitter]
-                        results[uid] = '✅' #(f'Score/Remark Created for [{uid}] {named}, current score is {in_score}.', True)
+                        results[uid] = '✅' 
                         dprint(f"\t ➕ {submitter} ◦ {session['named']} evaluated {uid} for {sess} via {request.remote_addr}")
-                        #dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} for {sess} via {request.remote_addr}")
-                    else:
-                        results[uid] = '❗' #(f'User [{uid}] {named} has not uploaded the required files yet.', False)
+                    else: results[uid] = '❗' # no-upload
             else:
                 if scored[-1] == submitter or ('+' in session['admind']):
                     if in_score:  
@@ -3266,16 +3264,8 @@ def route_live_report():
                         dbsubs[sess][uid][2] = in_remark
                         results[uid] = '✅'
                         if p_score!=in_score: dprint(f"\t ✔️  {submitter} ◦ {session['named']} re-evaluated {uid} for {sess} via {request.remote_addr}")
-                    else: results[uid] = '❌'
-
-                    #dbsubs[sess][uid][-1] = submitter # incase of inf score
-                    #if in_score or in_remark : #(f'Score/Remark Updated for [{uid}] {named}, current score is {dbsubs[sess][uid][1]}. Remark is [{dbsubs[sess][uid][2]}].', True)
-                     #(f'Nothing was updated for [{uid}] {named}, current score is {dbsubs[sess][uid][1]}. Remark is [{dbsubs[sess][uid][2]}].', False)
-                    #dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {sess} via {request.remote_addr}")
-                else:
-                    results[uid] = '‼️' #(f'[{uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information.', False)
-                    #dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named}  for {sess} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
-                    #sprint(f'\tHint: Set the score to "inf"')
+                    else: results[uid] = '❌' # invalid score
+                else: results[uid] = '‼️' # already evaluated
     
     filter = STATUSMAP.get(session.get('flt', ""), "")
     add_script ="""
