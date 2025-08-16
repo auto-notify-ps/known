@@ -543,24 +543,11 @@ def TEMPLATES(style, script_mathjax):
             <div class="topic_mid">{{ config.topic }} {{ config.bridge }} <a href="{{ url_for('route_switch', e='') }}" class="btn_switcher">{{ session.sess }}</a></div><hr>
             <div class="userword">{{session.uid}} {{ config.emoji }} {{session.named}}</div>
             <br>
+
             <div class="bridge">
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
             <a href="{{ url_for('route_home') }}" class="btn_home">Home</a>
             <a href="{{ url_for('route_eval') }}" class="btn_refresh">Refresh</a>
-            <a href="{{ url_for('route_storeuser') }}" class="btn_store">User-Store</a>
-            <a href="{{ url_for('route_reportsuser') }}" class="btn_board">User-Reports</a>
-            {% if "G" in session.admind %}
-            <a href="{{ url_for('route_generate_report') }}" target="_blank" class="btn_download">Session-Report</a>
-            {% endif %}
-            </div>
-          
-            <div class="bridge">
-            {% if config.running[session.sess].eval %}
-            {% if has_group %}
-            <a href="{{ url_for('route_live_report') }}" class="btn_black" target="_blank">Group-Report</a>
-            {% endif %}
-            <a href="{{ url_for('route_generate_live_report') }}" target="_blank" class="btn_board">Live-Report</a>
-            {% endif %}
             <button class="btn_purge_large" onclick="confirm_repass()">"""+'Reset Password' + """</button>
                     <script>
                         function confirm_repass() {
@@ -571,6 +558,28 @@ def TEMPLATES(style, script_mathjax):
                         }
             </script>
             </div>
+
+            <div class="bridge">
+            <a href="{{ url_for('route_storeuser') }}" class="btn_store">User-Store</a>
+            <a href="{{ url_for('route_reportsuser') }}" class="btn_board">User-Reports</a>
+            <a href="{{ url_for('route_generate_eval_template') }}" class="btn_black">User-List</a>
+            </div>
+          
+            <div class="bridge">
+            {% if config.running[session.sess].eval %}
+            <a href="{{ url_for('route_generate_live_report') }}" target="_blank" class="btn_report">Live-Report</a>
+
+                {% if has_group %}
+                <a href="{{ url_for('route_live_report') }}" class="btn_submit" target="_blank">Group-Eval</a>
+                {% endif %}
+            
+                {% if "G" in session.admind %}
+                <a href="{{ url_for('route_generate_report') }}" target="_blank" class="btn_download">Session-Report</a>
+                {% endif %}
+
+            {% endif %}
+
+            </div>
             <br>
             {% if success %}
             <span class="admin_mid" style="animation-name: fader_admin_success;">✓ {{ status }} </span>
@@ -579,17 +588,15 @@ def TEMPLATES(style, script_mathjax):
             {% endif %}
             <br>
             <br>
-            {% if config.running[session.sess].eval %} 
+            {% if config.running[session.sess].eval and "+" in session.admind %} 
             <form method='POST' enctype='multipart/form-data'>
                 {{form.hidden_tag()}}
                 {{form.file()}}
                 {{form.submit()}}
+                <a href="{{ url_for('route_reset_report') }}" class="btn_purge">Reset Group</a>
             </form>
-            <a href="{{ url_for('route_generate_eval_template') }}" class="btn_black">Get CSV-Template</a>
-                {% if "+" in session.admind %}
-                <a href="{{ url_for('route_reset_report') }}" class="btn_purge_large">Reset Group</a>
-                {% endif %}
             {% endif %}
+            
         </div>
         
         {% if results %}
@@ -863,7 +870,7 @@ def TEMPLATES(style, script_mathjax):
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
             <a href="{{ url_for('route_home') }}" class="btn_home">Home</a>
             <a href="{{ url_for('route_eval') }}" class="btn_submit">"""+f'{style.eval_}'+"""</a>
-            <a href="{{ url_for('route_storeuser', subpath=subpath) }}" class="btn_board">Files</a>
+            <a href="{{ url_for('route_storeuser', subpath=subpath) }}" class="btn_store">User-Store</a>
             </div>
             <br>
             <hr>
@@ -943,7 +950,7 @@ def TEMPLATES(style, script_mathjax):
             <a href="{{ url_for('route_logout') }}" class="btn_logout">"""+f'{style.logout_}'+"""</a>
             <a href="{{ url_for('route_home') }}" class="btn_home">Home</a>
             <a href="{{ url_for('route_eval') }}" class="btn_submit">"""+f'{style.eval_}'+"""</a>
-            <a href="{{ url_for('route_reportsuser', subpath=subpath) }}" class="btn_report">"""+f'{style.report_}'+"""</a>
+            <a href="{{ url_for('route_reportsuser', subpath=subpath) }}" class="btn_board">User-Reports</a>
             {% if not subpath %}
             {% if session.hidden_storeuser %}
                 <a href="{{ url_for('route_hidden_show', user_enable='10') }}" class="btn_disable">"""+f'{style.icon_hidden}'+"""</a>
@@ -3292,7 +3299,7 @@ def route_live_report():
     <html>
         <head>
             <meta charset="UTF-8">
-            <title> {{ session.sess }} Report </title>
+            <title> {{ session.sess }} Evaluation </title>
             <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
             <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
             """ + TABLE_STYLED() + """
