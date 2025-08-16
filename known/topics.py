@@ -212,6 +212,7 @@ EVAL_ORD = ['UID', 'SCORE', 'REMARK', 'BY']
 DEFAULT_USER = 'admin'
 DEFAULT_ACCESS = f'DAURGX-+'
 MAX_STR_LEN = 250
+STATUSMAP = {'Evaluated':"🟢", 'Pending':"🟡", 'No-Upload':"🔵", "Absent":"🔴"}
 
 def rematch(instr, pattern):  return \
     (len(instr) >= 0) and \
@@ -884,16 +885,6 @@ def TEMPLATES(style, script_mathjax):
             <a href="{{ url_for('route_storeuser', subpath=subpath) }}" class="btn_board">Files</a>
             </div>
             <br>
-            {% if "X" in session.admind or "+" in session.admind %}
-            <form action="{{ url_for('route_reportsuser', subpath=subpath) }}" method="post">                
-                <textarea rows="5" cols="60" id="comment" name="comment" type="text" placeholder="comment" class="txt_comment"></textarea>
-                <br>
-                <br>
-                <input type="submit" class="btn_submit" value="Submit Comment"> 
-                <br>   
-                <br> 
-            </form>
-            {% endif %}
             <hr>
             <!-- Breadcrumb for navigation -->
             <div class="files_status"> Path: 
@@ -2943,16 +2934,17 @@ def route_generate_report():
     if not (('G' in session['admind']) or ('+' in session['admind'])): return abort(404)
     now = str(datetime.datetime.now())
     
-    session_reports_user = {u:{
-        'Session' : [],
-        'L' : [], 
-        'U' : [], 
-        'R' : [], 
-        'E' : [], 
-        'Score' : [], 
-        'Remark' : [],
-        'Evaluator' : [],
-    } for u in dbevalset}
+    # session_reports_user = {u:{
+    #     'Session' : [],
+    #     'L' : [], 
+    #     'U' : [], 
+    #     'R' : [], 
+    #     'E' : [], 
+    #     'Score' : [], 
+    #     'Remark' : [],
+    #     'Evaluator' : [],
+    # } for u in dbevalset}
+
     for s,d in app.config['running'].items():
         session_report_df = dict(
                     User = [],
@@ -2996,14 +2988,14 @@ def route_generate_report():
             Rtxt = ('🟡' if uHasReq is ... else '🟢') if uHasReq else ('⚫' if uHas is None else '🔴')
             Etxt = '✅' if uEvaluated else '❌'
 
-            session_reports_user[u]['Session'].append(s)
-            session_reports_user[u]['L'].append(Ltxt)
-            session_reports_user[u]['U'].append(Utxt)
-            session_reports_user[u]['R'].append(Rtxt)
-            session_reports_user[u]['E'].append(Etxt)
-            session_reports_user[u]['Score'].append(uSCORE)
-            session_reports_user[u]['Remark'].append(uREMARK)
-            session_reports_user[u]['Evaluator'].append(uBY)
+            # session_reports_user[u]['Session'].append(s)
+            # session_reports_user[u]['L'].append(Ltxt)
+            # session_reports_user[u]['U'].append(Utxt)
+            # session_reports_user[u]['R'].append(Rtxt)
+            # session_reports_user[u]['E'].append(Etxt)
+            # session_reports_user[u]['Score'].append(uSCORE)
+            # session_reports_user[u]['Remark'].append(uREMARK)
+            # session_reports_user[u]['Evaluator'].append(uBY)
 
             session_report_df['User'].append(u)
             session_report_df['Name'].append(uNAME) 
@@ -3021,11 +3013,13 @@ def route_generate_report():
         report_path = os.path.join( REPORT_FOLDER_PATH, session['uid'], report_name)
         html_table = df.to_html(index=False)        
         with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, s, html_table, now))
-    for u,r in session_reports_user.items():
-        _, _, uNAME, _ = db[u]
-        html_table = DataFrame(r).to_html(index=False)        
-        report_path = os.path.join(REPORT_FOLDER_PATH, session['uid'], f'{u}.html')
-        with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, f"{u} {args.emoji} {uNAME}", html_table, now))
+    
+    # for u,r in session_reports_user.items():
+    #     _, _, uNAME, _ = db[u]
+    #     html_table = DataFrame(r).to_html(index=False)        
+    #     report_path = os.path.join(REPORT_FOLDER_PATH, session['uid'], f'{u}.html')
+    #     with open(report_path, 'w', encoding='utf-8') as f: f.write(REPORT_PAGE(report_name, f"{u} {args.emoji} {uNAME}", html_table, now))
+    
     return redirect(url_for('route_reports'))
 
 @app.route('/generate_eval_template', methods =['GET'])
@@ -3050,8 +3044,6 @@ def route_generate_live_report():
     msg = f"{sess}"
     if len(dbevalset) != len(finished_uids) + len(pending_uids) + len(not_uploaded_uids) + len(absent_uids): msg+=f" [!] Count Mismatch!"
     pending_uids, absent_uids, finished_uids, not_uploaded_uids = sorted(list(pending_uids)), sorted(list(absent_uids)), sorted(list(finished_uids)), sorted(list(not_uploaded_uids))
-    FileMarker=style.icon_em
-    ReportMarker=style.icon_em
     htable0="""
     <html>
         <head>
@@ -3086,8 +3078,8 @@ def route_generate_live_report():
     """
     htable1=''
     for pu in pending_uids:
-        lt = " ".join([f"""<a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}') }" target="_blank">{FileMarker}{r}</a><a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], pu))]) 
-        ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{ReportMarker}{r}</a><a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
+        lt = " ".join([f"""<a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}') }" target="_blank">{style.icon_em}{r}</a><a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], pu))]) 
+        ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{style.icon_em}{r}</a><a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
         htable1+=f""" 
         <tr>
         <td>{pu}</td>
@@ -3104,7 +3096,7 @@ def route_generate_live_report():
     """
     htable11=''
     for pu in not_uploaded_uids:
-        ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{ReportMarker}{r}</a><a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
+        ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{style.icon_em}{r}</a><a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
         htable11+=f""" 
         <tr>
         <td>{pu}</td>
@@ -3121,7 +3113,7 @@ def route_generate_live_report():
     """
     htable2 = ''
     for pu in absent_uids:
-        ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{ReportMarker}{r}</a><a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
+        ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{style.icon_em}{r}</a><a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
         htable2+=f""" 
         <tr>
         <td>{pu}</td>
@@ -3149,8 +3141,8 @@ def route_generate_live_report():
     for k in sorted(list(dbsubs[sess].keys())):
         v = dbsubs[sess][k]
         pu = v[0]
-        lt = " ".join([f"""<a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}') }" target="_blank">{FileMarker}{r}</a><a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(UPLOAD_FOLDER_PATHS[sess], pu))]) 
-        ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{ReportMarker}{r}</a><a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
+        lt = " ".join([f"""<a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}') }" target="_blank">{style.icon_em}{r}</a><a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(UPLOAD_FOLDER_PATHS[sess], pu))]) 
+        ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{style.icon_em}{r}</a><a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
         counter[v[3]]+=1
         htable3+=f"""
         <tr>
@@ -3229,8 +3221,6 @@ def route_switch(req_uid):
 def route_reset_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
-    #sess = session['sess']
-    #submitter = session['uid']
     grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], f"group.csv"))
     has_group = os.path.isfile(grpfile)
     if has_group:  os.remove(grpfile)
@@ -3246,26 +3236,37 @@ def route_live_report():
     has_group = os.path.isfile(grpfile)
     if not has_group: return abort(404)
 
+    if 'flt' in request.args: 
+        session['flt'] = request.args['flt']
+        return redirect(url_for('route_live_report')) 
+
+
     gusers = CSV2DICT(grpfile, 0)
     gset = set(gusers.keys())
 
     REQUIRED_FILES=app.config['running'][sess]['required']
     msg = f"{sess}"
-    FileMarker=style.icon_em
-    ReportMarker=style.icon_em
     results={}
 
     if request.method == 'POST':
         
         for i,uid in enumerate(gset, 1):
-            named = db[uid][2]
+            #named = db[uid][2]
+            if not f'score_{uid}' in request.form: continue
             in_score = request.form[f'score_{uid}']
             in_remark = request.form[f'remark_{uid}'].strip().replace(",", ";")
+            in_comment = request.form[f'comment_{uid}']
+
+            report_file = os.path.join(REPORT_FOLDER_PATH, uid, f'{sess}.md')
+            if in_comment: 
+                with open(report_file, 'w') as f: f.write(in_comment)
+            else: 
+                if os.path.isfile(report_file): os.remove(report_file)
+
+            scored = dbsubs[sess].get(uid, None)     
             if in_score:
                 try: _ = float(in_score)
-                except: in_score=''
-                
-            scored = dbsubs[sess].get(uid, None)                               
+                except: in_score=''                      
             if scored is None:
                 if not in_score:
                     results[uid] = '❌' #(f'Require numeric value to assign score', False)
@@ -3274,29 +3275,27 @@ def route_live_report():
                     if has_req_files:
                         dbsubs[sess][uid] = [uid, in_score, in_remark, submitter]
                         results[uid] = '✅' #(f'Score/Remark Created for [{uid}] {named}, current score is {in_score}.', True)
-                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} for {sess} via {request.remote_addr}")
+                        #dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} for {sess} via {request.remote_addr}")
                     else:
                         results[uid] = '❗' #(f'User [{uid}] {named} has not uploaded the required files yet.', False)
             else:
-                if scored[-1] == submitter or abs(float(scored[1])) == float('inf') or ('+' in session['admind']):
+                if scored[-1] == submitter or ('+' in session['admind']):
                     if in_score:  
                         dbsubs[sess][uid][1] = in_score
                         dbsubs[sess][uid][2] = in_remark
                         results[uid] = '✅'
                     else: results[uid] = '❌'
 
-                    dbsubs[sess][uid][-1] = submitter # incase of inf score
+                    #dbsubs[sess][uid][-1] = submitter # incase of inf score
                     #if in_score or in_remark : #(f'Score/Remark Updated for [{uid}] {named}, current score is {dbsubs[sess][uid][1]}. Remark is [{dbsubs[sess][uid][2]}].', True)
                      #(f'Nothing was updated for [{uid}] {named}, current score is {dbsubs[sess][uid][1]}. Remark is [{dbsubs[sess][uid][2]}].', False)
-                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {sess} via {request.remote_addr}")
+                    #dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {sess} via {request.remote_addr}")
                 else:
                     results[uid] = '‼️' #(f'[{uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information.', False)
-                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named}  for {sess} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
-                    sprint(f'\tHint: Set the score to "inf"')
-        
-
-
-
+                    #dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named}  for {sess} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
+                    #sprint(f'\tHint: Set the score to "inf"')
+    
+    filter = STATUSMAP.get(session.get('flt', ""), "")
     htable0="""
     <html>
         <head>
@@ -3314,67 +3313,37 @@ def route_live_report():
     table td {{padding: 10px; border:4px solid #aaa;}}
     table th {{padding: 5px; border:4px solid #aaa;}}
     table tr {{vertical-align: top;}}
-    .txt_login {{
-        text-align: center;
-        font-family: {style.font_};
-        border: 0;
-        background: rgba(0, 0, 0, 0);
-        appearance: none;
-        position: relative;
-        border-radius: 3px;
-        color: rgb(0, 0, 0);
-        box-shadow: inset #abacaf 0 0 0 2px;
-        }}
-
-    .btn_enablel {{
-        padding: 2px 10px 2px;
-        color: {style.item_false}; 
-        font-size: medium;
-        border-radius: 2px;
-        font-family: {style.font_};
-        text-decoration: none;
-    }}
-
-    .btn_disablel {{
-        padding: 2px 10px 2px;
-        color: {style.item_true}; 
-        font-size: medium;
-        border-radius: 2px;
-        font-family: {style.font_};
-        text-decoration: none;
-    }}
-
-    .status{{
-        padding: 10px 10px;
-        background-color: {style.item_bgcolor}; 
-        color: {style.item_normal};
-        font-size: medium;
-        border-radius: 10px;
-        font-family: {style.font_};
-        text-decoration: none;
-    }}
     </style>
     <form action="{{{{ url_for('route_live_report') }}}}" method="post">
-    <h2 id="h_status"> {msg} [{len(gset)}] <input type="submit" class="btn_upload" value="Save"> </h2> 
-    <hr>
-                          
+    <h2 id="h_status"> 
+    <a href="{{{{ url_for('route_live_report') }}}}" class="btn_purge_large">Reload</a> 
+    {msg} [{len(gset)}]
+    <input type="submit" class="btn_upload" value="Save"> 
+    <a title="All" href="{{{{ url_for('route_live_report', flt='') }}}}">⚫</a> 
+    <a title="Evaluated" href="{{{{ url_for('route_live_report', flt='Evaluated') }}}}">🟢</a> 
+    <a title="No-Upload" href="{{{{ url_for('route_live_report', flt='No-Upload') }}}}">🔵</a> 
+    <a title="Absent" href="{{{{ url_for('route_live_report', flt='Absent') }}}}">🔴</a> 
+    <a title="Pending" href="{{{{ url_for('route_live_report', flt='Pending') }}}}">🟡</a>
+    {{{{ session.flt }}}} 
+    </h2> 
+    <hr>             
     <table>
         <tr>
             <th>#️⃣</th>
             <th>ROLL</th>
             <th>NAME</th>
-            <th>Files</th>
-            <th>Reports</th>
+            <th>FILES</th>
+            <th>REPORT</th>
             <th>⚫</th>
             <th>SCORE</th>
+            <th>COMMENTS</th>
             <th>REMARK</th>
             <th>EVALUATOR</th>
-            
         </tr>
     """
-    # status can be evaluated🟢, pending🟡, no-upload🔵, absent🔴
+    submitted = set(dbsubs[sess].keys())
     htable3=""
-    for i,k in enumerate(gset, 1):
+    for i,k in enumerate(sorted(gset), 1):
     #for k in sorted(list(dbsubs[sess].keys())):
         upload_folder = os.path.join(UPLOAD_FOLDER_PATHS[sess], k)
         upload_str = ""
@@ -3383,61 +3352,57 @@ def route_live_report():
             files = os.listdir(upload_folder)
             if not files: status="🔵"
             else:
-                for r in files: upload_str+=f"""<a href="{ url_for('route_storeuser', subpath=f'{k}/{r}') }" target="_blank">{FileMarker}{r}</a><a href="{ url_for('route_storeuser', subpath=f'{k}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>"""
+                for r in files: upload_str+=f"""<a href="{ url_for('route_storeuser', subpath=f'{k}/{r}') }" target="_blank">{style.icon_em}{r}</a><a href="{ url_for('route_storeuser', subpath=f'{k}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>"""
                 status = "🟡"
         else: status="🔴" # absent
 
-        report_folder = os.path.join(REPORT_FOLDER_PATH, k)
-        report_str=""
-        if os.path.isdir(report_folder):
-            for r in os.listdir(report_folder):
-                report_str+=f"""<a href="{ url_for('route_reportsuser', subpath=f'{k}/{r}') }" target="_blank">{ReportMarker}{r}</a> <a href="{ url_for('route_reportsuser', subpath=f'{k}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a> <br>"""
-        else: ... # absent
-
-        if k in dbsubs[sess].keys():
+        if k in submitted:
             v = dbsubs[sess][k]
             pu, pscore, premark, pevaluator = v
             status="🟢"
         else: pu, pscore, premark, pevaluator = k, "", "", ""
 
-        # lt = " ".join([f"""<a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}') }" target="_blank">{FileMarker}{r}</a><a href="{ url_for('route_storeuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a><br>""" 
-        #                for r in os.listdir(os.path.join(UPLOAD_FOLDER_PATHS[sess], pu))]) 
-        # ct = " ".join([f"""<a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}') }" target="_blank">{ReportMarker}{r}</a> <a href="{ url_for('route_reportsuser', subpath=f'{pu}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a> <br>""" 
-        #                for r in os.listdir(os.path.join(REPORT_FOLDER_PATH, pu))])
-        
+        if filter:
+            if status!=filter: continue
+
+
+        report_folder = os.path.join(REPORT_FOLDER_PATH, k)
+        report_str=""
+        pcomment=""
+        if os.path.isdir(report_folder):
+            report_file = os.path.join(report_folder, f'{sess}.md')
+            if os.path.isfile(report_file):
+                with open(report_file, 'r') as f: pcomment= f.read()
+            for r in os.listdir(report_folder):
+                report_str+=f"""<a href="{ url_for('route_reportsuser', subpath=f'{k}/{r}') }" target="_blank">{style.icon_em}{r}</a> <a href="{ url_for('route_reportsuser', subpath=f'{k}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a> <br>"""
+
         htable3+=f"""
         <tr>
-            <td>{i}</td>
+            <td>{i}<a href="{ url_for('route_eval', req_uid=pu) }" target="_blank">♻️</a></td>
             <td>{pu}</td>
             <td>{db[pu][2]}</td>
             
-            <td style="text-align: left;vertical-align: top;">
-            {upload_str}
-            </td>
-
+            <td style="text-align: left;vertical-align: top;">{upload_str}</td>
             <td style="text-align: left;vertical-align: top;">
             <a href="{ url_for('route_reportsuser', subpath=pu) }" target="_blank">Reports{style.icon_report}</a>
             <br>
             {report_str}
             </td>
-
             <td>{status}</td>
-
-            <td><input id="score_{pu}" name="score_{pu}" type="text" class="txt_login" value="{pscore}"/>
+            <td><input id="score_{pu}" name="score_{pu}" type="text" class="txt_login" style="width:50px;" value="{pscore}"/>
             {{% if '{pu}' in results %}}
                 {{{{ results.get('{pu}') }}}}
                 <br>
             {{% endif %}}
-            
             </td>
+            <td><textarea rows="1" cols="26" id="comment_{pu}" name="comment_{pu}" type="text" class="txt_comment">{pcomment}</textarea></td>
             <td><input id="remark_{pu}" name="remark_{pu}" type="text" class="txt_login" value="{premark}"/></td>
             <td>{pevaluator}</td>
         </tr>"""
+
     htable3+="""</table><br> </form><hr>
         </body></html>"""
 
-
-    
     return render_template_string( htable0+htable3, results=results)
 
 
@@ -3719,78 +3684,64 @@ def route_storeuser(subpath=""):
     else: return abort(404)
 
 
-@app.route('/reportsuser', methods =['GET', 'POST'])
-@app.route('/reportsuser/', methods =['GET', 'POST'])
-@app.route('/reportsuser/<path:subpath>', methods =['GET', 'POST'])
+@app.route('/reportsuser', methods =['GET'])
+@app.route('/reportsuser/', methods =['GET'])
+@app.route('/reportsuser/<path:subpath>', methods =['GET'])
 def route_reportsuser(subpath=""):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])) :  return abort(404)
     abs_path = VALIDATE_PATH(REPORT_FOLDER_PATH, subpath)
     if abs_path is None: return abort(404) 
-    if request.method == 'POST': 
-        if 'comment' in request.form:
-            in_comment = f"{request.form['comment']}".strip()
-            if in_comment:
-                sf = f"{fnow('%Y-%m-%d-%H-%M-%S')}-{session['uid']}.md"
-                file_name = os.path.join(abs_path, sf)            
-                try: 
-                    with open(file_name, 'w') as f: f.write(in_comment)
-                    dprint(f"๏ 🗣️  {session['uid']} ◦ {session['named']} commented {subpath} via {request.remote_addr}")
-                except FileNotFoundError:  
-                    dprint(f"๏ ❗  {session['uid']} ◦ {session['named']} failed commenting {subpath} via {request.remote_addr}")
-                    return redirect(url_for('route_logout'))
-        return redirect(url_for('route_reportsuser', subpath=subpath)) 
-    else:
-        if not os.path.exists(abs_path):
-            if not request.args: return abort(404)
-            else:
-                if '?' in request.args:
-                    if "." not in os.path.basename(abs_path):
-                        try:
-                            os.makedirs(abs_path)
-                            dprint(f"๏ 📁 {session['uid']} ◦ {session['named']} created new directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
-                            return redirect(url_for('route_reportsuser', subpath=subpath))
-                        except: return f"Error creating the directory"
-                    else: return f"Directory name cannot contain (.)"
-                else: return f"Invalid args for store actions"
-        if os.path.isdir(abs_path):
-            if not request.args: 
-                dirs, files = list_store_dir(abs_path)
-                return render_template('reportsuser.html', dirs=dirs, files=files, subpath=subpath)
-            else:
-                if "." not in os.path.basename(abs_path) and os.path.abspath(abs_path)!=os.path.abspath(app.config['store']): #delete this dir
-                    if '!' in request.args:
-                        try:
-                            import shutil
-                            shutil.rmtree(abs_path)
-                            dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted the directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
-                            return redirect(url_for('route_reportsuser', subpath=os.path.dirname(subpath)))
-                        except:
-                            return f"Error deleting the directory"
-                    else: return f"Invalid args for store actions"
-                else: return f"Cannot Delete this directory"
-                            
-        elif os.path.isfile(abs_path):
-            if not request.args: 
-                #(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed ({subpath}) via {request.remote_addr}")
-                return send_file(abs_path, as_attachment=False)
-            else:
-                if 'get' in request.args:
-                    #dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
-                    return send_file(abs_path, as_attachment=True)
-                elif 'del' in request.args:
+    if not os.path.exists(abs_path):
+        if not request.args: return abort(404)
+        else:
+            if '?' in request.args:
+                if "." not in os.path.basename(abs_path):
                     try:
-                        os.remove(abs_path)
-                        dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                        os.makedirs(abs_path)
+                        dprint(f"๏ 📁 {session['uid']} ◦ {session['named']} created new directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
+                        return redirect(url_for('route_reportsuser', subpath=subpath))
+                    except: return f"Error creating the directory"
+                else: return f"Directory name cannot contain (.)"
+            else: return f"Invalid args for store actions"
+    if os.path.isdir(abs_path):
+        if not request.args: 
+            dirs, files = list_store_dir(abs_path)
+            return render_template('reportsuser.html', dirs=dirs, files=files, subpath=subpath)
+        else:
+            if "." not in os.path.basename(abs_path) and os.path.abspath(abs_path)!=os.path.abspath(app.config['store']): #delete this dir
+                if '!' in request.args:
+                    try:
+                        import shutil
+                        shutil.rmtree(abs_path)
+                        dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted the directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
                         return redirect(url_for('route_reportsuser', subpath=os.path.dirname(subpath)))
-                    except:return f"Error deleting the file"
-                elif ("html" in request.args): 
-                    #dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
-                    try:  hmsg = HConv.convertx(abs_path, args.scripts, style)
-                    except: hmsg = f"Exception while converting notebook to web-page"
-                    return hmsg
+                    except:
+                        return f"Error deleting the directory"
                 else: return f"Invalid args for store actions"
-        else: return abort(404)
+            else: return f"Cannot Delete this directory"
+                        
+    elif os.path.isfile(abs_path):
+        if not request.args: 
+            #(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed ({subpath}) via {request.remote_addr}")
+            return send_file(abs_path, as_attachment=False)
+        else:
+            if 'get' in request.args:
+                #dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                return send_file(abs_path, as_attachment=True)
+            elif 'del' in request.args:
+                try:
+                    os.remove(abs_path)
+                    dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                    return redirect(url_for('route_reportsuser', subpath=os.path.dirname(subpath)))
+                except:return f"Error deleting the file"
+            elif ("html" in request.args): 
+                #dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
+                try:  hmsg = HConv.convertx(abs_path, args.scripts, style)
+                except: hmsg = f"Exception while converting notebook to web-page"
+                return hmsg
+            else: return f"Invalid args for store actions"
+    else: return abort(404)
 
 
 def persist_db(SESS):
