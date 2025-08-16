@@ -213,7 +213,7 @@ DEFAULT_USER = 'admin'
 DEFAULT_ACCESS = f'DAURGX-+'
 MAX_STR_LEN = 250
 STATUSMAP = {'Evaluated':"🟢", 'Pending':"🟡", 'No-Upload':"🔵", "Absent":"🔴"}
-GROUP_FILE= "group.list"
+GROUP_FILE= "group.txt"
 
 def rematch(instr, pattern):  return \
     (len(instr) >= 0) and \
@@ -508,7 +508,7 @@ def TEMPLATES(style, script_mathjax):
                 <script>
                     function confirm_rename() {
                     let res = prompt("{{ session.uid }} current name is {{ session.named }}. Enter New Name below:", ""); 
-                    if (res != null) {
+                    if (res != null && res != '') {
                         location.href = "{{ url_for('route_rename',name='::::') }}".replace("::::", res);
                         }
                     }
@@ -552,7 +552,7 @@ def TEMPLATES(style, script_mathjax):
                     <script>
                         function confirm_repass() {
                         let res = prompt("Enter UID to reset password", ""); 
-                        if (res != null) {
+                        if (res != null && res != '') {
                             location.href = "{{ url_for('route_repassx',req_uid='::::') }}".replace("::::", res);
                             }
                         }
@@ -568,17 +568,9 @@ def TEMPLATES(style, script_mathjax):
             <div class="bridge">
             {% if config.running[session.sess].eval %}
             <a href="{{ url_for('route_generate_live_report') }}" target="_blank" class="btn_report">Live-Report</a>
-
-                {% if has_group %}
-                <a href="{{ url_for('route_live_report') }}" class="btn_submit" target="_blank">Group-Eval</a>
-                {% endif %}
-            
-                {% if "G" in session.admind %}
-                <a href="{{ url_for('route_generate_report') }}" target="_blank" class="btn_download">Session-Report</a>
-                {% endif %}
-
+            <a href="{{ url_for('route_live_report') }}" class="btn_submit" target="_blank">Group-Eval</a>
+            <a href="{{ url_for('route_generate_report') }}" target="_blank" class="btn_download">Session-Report</a>
             {% endif %}
-
             </div>
             <br>
             {% if success %}
@@ -592,7 +584,7 @@ def TEMPLATES(style, script_mathjax):
             <form method='POST' enctype='multipart/form-data'>
                 {{form.hidden_tag()}}
                 {{form.file()}}
-                {{form.submit()}}
+                <input id="submit" name="submit" type="submit" value="Add">
                 <a href="{{ url_for('route_reset_report') }}" class="btn_home_small">Reset</a>
                 <a href="{{ url_for('route_reset_report', x='') }}" class="btn_purge">Remove</a>
                 <a href="{{ url_for('route_reset_report', v='') }}" class="btn_download_small">View</a>
@@ -1139,7 +1131,7 @@ def TEMPLATES(style, script_mathjax):
                 <script>
                     function confirm_move_{{ i }}() {
                     let res = prompt("Enter new name for file \\n\\n\\t {{ file }}");
-                    if (res != null) {
+                    if (res != null && res != '') {
                         location.href = "{{ url_for('route_uploads', req_path='/' + file, move='::::') }}".replace("::::", res);
                         }
                     }
@@ -3268,7 +3260,7 @@ def route_reset_report():
                 with open(egrpfile, 'w') as f: f.write('')
                 sprint(f'\t♻️ Reset Group File for {e}')
             success, status = True, f'Reset All Groups'
-    return render_template('evaluate.html', success=success, status=status, form=UploadFileForm(), results=results,  has_group=os.path.isfile((os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_FILE))))
+    return render_template('evaluate.html', success=success, status=status, form=UploadFileForm(), results=results,)
 
 @app.route('/live_report', methods =['GET', 'POST'])
 def route_live_report():
@@ -3351,55 +3343,10 @@ def route_live_report():
             }
         }
     </script>"""
-    htable0="""
-    <html>
-        <head>
-            <meta charset="UTF-8">
-            <title> {{ session.sess }} Evaluation </title>
-            <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-            <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-            """ + TABLE_STYLED() + """
-        </head>
-        <body>
-    """ + f"""
-    <style>
-    a {{ text-decoration: none; }}
-    table {{ width:100%; border-collapse: seperate;  }}
-    table td {{padding: 10px; border:4px solid #aaa;}}
-    table th {{padding: 5px; border:4px solid #aaa;}}
-    table tr {{vertical-align: top;}}
-    </style>
-    <br>
-    <div align="left" class="pagecontent">
-    <div class="topic_mid">{{{{ config.topic }}}} {{{{ config.bridge }}}} {{{{ session.sess }}}}</div><hr>
-    <div class="userword">{{{{session.uid}}}} {{{{ config.emoji }}}} {{{{session.named}}}}</div>
-    <div class="bridge">
-    <h2 id="h_status"> 
-    <a href="{{{{ url_for('route_live_report') }}}}" class="btn_purge_large">Reload</a> 
-    {msg} [{len(gset)}]{add_script}{del_script}
-    <a title="All" href="{{{{ url_for('route_live_report', flt='') }}}}">⚫</a> 
-    <a title="Evaluated" href="{{{{ url_for('route_live_report', flt='Evaluated') }}}}">🟢</a> 
-    <a title="No-Upload" href="{{{{ url_for('route_live_report', flt='No-Upload') }}}}">🔵</a> 
-    <a title="Absent" href="{{{{ url_for('route_live_report', flt='Absent') }}}}">🔴</a> 
-    <a title="Pending" href="{{{{ url_for('route_live_report', flt='Pending') }}}}">🟡</a>
-    {{{{ session.flt }}}} 
-    </h2> </div>    
-    <form action="{{{{ url_for('route_live_report') }}}}" method="post">     
-    <table>
-        <tr>
-            <th><input type="submit" class="btn_upload" value="Save"></th>
-            <th>ROLL</th>
-            <th>NAME</th>
-            <th>FILES</th>
-            <th>REPORT</th>
-            <th>SCORE</th>
-            <th>COMMENTS</th>
-            <th>REMARK</th>
-            <th>EVALUATOR</th>
-        </tr>
-    """
+    
     submitted = set(dbsubs[sess].keys())
     htable3=""
+    hcount = 0
     for i,k in enumerate(sorted(gset), 1):
     #for k in sorted(list(dbsubs[sess].keys())):
         upload_folder = os.path.join(UPLOAD_FOLDER_PATHS[sess], k)
@@ -3423,7 +3370,7 @@ def route_live_report():
 
         if filter:
             if status!=filter: continue
-
+        hcount+=1
 
         report_folder = os.path.join(REPORT_FOLDER_PATH, k)
         report_str=""
@@ -3462,6 +3409,55 @@ def route_live_report():
     htable3+="""</table><br> </form><hr></div>
         </body></html>"""
     
+
+    
+    htable0="""
+    <html>
+        <head>
+            <meta charset="UTF-8">
+            <title> {{ session.sess }} Evaluation </title>
+            <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+            <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+            """ + TABLE_STYLED() + """
+        </head>
+        <body>
+    """ + f"""
+    <style>
+    a {{ text-decoration: none; }}
+    table {{ width:100%; border-collapse: seperate;  }}
+    table td {{padding: 10px; border:4px solid #aaa;}}
+    table th {{padding: 5px; border:4px solid #aaa;}}
+    table tr {{vertical-align: top;}}
+    </style>
+    <br>
+    <div align="left" class="pagecontent">
+    <div class="topic_mid">{{{{ config.topic }}}} {{{{ config.bridge }}}} {{{{ session.sess }}}}</div><hr>
+    <div class="userword">{{{{session.uid}}}} {{{{ config.emoji }}}} {{{{session.named}}}}</div>
+    <div class="bridge">
+    <h2 id="h_status"> 
+    <a href="{{{{ url_for('route_live_report') }}}}" class="btn_purge_large">Reload</a> 
+    {msg} [{len(gset)}]{add_script}{del_script}
+    <a title="All" href="{{{{ url_for('route_live_report', flt='') }}}}">⚫</a> 
+    <a title="Evaluated" href="{{{{ url_for('route_live_report', flt='Evaluated') }}}}">🟢</a> 
+    <a title="No-Upload" href="{{{{ url_for('route_live_report', flt='No-Upload') }}}}">🔵</a> 
+    <a title="Absent" href="{{{{ url_for('route_live_report', flt='Absent') }}}}">🔴</a> 
+    <a title="Pending" href="{{{{ url_for('route_live_report', flt='Pending') }}}}">🟡</a>
+    {{{{ session.flt }}}} {('['+str(hcount)+']' if session['flt'] else '')}
+    </h2> </div>    
+    <form action="{{{{ url_for('route_live_report') }}}}" method="post">     
+    <table>
+        <tr>
+            <th><input type="submit" class="btn_upload" value="Save"></th>
+            <th>ROLL</th>
+            <th>NAME</th>
+            <th>FILES</th>
+            <th>REPORT</th>
+            <th>SCORE</th>
+            <th>COMMENTS</th>
+            <th>REMARK</th>
+            <th>EVALUATOR</th>
+        </tr>
+    """
     return render_template_string( htable0+htable3, results=results)
 
 
@@ -3562,7 +3558,7 @@ def route_eval():
                         except: 
                             status, success = f"Error updating group from file [{sf}]", False
     else: status, success = f"Eval Access is Enabled", True
-    return render_template('evaluate.html', success=success, status=status, form=form, results=results,  has_group=os.path.isfile((os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_FILE))))
+    return render_template('evaluate.html', success=success, status=status, form=form, results=results)
 
 
 @app.route('/home', methods =['GET'])
@@ -3922,7 +3918,7 @@ def route_repassx(req_uid):
                     else: STATUS, SUCCESS =  f"Username was not provided", False
                 else: STATUS, SUCCESS =  "You are not allow to reset passwords", False
             else: STATUS, SUCCESS =  "Password reset is disabled for this session", False
-    return render_template('evaluate.html',  status=STATUS, success=SUCCESS, form=UploadFileForm(), results=[], has_group=os.path.isfile((os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_FILE))))
+    return render_template('evaluate.html',  status=STATUS, success=SUCCESS, form=UploadFileForm(), results=[])
 
 
 
