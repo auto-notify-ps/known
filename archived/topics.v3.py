@@ -213,7 +213,6 @@ DEFAULT_USER = 'admin'
 DEFAULT_ACCESS = f'DAURGX-+'
 MAX_STR_LEN = 250
 STATUSMAP = {'Evaluated':"🟢", 'Pending':"🟡", 'No-Upload':"🔵", "Absent":"🔴"}
-GROUP_CSV = "group.csv"
 
 def rematch(instr, pattern):  return \
     (len(instr) >= 0) and \
@@ -555,11 +554,17 @@ def TEMPLATES(style, script_mathjax):
             </div>
           
             <div class="bridge">
-            {% if config.running[session.sess].eval %}
-            {% if has_group %}
-            <a href="{{ url_for('route_live_report') }}" class="btn_black" target="_blank">Group-Report</a>
-            {% endif %}
+            {% if config.running[session.sess].eval %}  
             <a href="{{ url_for('route_generate_live_report') }}" target="_blank" class="btn_board">Live-Report</a>
+            <button class="btn_reeval_large" onclick="confirm_reeval()">"""+'Reset Evaluation' + """</button>
+                    <script>
+                        function confirm_reeval() {
+                        let res = prompt("Enter UID to reset evaluation", ""); 
+                        if (res != null) {
+                            location.href = "{{ url_for('route_eval',req_uid='::::') }}".replace("::::", res);
+                            }
+                        }
+                    </script>
             {% endif %}
             <button class="btn_purge_large" onclick="confirm_repass()">"""+'Reset Password' + """</button>
                     <script>
@@ -579,19 +584,33 @@ def TEMPLATES(style, script_mathjax):
             {% endif %}
             <br>
             <br>
-            {% if config.running[session.sess].eval %} 
+            {% if config.running[session.sess].eval %}  
+            <form action="{{ url_for('route_eval') }}" method="post">                
+                <input id="uid" name="uid" type="text" placeholder="uid" class="txt_submit"/>
+                <br>
+                <br>
+                <input id="score" name="score" type="text" placeholder="score" class="txt_submit"/> 
+                <br>
+                <br>
+                <input id="remark" name="remark" type="text" placeholder="remarks" class="txt_submit"/>
+                <br>
+                <br>
+                <input type="submit" class="btn_submit" value="Submit Evaluation"> 
+                <br>   
+                <br> 
+            </form>
             <form method='POST' enctype='multipart/form-data'>
                 {{form.hidden_tag()}}
                 {{form.file()}}
                 {{form.submit()}}
             </form>
             <a href="{{ url_for('route_generate_eval_template') }}" class="btn_black">Get CSV-Template</a>
-                {% if "+" in session.admind %}
-                <a href="{{ url_for('route_reset_report') }}" class="btn_purge_large">Reset Group</a>
-                {% endif %}
+            {% if has_group %}
+            <a href="{{ url_for('route_live_report') }}" class="btn_board" target="_blank">Group-Report</a>
+            <a href="{{ url_for('route_reset_report') }}" class="btn_purge_large" target="_blank">Reset Group</a>
             {% endif %}
         </div>
-        
+        {% endif %}
         {% if results %}
         <div class="status">
         <table>
@@ -3008,7 +3027,7 @@ def route_generate_eval_template():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
     return send_file(DICT2BUFF({k:[v[LOGIN_ORD_MAPPING["UID"]], v[LOGIN_ORD_MAPPING["NAME"]],] for k,v in db.items() if '-' not in v[LOGIN_ORD_MAPPING["ADMIN"]]} , ["UID", "NAME",]),
-                    download_name=GROUP_CSV, as_attachment=True)
+                    download_name=f"group.csv", as_attachment=True)
 
 @app.route('/generate_live_report', methods =['GET'])
 def route_generate_live_report():
@@ -3201,10 +3220,10 @@ def route_switch(req_uid):
 @app.route('/reset_report', methods =['GET'])
 def route_reset_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
-    if not ('+' in session['admind']): return abort(404)
-    for e in dbevaluatorset:
-        egrpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e, GROUP_CSV))
-        with open(egrpfile, 'w') as f: f.write('')
+    if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
+    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], f"group.csv"))
+    has_group = os.path.isfile(grpfile)
+    if has_group:  os.remove(grpfile)
     return redirect(url_for('route_eval'))
 
 @app.route('/live_report', methods =['GET', 'POST'])
@@ -3213,7 +3232,7 @@ def route_live_report():
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
     sess = session['sess']
     submitter = session['uid']
-    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_CSV))
+    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], f"group.csv"))
     has_group = os.path.isfile(grpfile)
     if not has_group: return abort(404)
 
@@ -3221,10 +3240,12 @@ def route_live_report():
         session['flt'] = request.args['flt']
         return redirect(url_for('route_live_report')) 
 
-    with open(grpfile, 'r') as f: gset = set([i.strip() for i in f.readlines()])
+
+    gusers = CSV2DICT(grpfile, 0)
+    gset = set(gusers.keys())
 
     REQUIRED_FILES=app.config['running'][sess]['required']
-    msg = f"Users"
+    msg = f"{sess}"
     results={}
 
     if request.method == 'POST':
@@ -3275,26 +3296,6 @@ def route_live_report():
                     #sprint(f'\tHint: Set the score to "inf"')
     
     filter = STATUSMAP.get(session.get('flt', ""), "")
-    add_script ="""
-    <button title="add user to group" class="btn_board" onclick="confirm_add()">""" + 'Add' + """</button>
-    <script>
-        function confirm_add() {
-        let res = prompt("Make Sure to save first! \\n\\n\\tEnter UID to add", ""); 
-        if (res != null && res != '') {
-            location.href = "{{ url_for('route_group_add',req_uid='::::') }}".replace("::::", res);
-            }
-        }
-    </script>"""
-    del_script ="""
-    <button title="remove user from group" class="btn_board" onclick="confirm_del()">""" + 'Remove' + """</button>
-    <script>
-        function confirm_del() {
-        let res = prompt("Make Sure to save first! \\n\\n\\tEnter UID to remove", ""); 
-        if (res != null && res != '') {
-            location.href = "{{ url_for('route_group_del',req_uid='::::') }}".replace("::::", res);
-            }
-        }
-    </script>"""
     htable0="""
     <html>
         <head>
@@ -3308,34 +3309,32 @@ def route_live_report():
     """ + f"""
     <style>
     a {{ text-decoration: none; }}
-    table {{ width:100%; border-collapse: seperate;  }}
+    table {{ border-collapse: seperate;  }}
     table td {{padding: 10px; border:4px solid #aaa;}}
     table th {{padding: 5px; border:4px solid #aaa;}}
     table tr {{vertical-align: top;}}
     </style>
-    <br>
-    <div align="left" class="pagecontent">
-    <div class="topic_mid">{{{{ config.topic }}}} {{{{ config.bridge }}}} {{{{ session.sess }}}}</div><hr>
-    <div class="userword">{{{{session.uid}}}} {{{{ config.emoji }}}} {{{{session.named}}}}</div>
-    <div class="bridge">
+    <form action="{{{{ url_for('route_live_report') }}}}" method="post">
     <h2 id="h_status"> 
     <a href="{{{{ url_for('route_live_report') }}}}" class="btn_purge_large">Reload</a> 
-    {msg} [{len(gset)}]{add_script}{del_script}
+    {msg} [{len(gset)}]
+    <input type="submit" class="btn_upload" value="Save"> 
     <a title="All" href="{{{{ url_for('route_live_report', flt='') }}}}">⚫</a> 
     <a title="Evaluated" href="{{{{ url_for('route_live_report', flt='Evaluated') }}}}">🟢</a> 
     <a title="No-Upload" href="{{{{ url_for('route_live_report', flt='No-Upload') }}}}">🔵</a> 
     <a title="Absent" href="{{{{ url_for('route_live_report', flt='Absent') }}}}">🔴</a> 
     <a title="Pending" href="{{{{ url_for('route_live_report', flt='Pending') }}}}">🟡</a>
     {{{{ session.flt }}}} 
-    </h2> </div>    
-    <form action="{{{{ url_for('route_live_report') }}}}" method="post">     
+    </h2> 
+    <hr>             
     <table>
         <tr>
-            <th><input type="submit" class="btn_upload" value="Save"></th>
+            <th>#️⃣</th>
             <th>ROLL</th>
             <th>NAME</th>
             <th>FILES</th>
             <th>REPORT</th>
+            <th>⚫</th>
             <th>SCORE</th>
             <th>COMMENTS</th>
             <th>REMARK</th>
@@ -3363,8 +3362,6 @@ def route_live_report():
             status="🟢"
         else: pu, pscore, premark, pevaluator = k, "", "", ""
 
-        preseter = f"""<a title="reset evaluation" href="{ url_for('route_reval', req_uid=pu) }">♻️</a>""" if pevaluator else ""
-
         if filter:
             if status!=filter: continue
 
@@ -3381,7 +3378,7 @@ def route_live_report():
 
         htable3+=f"""
         <tr>
-            <td>{status}</td>
+            <td>{i}<a href="{ url_for('route_eval', req_uid=pu) }" target="_blank">♻️</a></td>
             <td>{pu}</td>
             <td>{db[pu][2]}</td>
             
@@ -3391,7 +3388,7 @@ def route_live_report():
             <br>
             {report_str}
             </td>
-            
+            <td>{status}</td>
             <td><input id="score_{pu}" name="score_{pu}" type="text" class="txt_login" style="width:50px;" value="{pscore}"/>
             {{% if '{pu}' in results %}}
                 {{{{ results.get('{pu}') }}}}
@@ -3400,116 +3397,132 @@ def route_live_report():
             </td>
             <td><textarea rows="1" cols="26" id="comment_{pu}" name="comment_{pu}" type="text" class="txt_comment">{pcomment}</textarea></td>
             <td><input id="remark_{pu}" name="remark_{pu}" type="text" class="txt_login" value="{premark}"/></td>
-            <td>{pevaluator}{preseter}</td>
+            <td>{pevaluator}</td>
         </tr>"""
 
-    htable3+="""</table><br> </form><hr></div>
+    htable3+="""</table><br> </form><hr>
         </body></html>"""
 
     return render_template_string( htable0+htable3, results=results)
 
 
-
-@app.route('/gadd/', methods =['GET'], defaults={'req_uid': ''})
-@app.route('/gadd/<req_uid>')
-def route_group_add(req_uid):
-    if not session.get('has_login', False): return redirect(url_for('route_login')) # "Not Allowed - Requires Login"
-    iseval, isadmin = ('X' in session['admind']), ('+' in session['admind'])
-    if not ((iseval) or (isadmin)): return abort(404)
-    if not req_uid: return abort(404)
-    if iseval or isadmin:
-        in_uid = f'{req_uid}'
-        if in_uid: 
-            in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
-            record = db.get(in_query, None)
-            if record is not None: 
-                if in_query in dbevalset:
-                    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_CSV))
-                    has_group = os.path.isfile(grpfile)
-                    if has_group:
-                        with open(grpfile, 'r') as f: gset = f.readlines()
-                        if (f'{in_query}\n') not in gset:
-                            with open(grpfile, 'a') as f: f.write(f'{in_query}\n')
-                        dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} has added {in_query} to group for {session['sess']} via {request.remote_addr}")
-                    else: return abort(404)
-            
-    return redirect(url_for('route_live_report'))
-
-
-
-
-@app.route('/gdel/', methods =['GET'], defaults={'req_uid': ''})
-@app.route('/gdel/<req_uid>')
-def route_group_del(req_uid):
-    if not session.get('has_login', False): return redirect(url_for('route_login')) # "Not Allowed - Requires Login"
-    iseval, isadmin = ('X' in session['admind']), ('+' in session['admind'])
-    if not ((iseval) or (isadmin)): return abort(404)
-    if not req_uid: return abort(404)
-    if iseval or isadmin:
-        in_uid = f'{req_uid}'
-        if in_uid: 
-            in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
-            record = db.get(in_query, None)
-            if record is not None: 
-                grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_CSV))
-                has_group = os.path.isfile(grpfile)
-                if has_group:
-                    with open(grpfile, 'r') as f: gset = f.readlines()
-                    try: gset.remove(f'{in_query}\n')
-                    except: pass
-                    with open(grpfile, 'w') as f: f.writelines(gset)
-                    dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} has removed {in_query} from group for {session['sess']} via {request.remote_addr}")
-                else: return abort(404)
-            
-    return redirect(url_for('route_live_report'))
-
-
-@app.route('/eval', methods =['GET', 'POST'])
-def route_eval():
+@app.route('/eval', methods =['GET', 'POST'], defaults={'req_uid': ''})
+@app.route('/eval/<req_uid>')
+def route_eval(req_uid):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
-    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_CSV))
-    has_group = os.path.isfile(grpfile)
     form = UploadFileForm()
+    
     results = []
+    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], f"group.csv"))
+    has_group = os.path.isfile(grpfile)
     if form.validate_on_submit():
-        if not ('+' in session['admind']): status, success =  "You cannot set groups.", False
+        dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items for {session['sess']} via {request.remote_addr}")
+        #if  not ('X' in session['admind']): status, success =  "You are not allowed to evaluate.", False
+        #else: 
+        
+        if not EVAL_XL_PATHS[session['sess']]: status, success =  "Evaluation is disabled.", False
         else:
-            if not EVAL_XL_PATHS[session['sess']]: status, success =  "Evaluation is disabled.", False
+            if len(form.file.data)!=1:  status, success = f"Expecting only one csv file", False
             else:
-                if len(form.file.data)!=1:  status, success = f"Expecting only one csv file", False
+                file = form.file.data[0]
+                isvalid, sf = VALIDATE_FILENAME_SUBMIT(secure_filename(file.filename))
+                if not isvalid: status, success = f"FileName is invalid '{sf}'", False
                 else:
-                    file = form.file.data[0]
-                    isvalid, sf = VALIDATE_FILENAME_SUBMIT(secure_filename(file.filename))
-                    if not isvalid: status, success = f"FileName is invalid '{sf}'", False
-                    else:
-                        try: 
-                            filebuffer = BytesIO()
-                            file.save(filebuffer) 
-                            score_dict = BUFF2DICT(filebuffer, 0)
-                            results.clear()
-                            total_added=0
-                            ed = {e: [] for e in dbevaluatorset}
-                            for k,(in_uid, in_eval) in score_dict.items(): 
-                                in_eval=in_eval.strip()
-                                in_uid=in_uid.strip()
+                    try: 
+                        filebuffer = BytesIO()
+                        file.save(filebuffer) 
+                        score_dict = BUFF2DICT(filebuffer, 0)
+                        results.clear()
+                        total_added=0
+                        with open(grpfile, 'w') as f:
+                            f.write(f"UID,NAME\n")
+                            for k,(in_uid, in_name) in score_dict.items(): 
                                 if in_uid in dbevalset: 
-                                    if in_eval in dbevaluatorset:
-                                        ed[in_eval].append(f'{in_uid}\n')
-                                        results.append((in_uid, f"✓ {in_eval}", True))
-                                        total_added+=1
-                                    else: results.append((in_eval, f"✗ ... invalid evaluator", False))
-                                else: results.append((in_uid, "✗ ... invalid user", False))
-
-                            for e,uids in ed.items():
-                                egrpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e, GROUP_CSV))
-                                with open(egrpfile, 'w') as f: f.writelines(uids)
-                                dprint(f'Write at {egrpfile}')
-                            status, success = f"Added {total_added} uses to groups", True  
-                        except: 
-                            status, success = f"Error updating group from file [{sf}]", False
-    else: status, success = f"Eval Access is Enabled", True
-    return render_template('evaluate.html', success=success, status=status, form=form, results=results,  has_group=has_group)
+                                    in_name=in_name.strip()
+                                    in_uid=in_uid.strip()
+                                    f.write(f"{in_uid},{in_name}\n")
+                                    results.append((in_uid, f"{in_name} ✓", True))
+                                    total_added+=1
+                                else: results.append((in_uid, f"{in_name} ✗", False))
+                        has_group = os.path.isfile(grpfile)
+                        status, success = f"Total users in your group: {total_added}", True
+                        
+                    except: 
+                        status, success = f"Error updating scroes from file [{sf}]", False
+        #if success: persist_subdb(session['sess'])
+    elif request.method == 'POST': 
+        if 'uid' in request.form and 'score' in request.form:
+            if EVAL_XL_PATHS[session['sess']]:
+                #if ('X' in session['admind']) or ('+' in session['admind']):
+                in_uid = f"{request.form['uid']}".strip()
+                in_score = f"{request.form['score']}".strip()
+                if in_score:
+                    try: _ = float(in_score)
+                    except: in_score=''
+                in_remark = f'{request.form["remark"]}'.strip().replace(",", ";") if 'remark' in request.form else ''
+                in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
+                valid_query = VALIDATE_UID(in_query) 
+                if not valid_query : 
+                    status, success = f'[{in_uid}] is not a valid user.', False
+                else: 
+                    record = db.get(in_query, None)
+                    if record is None: 
+                        status, success = f'[{in_uid}] is not a valid user.', False
+                    else:
+                        admind, uid, named, _ = record
+                        if ('-' in admind):
+                            status, success = f'[{in_uid}] {named} is not in evaluation list.', False
+                        else:
+                            scored = dbsubs[session["sess"]].get(in_query, None)       
+                            submitter = session['uid']                        
+                            if scored is None: 
+                                if not in_score:
+                                    status, success = f'Require numeric value to assign score to [{in_uid}] {named}.', False
+                                else:
+                                    has_req_files = GetUserFiles(uid, session['sess'], app.config['running'][session['sess']]['required'])
+                                    if has_req_files:
+                                        dbsubs[session["sess"]][in_query] = [uid, in_score, in_remark, submitter]
+                                        status, success = f'Score/Remark Created for [{in_uid}] {named}, current score is {in_score}.', True
+                                        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} just evaluated {uid} ◦ {named} for {session['sess']} via {request.remote_addr}")
+                                    else:
+                                        status, success = f'User [{in_uid}] {named} has not uploaded the required files yet.', False
+                            else:
+                                if scored[-1] == submitter or abs(float(scored[1])) == float('inf') or ('+' in session['admind']):
+                                    if in_score:  dbsubs[session["sess"]][in_query][1] = in_score
+                                    if in_remark: dbsubs[session["sess"]][in_query][2] = in_remark
+                                    dbsubs[session["sess"]][in_query][-1] = submitter # incase of inf score
+                                    if in_score or in_remark : status, success =    f'Score/Remark Updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][1]}. Remark is [{dbsubs[session["sess"]][in_query][2]}].', True
+                                    else: status, success =                         f'Nothing was updated for [{in_uid}] {named}, current score is {dbsubs[session["sess"]][in_query][1]}. Remark is [{dbsubs[session["sess"]][in_query][2]}].', False
+                                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updated the evaluation for {uid} ◦ {named} for {session['sess']} via {request.remote_addr}")
+                                else:
+                                    status, success = f'[{in_uid}] {named} has been evaluated by [{scored[-1]}], you cannot update the information.', False
+                                    dprint(f"๏ 🎓 {submitter} ◦ {session['named']} is trying to revaluate {uid} ◦ {named} for {session['sess']} (already evaluated by [{scored[-1]}]) via {request.remote_addr}")
+                                    sprint(f'\tHint: Set the score to "inf"')
+                #else: status, success =  "You are not allow to evaluate.", False
+            else: status, success =  "Evaluation is disabled.", False
+        else: status, success = f"You posted nothing!", False
+        if success and app.config['eip']: persist_subdb(session['sess'])
+    else:
+        if not req_uid: status, success = f"Eval Access is Enabled", True
+        else:
+            if app.config['reeval']:
+                in_uid = f'{req_uid}'
+                if in_uid: 
+                    in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
+                    record = db.get(in_query, None)
+                    if record is not None: 
+                        erecord = dbsubs[session["sess"]].get(in_query, None)
+                        if erecord is not None:
+                            del dbsubs[session["sess"]][in_query]
+                            dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {record[2]} (already evaluated by [{erecord[-1]}] with score [{erecord[1]}]) for {session['sess']} via {request.remote_addr}")
+                            status, success =  f"Evaluation was reset for {record[1]} ◦ {record[2]}", True
+                        else: status, success =  f"User {record[1]} ◦ {record[2]} has not been evaluated", False
+                    else: status, success =  f"User '{in_query}' not found", False
+                else: status, success =  f"Username was not provided", False
+            else: status, success =  "Evaluation reset is disabled for this session", False
+            if success: persist_subdb(session['sess'])
+    return render_template('evaluate.html', success=success, status=status, form=form, results=results, has_group=has_group)
 
 
 @app.route('/home', methods =['GET'])
@@ -3766,31 +3779,6 @@ def toggle_upload(SESS):
     dprint(f"๏ ❗ {session['uid']} ◦ {session['named']} has {dowhat} uploads for {SESS} via {request.remote_addr}")
     return STATUS, SUCCESS 
 
-
-@app.route('/e/', methods =['GET'], defaults={'req_uid': ''})
-@app.route('/e/<req_uid>')
-def route_reval(req_uid):
-    if not session.get('has_login', False): return redirect(url_for('route_login')) # "Not Allowed - Requires Login"
-    iseval, isadmin = ('X' in session['admind']), ('+' in session['admind'])
-    if not ((iseval) or (isadmin)): return abort(404)
-    if not req_uid: return abort(404)
-    if app.config['reeval'] or isadmin:
-        if iseval or isadmin:
-            in_uid = f'{req_uid}'
-            if in_uid: 
-                in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
-                record = db.get(in_query, None)
-                if record is not None: 
-                    erecord = dbsubs[session["sess"]].get(in_query, None)
-                    if erecord is not None:
-                        del dbsubs[session["sess"]][in_query]
-                        dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {record[2]} (already evaluated by [{erecord[-1]}] with score [{erecord[1]}]) for {session['sess']} via {request.remote_addr}")
-    return redirect(url_for('route_live_report'))
-
-
-
-
-
 @app.route('/x/', methods =['GET'], defaults={'req_uid': ''})
 @app.route('/x/<req_uid>')
 def route_repassx(req_uid):
@@ -3800,7 +3788,7 @@ def route_repassx(req_uid):
     if not ((iseval) or (isadmin)): return abort(404)
     form = UploadFileForm()
     results = []
-    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_CSV))
+    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], f"group.csv"))
     has_group = os.path.isfile(grpfile)
     if not req_uid:
         if '+' in session['admind']: 
