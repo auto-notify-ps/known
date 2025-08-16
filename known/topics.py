@@ -3971,6 +3971,13 @@ def route_public(req_path):
     return render_template('publics.html')
 
 
+
+@app.route('/log', methods =['GET'])
+def route_log(): 
+    if not session.get('has_login', False): return redirect(url_for('route_login')) 
+    if not ('+' in session['admind']): return abort(404) 
+    return "Logging Disabled" if not LOGFILE else send_file(LOGFILE, as_attachment=False)
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # [Serve] ✓ ✗
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
