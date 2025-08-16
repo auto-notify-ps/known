@@ -213,7 +213,7 @@ DEFAULT_USER = 'admin'
 DEFAULT_ACCESS = f'DAURGX-+'
 MAX_STR_LEN = 250
 STATUSMAP = {'Evaluated':"🟢", 'Pending':"🟡", 'No-Upload':"🔵", "Absent":"🔴"}
-GROUP_CSV = "group.csv"
+GROUP_FILE= "group.list"
 
 def rematch(instr, pattern):  return \
     (len(instr) >= 0) and \
@@ -593,7 +593,9 @@ def TEMPLATES(style, script_mathjax):
                 {{form.hidden_tag()}}
                 {{form.file()}}
                 {{form.submit()}}
-                <a href="{{ url_for('route_reset_report') }}" class="btn_purge">Reset Group</a>
+                <a href="{{ url_for('route_reset_report') }}" class="btn_home_small">Reset</a>
+                <a href="{{ url_for('route_reset_report', x='') }}" class="btn_purge">Remove</a>
+                <a href="{{ url_for('route_reset_report', v='') }}" class="btn_download_small">View</a>
             </form>
             {% endif %}
             
@@ -1449,6 +1451,32 @@ def TEMPLATES(style, script_mathjax):
         border-color: {style.btn_red}; 
         text-decoration: none;
         font-size: small;
+    }}
+
+    .btn_home_small {{
+        padding: 2px 10px 2px;
+        background-color: {style.btn_olive}; 
+        color: {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
+        font-size: small;
+        border-style: solid;
+        border-radius: 10px;
+        border-color: {style.btn_olive}; 
+        font-family: {style.font_};
+        text-decoration: none;
+    }}
+
+    .btn_download_small {{
+        padding: 2px 10px 2px;
+        background-color: {style.btn_sky};
+        color: {style.btn_fg}; 
+        font-weight: {style.btn_fw}; 
+        font-size: small;
+        border-style: solid;
+        border-radius: 10px;
+        border-color: {style.btn_sky}; 
+        font-family: {style.font_};
+        text-decoration: none;
     }}
 
     .bridge{{ line-height: 2; }}
@@ -3015,7 +3043,7 @@ def route_generate_eval_template():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
     return send_file(DICT2BUFF({k:[v[LOGIN_ORD_MAPPING["UID"]], v[LOGIN_ORD_MAPPING["NAME"]],] for k,v in db.items() if '-' not in v[LOGIN_ORD_MAPPING["ADMIN"]]} , ["UID", "NAME",]),
-                    download_name=GROUP_CSV, as_attachment=True)
+                    download_name=f"users.csv", as_attachment=True)
 
 @app.route('/generate_live_report', methods =['GET'])
 def route_generate_live_report():
@@ -3208,11 +3236,39 @@ def route_switch(req_uid):
 @app.route('/reset_report', methods =['GET'])
 def route_reset_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
-    if not ('+' in session['admind']): return abort(404)
-    for e in dbevaluatorset:
-        egrpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e, GROUP_CSV))
-        with open(egrpfile, 'w') as f: f.write('')
-    return redirect(url_for('route_eval'))
+    results = []
+    if not ('+' in session['admind']): success, status = False, f'You are not allowed to set groups'
+    else:
+        dprint(f'๏ {session["uid"]} ◦ {session["named"]} is setting groups for {session["sess"]} via {request.remote_addr}') 
+        
+        if request.args:
+            if 'v' in request.args:
+                for ei,e in enumerate(dbevaluatorset):
+                    egrpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e, GROUP_FILE))
+                    hasegrp = os.path.isfile(egrpfile)
+                    if hasegrp: 
+                        with open(egrpfile, 'r') as f: rex = [(f' ⇒ {j} {i.strip()}', db[i.strip()][2], False) for j,i in enumerate(f.readlines())]
+                    else: rex=[]
+                    results.append((f"{e} {db[e][2]}", f'{len(rex)}', hasegrp))
+                    results.extend(rex)
+
+                success, status = True, f'View All Groups'
+            elif 'x' in request.args:
+                for e in dbevaluatorset:
+                    egrpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e, GROUP_FILE))
+                    if os.path.isfile(egrpfile): 
+                        os.remove(egrpfile)
+                        sprint(f'\t⛔ Removed Group File for {e}')
+                success, status = True, f'Removed All Groups'
+            else:
+                success, status = False, f'Invalid Argument for Groups'
+        else:
+            for e in dbevaluatorset:
+                egrpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e, GROUP_FILE))
+                with open(egrpfile, 'w') as f: f.write('')
+                sprint(f'\t♻️ Reset Group File for {e}')
+            success, status = True, f'Reset All Groups'
+    return render_template('evaluate.html', success=success, status=status, form=UploadFileForm(), results=results,  has_group=os.path.isfile((os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_FILE))))
 
 @app.route('/live_report', methods =['GET', 'POST'])
 def route_live_report():
@@ -3220,7 +3276,7 @@ def route_live_report():
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
     sess = session['sess']
     submitter = session['uid']
-    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_CSV))
+    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_FILE))
     has_group = os.path.isfile(grpfile)
     if not has_group: return abort(404)
 
@@ -3424,7 +3480,7 @@ def route_group_add(req_uid):
             record = db.get(in_query, None)
             if record is not None: 
                 if in_query in dbevalset:
-                    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_CSV))
+                    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_FILE))
                     has_group = os.path.isfile(grpfile)
                     if has_group:
                         with open(grpfile, 'r') as f: gset = f.readlines()
@@ -3451,7 +3507,7 @@ def route_group_del(req_uid):
             in_query = in_uid if not args.case else (in_uid.upper() if args.case>0 else in_uid.lower())
             record = db.get(in_query, None)
             if record is not None: 
-                grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_CSV))
+                grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_FILE))
                 has_group = os.path.isfile(grpfile)
                 if has_group:
                     with open(grpfile, 'r') as f: gset = f.readlines()
@@ -3468,8 +3524,6 @@ def route_group_del(req_uid):
 def route_eval():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
-    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_CSV))
-    has_group = os.path.isfile(grpfile)
     form = UploadFileForm()
     results = []
     if form.validate_on_submit():
@@ -3502,14 +3556,13 @@ def route_eval():
                                 else: results.append((in_uid, "✗ ... invalid user", False))
 
                             for e,uids in ed.items():
-                                egrpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e, GROUP_CSV))
-                                with open(egrpfile, 'w') as f: f.writelines(uids)
-                                dprint(f'Write at {egrpfile}')
+                                with open((os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e, GROUP_FILE)), 'w') as f: f.writelines(uids)
+                                
                             status, success = f"Added {total_added} uses to groups", True  
                         except: 
                             status, success = f"Error updating group from file [{sf}]", False
     else: status, success = f"Eval Access is Enabled", True
-    return render_template('evaluate.html', success=success, status=status, form=form, results=results,  has_group=has_group)
+    return render_template('evaluate.html', success=success, status=status, form=form, results=results,  has_group=os.path.isfile((os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_FILE))))
 
 
 @app.route('/home', methods =['GET'])
@@ -3798,10 +3851,6 @@ def route_repassx(req_uid):
     if not session.get('has_login', False): return redirect(url_for('route_login')) # "Not Allowed - Requires Login"
     iseval, isadmin = ('X' in session['admind']), ('+' in session['admind'])
     if not ((iseval) or (isadmin)): return abort(404)
-    form = UploadFileForm()
-    results = []
-    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_CSV))
-    has_group = os.path.isfile(grpfile)
     if not req_uid:
         if '+' in session['admind']: 
             if len(request.args)==1:
@@ -3873,7 +3922,7 @@ def route_repassx(req_uid):
                     else: STATUS, SUCCESS =  f"Username was not provided", False
                 else: STATUS, SUCCESS =  "You are not allow to reset passwords", False
             else: STATUS, SUCCESS =  "Password reset is disabled for this session", False
-    return render_template('evaluate.html',  status=STATUS, success=SUCCESS, form=form, results=results,has_group=has_group)
+    return render_template('evaluate.html',  status=STATUS, success=SUCCESS, form=UploadFileForm(), results=[], has_group=os.path.isfile((os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_FILE))))
 
 
 
