@@ -4096,8 +4096,8 @@ def route_public(req_path):
         if os.path.isfile(abs_path):            
             if app.config['publiclog']:
                 info = request.environ
-                txt=f'📢 Public Link was accessed via {request.remote_addr}\n'
-                for k,v in info.items(): txt+=(f'\t{k}:{v}\n')
+                txt=f'📢 Public Link was accessed via {request.remote_addr}'
+                #for k,v in info.items(): txt+=(f'\t{k}:{v}\n')
                 sprint(f'{txt}')
             return send_file(abs_path, as_attachment=("?" in request.args))
     return render_template('publics.html')
