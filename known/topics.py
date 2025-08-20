@@ -3273,7 +3273,7 @@ def route_switch(req_uid):
                     sprint(f'✗ directory could not be created @ {folder_name} :: Force logout user {session["uid"]}')
                     session['has_login'] = False
                     return redirect(url_for('route_logout'))
-                dprint(f'๏ 🙃 {session["uid"]} ◦ {session["named"]} has switched from {previous_sess} to {session["sess"]} via {request.remote_addr}') 
+                dprint(f'๏ 🔄️ {session["uid"]} ◦ {session["named"]} has switched from {previous_sess} to {session["sess"]} via {request.remote_addr}') 
             if 'e' in request.args: return redirect(url_for('route_eval')) 
             if 'u' in request.args: return redirect(url_for('route_uploads')) 
             if 'd' in request.args: return redirect(url_for('route_downloads')) 
@@ -3367,7 +3367,7 @@ def route_reset_report():
                                     if u in dbevalset:
                                         to_add.append(u)
                             if to_add:
-                                dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} is adding to group for {session['sess']} via {request.remote_addr}")
+                                dprint(f"๏ ➕ {session['uid']} ◦ {session['named']} is adding to group for {session['sess']} via {request.remote_addr}")
                                 with open(egrpfile, 'r') as f: gset = f.readlines()
                                 with open(egrpfile, 'a') as f:
                                     for in_query in to_add:
@@ -3379,7 +3379,7 @@ def route_reset_report():
                             success, status = True, f'Added to {e} groups'
                     else: success, status = False, f'[{e}] is not valid evaluator'
             elif 'd' in request.args:
-                dprint(f'๏ {session["uid"]} ◦ {session["named"]} is removing users from groups for {session["sess"]} via {request.remote_addr}') 
+                dprint(f'๏ ➖ {session["uid"]} ◦ {session["named"]} is removing users from groups for {session["sess"]} via {request.remote_addr}') 
                 argsx = request.args.get('d').split(CSV_DELIM)
                 if len(argsx)<2: success, status = False, f'Invalid args!! Try again.'
                 else:
@@ -3401,7 +3401,7 @@ def route_reset_report():
                                         to_add.append(u)
 
                             if to_add:
-                                dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} is removing from group for {session['sess']} via {request.remote_addr}")
+                                dprint(f"๏ ➖ {session['uid']} ◦ {session['named']} is removing from group for {session['sess']} via {request.remote_addr}")
                                 with open(egrpfile, 'r') as f: gset = f.readlines()
                                 for in_query in to_add:
                                     try: 
@@ -3439,7 +3439,7 @@ def route_live_report():
     results={}
 
     if request.method == 'POST':
-        dprint(f"๏ 🎓 {submitter} ◦ {session['named']} updating evaluation for {sess} via {request.remote_addr}")
+        dprint(f"๏ ✔️ {submitter} ◦ {session['named']} updating evaluation for {sess} via {request.remote_addr}")
         for i,uid in enumerate(gset, 1):
             #named = db[uid][2]
             if not f'score_{uid}' in request.form: continue
@@ -3465,7 +3465,7 @@ def route_live_report():
                     if has_req_files:
                         dbsubs[sess][uid] = [uid, in_score, in_remark, submitter]
                         results[uid] = '✅' 
-                        dprint(f"\t ➕ {submitter} ◦ {session['named']} evaluated {uid} for {sess} via {request.remote_addr}")
+                        dprint(f"๏\t ➕ {submitter} ◦ {session['named']} evaluated {uid} for {sess} via {request.remote_addr}")
                     else: results[uid] = '❗' # no-upload
             else:
                 if scored[-1] == submitter or ('+' in session['admind']):
@@ -3474,7 +3474,7 @@ def route_live_report():
                         dbsubs[sess][uid][1] = in_score
                         dbsubs[sess][uid][2] = in_remark
                         results[uid] = '✅'
-                        if p_score!=in_score: dprint(f"\t ✔️  {submitter} ◦ {session['named']} re-evaluated {uid} for {sess} via {request.remote_addr}")
+                        if p_score!=in_score: dprint(f"๏\t ✔️  {submitter} ◦ {session['named']} re-evaluated {uid} for {sess} via {request.remote_addr}")
                     else: results[uid] = '❌' # invalid score
                 else: results[uid] = '‼️' # already evaluated
     
@@ -3639,7 +3639,7 @@ def route_group_add(req_uid):
             egrpfile = (os.path.join(REPORT_FOLDER_PATH, session['uid'], f"{session['sess']}{GROUP_FILE}"))
             hasegrp = os.path.isfile(egrpfile)
             if hasegrp:
-                dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} is adding to group for {session['sess']} via {request.remote_addr}")
+                dprint(f"๏ ➕ {session['uid']} ◦ {session['named']} is adding to group for {session['sess']} via {request.remote_addr}")
                 with open(egrpfile, 'r') as f: gset = f.readlines()
                 with open(egrpfile, 'a') as f:
                     for in_query in to_add:
@@ -3671,7 +3671,7 @@ def route_group_del(req_uid):
             egrpfile = (os.path.join(REPORT_FOLDER_PATH, session['uid'], f"{session['sess']}{GROUP_FILE}"))
             hasegrp = os.path.isfile(egrpfile)
             if hasegrp:
-                dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} is removing from group for {session['sess']} via {request.remote_addr}")
+                dprint(f"๏ ➖ {session['uid']} ◦ {session['named']} is removing from group for {session['sess']} via {request.remote_addr}")
                 with open(egrpfile, 'r') as f: gset = f.readlines()
                 for in_query in to_add:
                     try: 
@@ -3771,7 +3771,7 @@ def route_store(subpath=""):
             except FileNotFoundError:  return redirect(url_for('route_logout'))
         result_show = ''.join([f'\t{r[-1]}\n' for r in result])
         result_show = result_show[:-1]
-        dprint(f'๏ ✅ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s) to the store\n{result_show}') 
+        dprint(f'๏ 📤 {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s) to the store\n{result_show}') 
         return redirect(url_for('route_store', subpath=subpath)) 
     else:
         if not os.path.exists(abs_path):
@@ -3965,7 +3965,7 @@ def route_reval(req_uid):
                     erecord = dbsubs[session["sess"]].get(in_query, None)
                     if erecord is not None:
                         del dbsubs[session["sess"]][in_query]
-                        dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {record[2]} (already evaluated by [{erecord[-1]}] with score [{erecord[1]}]) for {session['sess']} via {request.remote_addr}")
+                        dprint(f"๏ ♻️ {session['uid']} ◦ {session['named']} has reset evaluation for {erecord[0]} ◦ {record[2]} (already evaluated by [{erecord[-1]}] with score [{erecord[1]}]) for {session['sess']} via {request.remote_addr}")
     return redirect(url_for('route_live_report'))
 
 
