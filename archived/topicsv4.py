@@ -213,7 +213,7 @@ DEFAULT_USER = 'admin'
 DEFAULT_ACCESS = f'DAURGX-+'
 MAX_STR_LEN = 250
 STATUSMAP = {'Evaluated':"🟢", 'Pending':"🟡", 'No-Upload':"🔵", "Absent":"🔴"}
-GROUP_FILE= "_group.txt"
+GROUP_FILE= "group.txt"
 
 def rematch(instr, pattern):  return \
     (len(instr) >= 0) and \
@@ -581,50 +581,14 @@ def TEMPLATES(style, script_mathjax):
             <br>
             <br>
             {% if config.running[session.sess].eval and "+" in session.admind %} 
-                <a href="{{ url_for('route_reset_report', u='') }}" class="btn_store_small">Users</a>
+            <form method='POST' enctype='multipart/form-data'>
+                {{form.hidden_tag()}}
+                {{form.file()}}
+                <input id="submit" name="submit" type="submit" value="Add">
+                <a href="{{ url_for('route_reset_report') }}" class="btn_home_small">Reset</a>
+                <a href="{{ url_for('route_reset_report', x='') }}" class="btn_purge">Remove</a>
                 <a href="{{ url_for('route_reset_report', v='') }}" class="btn_download_small">View</a>
-
-                <button class="btn_home_small" onclick="confirm_create()">""" + 'Create' + """</button>
-                    <script>
-                        function confirm_create() {
-                        let res = prompt("Enter EID to create, use * for all EIDs", ""); 
-                        if (res != null && res != '') {
-                            location.href = "{{ url_for('route_reset_report',c='::::') }}".replace("::::", res);
-                            }
-                        }
-                    </script>
-
-                <button class="btn_purge" onclick="confirm_delete()">""" + 'Delete' + """</button>
-                    <script>
-                        function confirm_delete() {
-                        let res = prompt("Enter EID to delete, use * for all EIDs", ""); 
-                        if (res != null && res != '') {
-                            location.href = "{{ url_for('route_reset_report',x='::::') }}".replace("::::", res);
-                            }
-                        }
-                    </script>
-
-                <button class="btn_refresh_small" onclick="confirm_add()">""" + 'Add' + """</button>
-                    <script>
-                        function confirm_add() {
-                        let res = prompt("Enter csv EID,UIDs to add", ""); 
-                        if (res != null && res != '') {
-                            location.href = "{{ url_for('route_reset_report',a='::::') }}".replace("::::", res);
-                            }
-                        }
-                    </script>
-                <button class="btn_board_small" onclick="confirm_rem()">""" + 'Remove' + """</button>
-                    <script>
-                        function confirm_rem() {
-                        let res = prompt("Enter csv EID,UIDs to remove", ""); 
-                        if (res != null && res != '') {
-                            location.href = "{{ url_for('route_reset_report',d='::::') }}".replace("::::", res.replace("\\n",","));
-                            }
-                        }
-                    </script>
-
-
-                
+            </form>
             {% endif %}
             
         </div>
@@ -1479,46 +1443,6 @@ def TEMPLATES(style, script_mathjax):
         border-color: {style.btn_red}; 
         text-decoration: none;
         font-size: small;
-    }}
-
-    .btn_refresh_small {{
-        padding: 2px 10px 2px;
-        background-color:  {style.btn_igreen};
-        color: {style.btn_fg}; 
-        font-size: small;
-        font-weight: {style.btn_fw}; 
-        border-style: solid;
-        border-radius: 10px;
-        border-color: {style.btn_igreen}; 
-        font-family: {style.font_};
-        text-decoration: none;
-    }}
-
-    .btn_store_small {{
-        padding: 2px 10px 2px;
-        background-color: {style.btn_teal}; 
-        color:  {style.btn_fg}; 
-        font-weight: {style.btn_fw}; 
-        font-size: small;
-        border-style: solid;
-        border-radius: 10px;
-        border-color: {style.btn_teal}; 
-        font-family: {style.font_};
-        text-decoration: none;
-    }}
-
-    .btn_board_small {{
-        padding: 2px 10px 2px;
-        background-color: {style.btn_pink};
-        border-style: none;
-        color: {style.btn_fg}; 
-        font-weight: {style.btn_fw}; 
-        font-size: small;
-        border-style: solid;
-        border-radius: 10px;
-        border-color: {style.btn_pink}; 
-        font-family: {style.font_};
-        text-decoration: none;
     }}
 
     .btn_home_small {{
@@ -3276,144 +3200,43 @@ def route_switch(req_uid):
             if 'd' in request.args: return redirect(url_for('route_downloads')) 
             return redirect(url_for('route_home')) 
 
-
 @app.route('/reset_report', methods =['GET'])
 def route_reset_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     results = []
     if not ('+' in session['admind']): success, status = False, f'You are not allowed to set groups'
     else:
-        
+        dprint(f'๏ {session["uid"]} ◦ {session["named"]} is setting groups for {session["sess"]} via {request.remote_addr}') 
         
         if request.args:
-            if 'u' in request.args:
-                uev = {u:[] for u in sorted(dbevalset)}
+            if 'v' in request.args:
                 for ei,e in enumerate(dbevaluatorset):
-                    egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
-                    hasegrp = os.path.isfile(egrpfile)
-                    if hasegrp: 
-                        with open(egrpfile, 'r') as f: 
-                            for j,i in enumerate(f.readlines()):
-                                iu = i.strip()
-                                if iu in uev:uev[iu].append(e)
-                for uei,(u,evs) in enumerate(uev.items(), 1): results.append((f"{uei} {u} {db[u][2]}", f'{evs}', bool(evs)))
-                success, status = True, f'View All Users'
-            elif 'v' in request.args:
-                for ei,e in enumerate(dbevaluatorset):
-                    egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
+                    egrpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e, GROUP_FILE))
                     hasegrp = os.path.isfile(egrpfile)
                     if hasegrp: 
                         with open(egrpfile, 'r') as f: rex = [(f' ⇒ {j} {i.strip()}', db[i.strip()][2], False) for j,i in enumerate(f.readlines())]
                     else: rex=[]
                     results.append((f"{e} {db[e][2]}", f'{len(rex)}', hasegrp))
                     results.extend(rex)
+
                 success, status = True, f'View All Groups'
-            elif 'c' in request.args:
-                dprint(f'๏ {session["uid"]} ◦ {session["named"]} is creating groups for {session["sess"]} via {request.remote_addr}') 
-                argsx = request.args.get('c').strip()
-                if not argsx: success, status = False, f'Invalid args!! Try again.'
-                else:
-                    if argsx=="*":
-                        eset = dbevaluatorset
-                    else:
-                        eids = [e.strip() for e in argsx.split(CSV_DELIM)]
-                        eset = set([e if not args.case else (e.upper() if args.case>0 else e.lower()) for e in eids if e])
-
-                    for e in eset:
-                        egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
-                        with open(egrpfile, 'w') as f: f.write('')
-                    sprint(f'\t♻️ Reset Group File for {eset}')
-                    success, status = True, f'Reset Groups for {eset}'
             elif 'x' in request.args:
-                dprint(f'๏ {session["uid"]} ◦ {session["named"]} is deleting groups for {session["sess"]} via {request.remote_addr}') 
-                argsx = request.args.get('x').strip()
-                if not argsx: success, status = False, f'Invalid args!! Try again.'
-                else:
-                    if argsx=="*":
-                        eset = dbevaluatorset
-                    else:
-                        eids = [e.strip() for e in argsx.split(CSV_DELIM)]
-                        eset = set([e if not args.case else (e.upper() if args.case>0 else e.lower()) for e in eids if e])
-
-                    for e in eset:
-                        egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
-                        hasegrp = os.path.isfile(egrpfile)
-                        if hasegrp: 
-                            os.remove(egrpfile)
-                            sprint(f'\t⛔ Removed Group File for {e}')
-                    success, status = True, f'Removed Groups for {eset}'
-            elif 'a' in request.args:
-                dprint(f'๏ {session["uid"]} ◦ {session["named"]} is adding users to groups for {session["sess"]} via {request.remote_addr}') 
-                argsx = request.args.get('a').split(CSV_DELIM)
-                if len(argsx)<2: success, status = False, f'Invalid args!! Try again.'
-                else:
-                    e = argsx[0].strip()
-                    e = e if not args.case else (e.upper() if args.case>0 else e.lower())
-                    if e in dbevaluatorset:
-                        egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
-                        hasegrp = os.path.isfile(egrpfile)
-                        if not hasegrp: success, status = False, f"Groups file is missing for {e}"
-                        else:
-                            #with open(egrpfile, 'w') as f: f.writelines(RANDOM_GROUPS())
-                            uids = argsx[1:]
-                            to_add=[]
-                            for u in uids:
-                                u = u.strip()
-                                if u: 
-                                    u = u if not args.case else (u.upper() if args.case>0 else u.lower())
-                                    if u in dbevalset:
-                                        to_add.append(u)
-                            if to_add:
-                                dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} is adding to group for {session['sess']} via {request.remote_addr}")
-                                with open(egrpfile, 'r') as f: gset = f.readlines()
-                                with open(egrpfile, 'a') as f:
-                                    for in_query in to_add:
-                                        if (f'{in_query}\n') not in gset: 
-                                            f.write(f'{in_query}\n')
-                                            dprint(f"๏\t{in_query}")
-                                            results.append((in_query, '✓' ,True))
-                                        else: results.append((in_query, '✗' ,False))
-                            success, status = True, f'Added to {e} groups'
-                    else: success, status = False, f'[{e}] is not valid evaluator'
-            elif 'd' in request.args:
-                dprint(f'๏ {session["uid"]} ◦ {session["named"]} is removing users from groups for {session["sess"]} via {request.remote_addr}') 
-                argsx = request.args.get('d').split(CSV_DELIM)
-                if len(argsx)<2: success, status = False, f'Invalid args!! Try again.'
-                else:
-                    e = argsx[0].strip()
-                    e = e if not args.case else (e.upper() if args.case>0 else e.lower())
-                    if e in dbevaluatorset:
-                        egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
-                        hasegrp = os.path.isfile(egrpfile)
-                        if not hasegrp: success, status = False, f"Groups file is missing for {e}"
-                        else:
-                            #with open(egrpfile, 'w') as f: f.writelines(RANDOM_GROUPS())
-                            uids = argsx[1:]
-                            to_add=[]
-                            for u in uids:
-                                u = u.strip()
-                                if u: 
-                                    u = u if not args.case else (u.upper() if args.case>0 else u.lower())
-                                    if u in dbevalset:
-                                        to_add.append(u)
-
-                            if to_add:
-                                dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} is removing from group for {session['sess']} via {request.remote_addr}")
-                                with open(egrpfile, 'r') as f: gset = f.readlines()
-                                for in_query in to_add:
-                                    try: 
-                                        gset.remove(f'{in_query}\n')
-                                        dprint(f"๏\t{in_query}")
-                                        results.append((in_query, '✓' ,True))
-                                    except: results.append((in_query, '✗' ,False))
-                                with open(egrpfile, 'w') as f: f.writelines(gset)
-
-                        success, status = True, f'Removed from {e} groups'
-                    else: success, status = False, f'[{e}] is not valid evaluator'
-            else: success, status = False, f'Invalid Argument for Groups'
-        else: success, status = False, f'Requires Agrs'
-
-    return render_template('evaluate.html', success=success, status=status, results=results,)
+                for e in dbevaluatorset:
+                    egrpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e, GROUP_FILE))
+                    if os.path.isfile(egrpfile): 
+                        os.remove(egrpfile)
+                        sprint(f'\t⛔ Removed Group File for {e}')
+                success, status = True, f'Removed All Groups'
+            else:
+                success, status = False, f'Invalid Argument for Groups'
+        else:
+            for e in dbevaluatorset:
+                egrpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e, GROUP_FILE))
+                os.makedirs(os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e,), exist_ok=True)
+                with open(egrpfile, 'w') as f: f.write('')
+                sprint(f'\t♻️ Reset Group File for {e}')
+            success, status = True, f'Reset All Groups'
+    return render_template('evaluate.html', success=success, status=status, form=UploadFileForm(), results=results,)
 
 @app.route('/live_report', methods =['GET', 'POST'])
 def route_live_report():
@@ -3421,15 +3244,15 @@ def route_live_report():
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
     sess = session['sess']
     submitter = session['uid']
-    egrpfile = (os.path.join(REPORT_FOLDER_PATH, submitter, f"{session['sess']}{GROUP_FILE}"))
-    hasegrp = os.path.isfile(egrpfile)
-    if not hasegrp: return abort(404)
+    grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_FILE))
+    has_group = os.path.isfile(grpfile)
+    if not has_group: return abort(404)
 
     if 'flt' in request.args: 
         session['flt'] = request.args['flt']
         return redirect(url_for('route_live_report')) 
 
-    with open(egrpfile, 'r') as f: gset = set([i.strip() for i in f.readlines()])
+    with open(grpfile, 'r') as f: gset = set([i.strip() for i in f.readlines()])
 
     REQUIRED_FILES=app.config['running'][sess]['required']
     msg = f"Users"
@@ -3480,7 +3303,7 @@ def route_live_report():
     <button title="add user to group" class="btn_board" onclick="confirm_add()">""" + 'Add' + """</button>
     <script>
         function confirm_add() {
-        let res = prompt("Make Sure to save first! \\n\\n\\tEnter UIDs to add\\n(can enter multiple UIDs, comma-seperated)", ""); 
+        let res = prompt("Make Sure to save first! \\n\\n\\tEnter UID to add", ""); 
         if (res != null && res != '') {
             location.href = "{{ url_for('route_group_add',req_uid='::::') }}".replace("::::", res);
             }
@@ -3490,7 +3313,7 @@ def route_live_report():
     <button title="remove user from group" class="btn_board" onclick="confirm_del()">""" + 'Remove' + """</button>
     <script>
         function confirm_del() {
-        let res = prompt("Make Sure to save first! \\n\\n\\tEnter UIDs to remove\\n(can enter multiple UIDs, comma-seperated)", ""); 
+        let res = prompt("Make Sure to save first! \\n\\n\\tEnter UID to remove", ""); 
         if (res != null && res != '') {
             location.href = "{{ url_for('route_group_del',req_uid='::::') }}".replace("::::", res);
             }
@@ -3633,12 +3456,12 @@ def route_group_add(req_uid):
             in_query = u if not args.case else (u.upper() if args.case>0 else u.lower())
             if in_query in dbevalset: to_add.append(in_query)
         if to_add:
-            egrpfile = (os.path.join(REPORT_FOLDER_PATH, session['uid'], f"{session['sess']}{GROUP_FILE}"))
-            hasegrp = os.path.isfile(egrpfile)
-            if hasegrp:
+            grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_FILE))
+            has_group = os.path.isfile(grpfile)
+            if has_group:
                 dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} is adding to group for {session['sess']} via {request.remote_addr}")
-                with open(egrpfile, 'r') as f: gset = f.readlines()
-                with open(egrpfile, 'a') as f:
+                with open(grpfile, 'r') as f: gset = f.readlines()
+                with open(grpfile, 'a') as f:
                     for in_query in to_add:
                         if (f'{in_query}\n') not in gset: 
                             f.write(f'{in_query}\n')
@@ -3665,17 +3488,17 @@ def route_group_del(req_uid):
             in_query = u if not args.case else (u.upper() if args.case>0 else u.lower())
             if in_query in dbevalset: to_add.append(in_query)
         if to_add:
-            egrpfile = (os.path.join(REPORT_FOLDER_PATH, session['uid'], f"{session['sess']}{GROUP_FILE}"))
-            hasegrp = os.path.isfile(egrpfile)
-            if hasegrp:
+            grpfile = (os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], session['uid'], GROUP_FILE))
+            has_group = os.path.isfile(grpfile)
+            if has_group:
                 dprint(f"๏ 🎓 {session['uid']} ◦ {session['named']} is removing from group for {session['sess']} via {request.remote_addr}")
-                with open(egrpfile, 'r') as f: gset = f.readlines()
+                with open(grpfile, 'r') as f: gset = f.readlines()
                 for in_query in to_add:
                     try: 
                         gset.remove(f'{in_query}\n')
                         dprint(f"๏\t{in_query}")
                     except: pass
-                with open(egrpfile, 'w') as f: f.writelines(gset)
+                with open(grpfile, 'w') as f: f.writelines(gset)
     
     return redirect(url_for('route_live_report'))
 
@@ -3686,8 +3509,46 @@ def route_group_del(req_uid):
 def route_eval():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     if not (('X' in session['admind']) or ('+' in session['admind'])): return abort(404)
-    status, success = f"Eval Access is Enabled", True
-    return render_template('evaluate.html', success=success, status=status, results=[])
+    form = UploadFileForm()
+    results = []
+    if form.validate_on_submit():
+        if not ('+' in session['admind']): status, success =  "You cannot set groups.", False
+        else:
+            if not EVAL_XL_PATHS[session['sess']]: status, success =  "Evaluation is disabled.", False
+            else:
+                if len(form.file.data)!=1:  status, success = f"Expecting only one csv file", False
+                else:
+                    file = form.file.data[0]
+                    isvalid, sf = VALIDATE_FILENAME_SUBMIT(secure_filename(file.filename))
+                    if not isvalid: status, success = f"FileName is invalid '{sf}'", False
+                    else:
+                        try: 
+                            filebuffer = BytesIO()
+                            file.save(filebuffer) 
+                            score_dict = BUFF2DICT(filebuffer, 0)
+                            results.clear()
+                            total_added=0
+                            ed = {e: [] for e in dbevaluatorset}
+                            for k,(in_uid, in_eval) in score_dict.items(): 
+                                in_eval=in_eval.strip()
+                                in_uid=in_uid.strip()
+                                if in_uid in dbevalset: 
+                                    if in_eval in dbevaluatorset:
+                                        ed[in_eval].append(f'{in_uid}\n')
+                                        results.append((in_uid, f"✓ {in_eval}", True))
+                                        total_added+=1
+                                    else: results.append((in_eval, f"✗ ... invalid evaluator", False))
+                                else: results.append((in_uid, "✗ ... invalid user", False))
+
+                            for e,uids in ed.items():
+                                os.makedirs(os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e,), exist_ok=True)
+                                with open((os.path.join(UPLOAD_FOLDER_PATHS[session['sess']], e, GROUP_FILE)), 'w') as f: f.writelines(uids)
+                                
+                            status, success = f"Added {total_added} uses to groups", True  
+                        except: 
+                            status, success = f"Error updating group from file [{sf}]", False
+    else: status, success = f"Eval Access is Enabled", True
+    return render_template('evaluate.html', success=success, status=status, form=form, results=results)
 
 
 @app.route('/home', methods =['GET'])
@@ -4047,7 +3908,7 @@ def route_repassx(req_uid):
                     else: STATUS, SUCCESS =  f"Username was not provided", False
                 else: STATUS, SUCCESS =  "You are not allow to reset passwords", False
             else: STATUS, SUCCESS =  "Password reset is disabled for this session", False
-    return render_template('evaluate.html',  status=STATUS, success=SUCCESS, results=[])
+    return render_template('evaluate.html',  status=STATUS, success=SUCCESS, form=UploadFileForm(), results=[])
 
 
 
