@@ -2816,12 +2816,12 @@ def route_downloads(req_path):
             return abort(404) 
         if os.path.isfile(abs_path): 
             if ("html" in request.args): 
-                #dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
+                dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} in downloads, converting to html from {req_path} via {request.remote_addr}")
                 try: hmsg = HConv.convertx(abs_path, args.scripts, style)
                 except: hmsg = f"Exception while converting {req_path} to a web-page"
                 return hmsg 
             else: 
-                #dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
+                dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} in downloads, downloading from {req_path} via {request.remote_addr}')
                 return send_file(abs_path, as_attachment=False) 
     return render_template('downloads.html', dfl=dfl)
 
@@ -2855,7 +2855,7 @@ def route_uploads(req_path):
             return abort(404)
         if os.path.isfile(abs_path): 
             if ('html' in request.args): 
-                dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
+                dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} in uploads, converting to html from {req_path} via {request.remote_addr}")
                 try: hmsg = HConv.convertx(abs_path, args.scripts, style)
                 except: hmsg = f"Exception while converting {req_path} to a web-page"
                 return hmsg 
@@ -2865,7 +2865,7 @@ def route_uploads(req_path):
                         return f"Cannot delete this file now."
                 try:
                     os.remove(abs_path)
-                    dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted file ({req_path}) via {request.remote_addr}") 
+                    dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} in uploads, deleted file ({req_path}) via {request.remote_addr}") 
                     return redirect(url_for('route_uploads'))
                 except:return f"Error deleting the file"
             elif ('move' in request.args):
@@ -2879,11 +2879,11 @@ def route_uploads(req_path):
                     new_path = os.path.join(os.path.dirname(abs_path), sf)
                     try:
                         os.rename(abs_path, new_path)
-                        dprint(f"๏ ❗ {session['uid']} ◦ {session['named']} renamed file ({req_path}) via {request.remote_addr}") 
+                        dprint(f"๏ ❗ {session['uid']} ◦ {session['named']} in uploads, renamed file ({req_path}) via {request.remote_addr}") 
                     except: pass
                 return redirect(url_for('route_uploads'))
             else: 
-                dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the file {req_path} via {request.remote_addr}')
+                dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} in uploads, downloading from {req_path} via {request.remote_addr}')
                 return send_file(abs_path, as_attachment=False)
     else:
         if form.validate_on_submit() and ('U' in session['admind']):
@@ -2923,7 +2923,7 @@ def route_uploads(req_path):
                                 return redirect(url_for('route_logout'))
                         result_show = ''.join([f'\t{r[-1]}\n' for r in result])
                         result_show = result_show[:-1]
-                        dprint(f'๏ ✅ {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s) for {session["sess"]}\n{result_show}') 
+                        dprint(f'๏ 📨 {session["uid"]} ◦ {session["named"]} just uploaded {n_success} file(s) for {session["sess"]}\n{result_show}') 
                         ufl = GET_FILE_LIST(folder_name, number=True)
                         status=result
 
@@ -3004,12 +3004,12 @@ def route_reports(req_path):
             return abort(404) 
         if os.path.isfile(abs_path):
             if ("html" in request.args): 
-                #dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {req_path} via {request.remote_addr}")
+                dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} in reports, converting to html from {req_path} via {request.remote_addr}")
                 try: hmsg = HConv.convertx(abs_path, args.scripts, style)
                 except: hmsg = f"Exception while converting {req_path} to a web-page"
                 return hmsg 
             else: 
-                #dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} just downloaded the report {req_path} via {request.remote_addr}')
+                dprint(f'๏ ⬇️  {session["uid"]} ◦ {session["named"]} in reports, downloading from {req_path} via {request.remote_addr}')
                 return send_file(abs_path) 
     return render_template('reports.html', rfl=rfl, statusdict=get_user_status(session['uid']))
 
@@ -3252,7 +3252,6 @@ def route_switch(req_uid):
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     session['rethome'] = ''
     if not req_uid: 
-        #sprint(request.args)
         if request.args: 
             if 'u' in request.args: session['rethome'] = 'u' 
             if 'e' in request.args: session['rethome'] = 'e' 
@@ -3750,7 +3749,7 @@ def route_store(subpath=""):
     can_admin = (('X' in session['admind']) or ('+' in session['admind']))
     if form.validate_on_submit():
         if not can_admin: return "You cannot perform this action"
-        dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} is trying to upload {len(form.file.data)} items via {request.remote_addr}")
+        dprint(f"๏ ⬆️  {session['uid']} ◦ {session['named']} in store, is trying to upload {len(form.file.data)} items via {request.remote_addr}")
         result = []
         n_success = 0
         for file in form.file.data:
@@ -3779,7 +3778,7 @@ def route_store(subpath=""):
                     if "." not in os.path.basename(abs_path):
                         try:
                             os.makedirs(abs_path)
-                            dprint(f"๏ 📁 {session['uid']} ◦ {session['named']} created new directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
+                            dprint(f"๏ 📁 {session['uid']} ◦ {session['named']} in store, created new directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
                             return redirect(url_for('route_store', subpath=subpath))
                         except: return f"Error creating the directory"
                     else: return f"Directory name cannot contain (.)"
@@ -3795,7 +3794,7 @@ def route_store(subpath=""):
                         try:
                             import shutil
                             shutil.rmtree(abs_path)
-                            dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted the directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                            dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} in store, deleted the directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
                             return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
                         except:
                             return f"Error deleting the directory"
@@ -3804,21 +3803,21 @@ def route_store(subpath=""):
                             
         elif os.path.isfile(abs_path):
             if not request.args: 
-                #dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} viewed ({subpath}) via {request.remote_addr}")
+                dprint(f"๏ 👁️  {session['uid']} ◦ {session['named']} in store, viewed ({subpath}) via {request.remote_addr}")
                 return send_file(abs_path, as_attachment=False)
             else:
                 if 'get' in request.args:
-                    #dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                    dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} in store, downloading from [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
                     return send_file(abs_path, as_attachment=True)
                 elif 'del' in request.args:
                     if not can_admin: return "You cannot perform this action"
                     try:
                         os.remove(abs_path)
-                        dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                        dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} in store, deleted file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
                         return redirect(url_for('route_store', subpath=os.path.dirname(subpath)))
                     except:return f"Error deleting the file"
                 elif ("html" in request.args): 
-                    #dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
+                    dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} in store, converting to html from {subpath} via {request.remote_addr}")
                     try:  hmsg = HConv.convertx(abs_path, args.scripts, style)
                     except: hmsg = f"Exception while converting notebook to web-page"
                     return hmsg
@@ -3839,12 +3838,12 @@ def route_storeuser(subpath=""):
         return render_template('storeuser.html', dirs=dirs, files=files, subpath=subpath, )
     elif os.path.isfile(abs_path): 
         if ("html" in request.args): 
-            #dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
+            dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} in user-store, converting to html from {subpath} via {request.remote_addr}")
             try: hmsg = HConv.convertx(abs_path, args.scripts, style)
             except: hmsg = f"Exception while converting notebook to web-page"
             return hmsg
         else: 
-            #dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded {subpath} from user-store via {request.remote_addr}")
+            dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} in user-store, downloading from {subpath} via {request.remote_addr}")
             return send_file(abs_path, as_attachment=("get" in request.args))
     else: return abort(404)
 
@@ -3864,7 +3863,7 @@ def route_reportsuser(subpath=""):
                 if "." not in os.path.basename(abs_path):
                     try:
                         os.makedirs(abs_path)
-                        dprint(f"๏ 📁 {session['uid']} ◦ {session['named']} created new directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
+                        dprint(f"๏ 📁 {session['uid']} ◦ {session['named']} in user-reports, created new directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}")
                         return redirect(url_for('route_reportsuser', subpath=subpath))
                     except: return f"Error creating the directory"
                 else: return f"Directory name cannot contain (.)"
@@ -3879,7 +3878,7 @@ def route_reportsuser(subpath=""):
                     try:
                         import shutil
                         shutil.rmtree(abs_path)
-                        dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted the directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                        dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} in user-reports, deleted the directory at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
                         return redirect(url_for('route_reportsuser', subpath=os.path.dirname(subpath)))
                     except:
                         return f"Error deleting the directory"
@@ -3892,16 +3891,16 @@ def route_reportsuser(subpath=""):
             return send_file(abs_path, as_attachment=False)
         else:
             if 'get' in request.args:
-                #dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} downloaded file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                dprint(f"๏ ⬇️  {session['uid']} ◦ {session['named']} in user-reports, downloaded file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
                 return send_file(abs_path, as_attachment=True)
             elif 'del' in request.args:
                 try:
                     os.remove(abs_path)
-                    dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} deleted file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
+                    dprint(f"๏ ❌ {session['uid']} ◦ {session['named']} in user-reports, deleted file at [{abs_path}] ๏ ({subpath}) via {request.remote_addr}") 
                     return redirect(url_for('route_reportsuser', subpath=os.path.dirname(subpath)))
                 except:return f"Error deleting the file"
             elif ("html" in request.args): 
-                #dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} converting to html from {subpath} via {request.remote_addr}")
+                dprint(f"๏ 🌐 {session['uid']} ◦ {session['named']} in user-reports, converting to html from {subpath} via {request.remote_addr}")
                 try:  hmsg = HConv.convertx(abs_path, args.scripts, style)
                 except: hmsg = f"Exception while converting notebook to web-page"
                 return hmsg
