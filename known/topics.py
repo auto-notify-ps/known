@@ -2745,10 +2745,14 @@ def route_login():
         else:
             warn = style.LOGIN_FAIL_TEXT
             msg = f'[{in_uid}] Not a valid user' 
+    
+        sprint(f'Login Attempt {warn} {msg} via {request.remote_addr}')
     else:
         if session.get('has_login', False):  return redirect(url_for('route_home'))
         msg = args.welcome
         warn = style.LOGIN_NEED_TEXT 
+    
+    
     return render_template('login.html', msg = msg,  warn = warn)
 
 @app.route('/new', methods =['GET', 'POST'])
