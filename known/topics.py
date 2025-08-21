@@ -2561,7 +2561,7 @@ class HConv: # html converter
             if not iht<0: html_title = html_title[:iht]
             if not html_title: html_title = (parsed_title if parsed_title else os.path.basename(os.path.dirname(source_notebook)))
         with open(source_notebook, 'r', encoding='utf-8')as f: md_text =f.read()
-        html_table = pd.read_csv(source_notebook).to_html(index=False)
+        html_table = pd.read_csv(source_notebook).fillna('').to_html(index=False)
         page=CSV_PAGE(html_title, html_table)
         return  page
     
@@ -2955,7 +2955,7 @@ def get_user_status(u):
         for s in dbsubs:
             ust = get_session_status(u, s)
             for k,v in ust.items(): ux[k].append(v)
-        ustatus=f"\n<div>\n{TABLE_STYLED()}\n{DataFrame(ux).to_html(index=False)}\n</div>\n"
+        ustatus=f"\n<div>\n{TABLE_STYLED()}\n{DataFrame(ux).fillna('').to_html(index=False)}\n</div>\n"
 
     return ustatus
 
