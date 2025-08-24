@@ -580,10 +580,10 @@ def TEMPLATES(style, script_mathjax):
             {% endif %}
             <br>
             <br>
-            {% if config.running[session.sess].eval and "+" in session.admind %} 
+            {% if config.running[session.sess].eval and "X" in session.admind %} 
                 <a href="{{ url_for('route_reset_report', u='') }}" class="btn_store_small">Users</a>
-                <a href="{{ url_for('route_reset_report', v='') }}" class="btn_download_small">View</a>
-
+                <a href="{{ url_for('route_reset_report', v='') }}" class="btn_download_small">Groups</a>
+                {% if "+" in session.admind %} 
                 <button class="btn_home_small" onclick="confirm_create()">""" + 'Create' + """</button>
                     <script>
                         function confirm_create() {
@@ -624,7 +624,7 @@ def TEMPLATES(style, script_mathjax):
                     </script>
 
 
-                
+                {% endif %}
             {% endif %}
             
         </div>
@@ -2596,9 +2596,12 @@ class HConv: # html converter
 # ------------------------------------------------------------------------------------------
 
 
+
+
 # ------------------------------------------------------------------------------------------
 #  Database Read/Write
 # ------------------------------------------------------------------------------------------
+db, dbsubs =  None,  None
 EVAL_XL_PATHS={k:(os.path.join(BASEDIR, v['eval']) if v['eval'] else None) for k,v in running_data.items()}
 def read_logindb_from_disk():
     db_frame, res = READ_DB_FROM_DISK(LOGIN_XL_PATH, 1)
@@ -2630,10 +2633,28 @@ def write_evaldb_to_disk(dbsub_frame, SESS, verbose=True): # will change the ord
 def dump_evaldb_to_disk(dbsubs_frame, verbose=True): # will change the order
     ressub = [write_evaldb_to_disk(dbsubs_frame[SESS], SESS, verbose=verbose) for SESS in EVAL_XL_PATHS]
     return not (False in ressub)
+
+def persist_db(verbose=False):
+    r""" writes both db to disk """
+    global db, dbsubs
+    if write_logindb_to_disk(db) and dump_evaldb_to_disk(dbsubs):
+        if verbose: dprint(f"๏ 📥 {session['uid']} ◦ {session['named']} just persisted the db via {request.remote_addr}")
+        STATUS, SUCCESS = "Persisted db to disk", True
+    else: STATUS, SUCCESS =  f"Write error, file might be open", False
+    return STATUS, SUCCESS 
+
+def reload_db(verbose=False):
+    r""" reloads db from disk """
+    global db, dbsubs
+    db =    read_logindb_from_disk() 
+    dbsubs ={ k:read_evaldb_from_disk(k) for k in EVAL_XL_PATHS }  
+    if verbose: dprint(f"๏ 📤 {session['uid']} ◦ {session['named']} just reloaded the db via {request.remote_addr}")
+    return "Reloaded db from disk", True #  STATUS, SUCCESS
+
 #<----------- create database 
-db =    read_logindb_from_disk() 
-dbsubs ={ k:read_evaldb_from_disk(k) for k in EVAL_XL_PATHS }  
-sprint('↷ persisted eval-db [{}]'.format(dump_evaldb_to_disk(dbsubs)))
+
+_ = reload_db()
+_ = persist_db()
 dbevalset = set([k for k,v in db.items() if '-' not in v[0]])
 dbevaluatorset = sorted(list(set([k for k,v in db.items() if 'X' in v[0]])))
 
@@ -3082,6 +3103,7 @@ def route_generate_report():
         report_name = f'report_{s}.csv'
         report_path = os.path.join( REPORT_FOLDER_PATH, session['uid'], report_name)
         df.to_csv(report_path, index=False)
+        #sprint(session_report_df)
     
     return redirect(url_for('route_reports'))
 
@@ -3284,7 +3306,9 @@ def route_switch(req_uid):
 def route_reset_report():
     if not session.get('has_login', False): return redirect(url_for('route_login'))
     results = []
-    if not ('+' in session['admind']): success, status = False, f'You are not allowed to set groups'
+    is_admin = ('+' in session['admind'])
+    is_eval = ('X' in session['admind'])
+    if not (is_admin or is_eval): success, status = False, f'You are not allowed to manage or view groups'
     else:
         
         
@@ -3299,7 +3323,9 @@ def route_reset_report():
                             for j,i in enumerate(f.readlines()):
                                 iu = i.strip()
                                 if iu in uev:uev[iu].append(e)
+                results.append((f"#  User", f"Evaluators", True))
                 for uei,(u,evs) in enumerate(uev.items(), 1): results.append((f"{uei} {u} {db[u][2]}", f'{evs}', bool(evs)))
+                results.append((f" ", f" ", True))
                 success, status = True, f'View All Users'
             elif 'v' in request.args:
                 for ei,e in enumerate(dbevaluatorset):
@@ -3308,111 +3334,121 @@ def route_reset_report():
                     if hasegrp: 
                         with open(egrpfile, 'r') as f: rex = [(f' ⇒ {j} {i.strip()}', db[i.strip()][2], False) for j,i in enumerate(f.readlines())]
                     else: rex=[]
+                    results.append((f" ", f" ", True))
                     results.append((f"{e} {db[e][2]}", f'{len(rex)}', hasegrp))
                     results.extend(rex)
-                success, status = True, f'View All Groups'
+                results.append((f" ", f" ", True))
+                success, status = True, f'Viewing Groups for all evaluators'
             elif 'c' in request.args:
-                dprint(f'๏ {session["uid"]} ◦ {session["named"]} is creating groups for {session["sess"]} via {request.remote_addr}') 
-                argsx = request.args.get('c').strip()
-                if not argsx: success, status = False, f'Invalid args!! Try again.'
-                else:
-                    if argsx=="*":
-                        eset = dbevaluatorset
+                if not is_admin: success, status = False, f'You cannot create groups'
+                else: 
+                    dprint(f'๏ {session["uid"]} ◦ {session["named"]} is creating groups for {session["sess"]} via {request.remote_addr}') 
+                    argsx = request.args.get('c').strip()
+                    if not argsx: success, status = False, f'Invalid args!! Try again.'
                     else:
-                        eids = [e.strip() for e in argsx.split(CSV_DELIM)]
-                        eset = set([e if not args.case else (e.upper() if args.case>0 else e.lower()) for e in eids if e])
-
-                    for e in eset:
-                        egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
-                        with open(egrpfile, 'w') as f: f.write('')
-                    sprint(f'\t♻️ Reset Group File for {eset}')
-                    success, status = True, f'Reset Groups for {eset}'
-            elif 'x' in request.args:
-                dprint(f'๏ {session["uid"]} ◦ {session["named"]} is deleting groups for {session["sess"]} via {request.remote_addr}') 
-                argsx = request.args.get('x').strip()
-                if not argsx: success, status = False, f'Invalid args!! Try again.'
-                else:
-                    if argsx=="*":
-                        eset = dbevaluatorset
-                    else:
-                        eids = [e.strip() for e in argsx.split(CSV_DELIM)]
-                        eset = set([e if not args.case else (e.upper() if args.case>0 else e.lower()) for e in eids if e])
-
-                    for e in eset:
-                        egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
-                        hasegrp = os.path.isfile(egrpfile)
-                        if hasegrp: 
-                            os.remove(egrpfile)
-                            sprint(f'\t⛔ Removed Group File for {e}')
-                    success, status = True, f'Removed Groups for {eset}'
-            elif 'a' in request.args:
-                dprint(f'๏ {session["uid"]} ◦ {session["named"]} is adding users to groups for {session["sess"]} via {request.remote_addr}') 
-                argsx = request.args.get('a').split(CSV_DELIM)
-                if len(argsx)<2: success, status = False, f'Invalid args!! Try again.'
-                else:
-                    e = argsx[0].strip()
-                    e = e if not args.case else (e.upper() if args.case>0 else e.lower())
-                    if e in dbevaluatorset:
-                        egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
-                        hasegrp = os.path.isfile(egrpfile)
-                        if not hasegrp: success, status = False, f"Groups file is missing for {e}"
+                        if argsx=="*":
+                            eset = dbevaluatorset
                         else:
-                            #with open(egrpfile, 'w') as f: f.writelines(RANDOM_GROUPS())
-                            uids = argsx[1:]
-                            to_add=[]
-                            for u in uids:
-                                u = u.strip()
-                                if u: 
-                                    u = u if not args.case else (u.upper() if args.case>0 else u.lower())
-                                    if u in dbevalset:
-                                        to_add.append(u)
-                            if to_add:
-                                dprint(f"๏ ➕ {session['uid']} ◦ {session['named']} is adding to group for {session['sess']} via {request.remote_addr}")
-                                with open(egrpfile, 'r') as f: gset = f.readlines()
-                                with open(egrpfile, 'a') as f:
+                            eids = [e.strip() for e in argsx.split(CSV_DELIM)]
+                            eset = set([e if not args.case else (e.upper() if args.case>0 else e.lower()) for e in eids if e])
+
+                        for e in eset:
+                            egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
+                            with open(egrpfile, 'w') as f: f.write('')
+                        sprint(f'\t♻️ Reset Group File for {eset}')
+                        success, status = True, f'Reset Groups for {eset}'
+            elif 'x' in request.args:
+                if not is_admin: success, status = False, f'You cannot delete groups'
+                else: 
+                    dprint(f'๏ {session["uid"]} ◦ {session["named"]} is deleting groups for {session["sess"]} via {request.remote_addr}') 
+                    argsx = request.args.get('x').strip()
+                    if not argsx: success, status = False, f'Invalid args!! Try again.'
+                    else:
+                        if argsx=="*":
+                            eset = dbevaluatorset
+                        else:
+                            eids = [e.strip() for e in argsx.split(CSV_DELIM)]
+                            eset = set([e if not args.case else (e.upper() if args.case>0 else e.lower()) for e in eids if e])
+
+                        for e in eset:
+                            egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
+                            hasegrp = os.path.isfile(egrpfile)
+                            if hasegrp: 
+                                os.remove(egrpfile)
+                                sprint(f'\t⛔ Removed Group File for {e}')
+                        success, status = True, f'Removed Groups for {eset}'
+            elif 'a' in request.args:
+                if not is_admin: success, status = False, f'You cannot add users to groups'
+                else: 
+                    dprint(f'๏ {session["uid"]} ◦ {session["named"]} is adding users to groups for {session["sess"]} via {request.remote_addr}') 
+                    argsx = request.args.get('a').split(CSV_DELIM)
+                    if len(argsx)<2: success, status = False, f'Invalid args!! Try again.'
+                    else:
+                        e = argsx[0].strip()
+                        e = e if not args.case else (e.upper() if args.case>0 else e.lower())
+                        if e in dbevaluatorset:
+                            egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
+                            hasegrp = os.path.isfile(egrpfile)
+                            if not hasegrp: success, status = False, f"Groups file is missing for {e}"
+                            else:
+                                #with open(egrpfile, 'w') as f: f.writelines(RANDOM_GROUPS())
+                                uids = argsx[1:]
+                                to_add=[]
+                                for u in uids:
+                                    u = u.strip()
+                                    if u: 
+                                        u = u if not args.case else (u.upper() if args.case>0 else u.lower())
+                                        if u in dbevalset:
+                                            to_add.append(u)
+                                if to_add:
+                                    dprint(f"๏ ➕ {session['uid']} ◦ {session['named']} is adding to group for {session['sess']} via {request.remote_addr}")
+                                    with open(egrpfile, 'r') as f: gset = f.readlines()
+                                    with open(egrpfile, 'a') as f:
+                                        for in_query in to_add:
+                                            if (f'{in_query}\n') not in gset: 
+                                                f.write(f'{in_query}\n')
+                                                dprint(f"๏\t{in_query}")
+                                                results.append((in_query, '✓' ,True))
+                                            else: results.append((in_query, '✗' ,False))
+                                success, status = True, f'Added to {e} groups'
+                        else: success, status = False, f'[{e}] is not valid evaluator'
+            elif 'd' in request.args:
+                if not is_admin: success, status = False, f'You cannot remove users from groups'
+                else: 
+                    dprint(f'๏ ➖ {session["uid"]} ◦ {session["named"]} is removing users from groups for {session["sess"]} via {request.remote_addr}') 
+                    argsx = request.args.get('d').split(CSV_DELIM)
+                    if len(argsx)<2: success, status = False, f'Invalid args!! Try again.'
+                    else:
+                        e = argsx[0].strip()
+                        e = e if not args.case else (e.upper() if args.case>0 else e.lower())
+                        if e in dbevaluatorset:
+                            egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
+                            hasegrp = os.path.isfile(egrpfile)
+                            if not hasegrp: success, status = False, f"Groups file is missing for {e}"
+                            else:
+                                #with open(egrpfile, 'w') as f: f.writelines(RANDOM_GROUPS())
+                                uids = argsx[1:]
+                                to_add=[]
+                                for u in uids:
+                                    u = u.strip()
+                                    if u: 
+                                        u = u if not args.case else (u.upper() if args.case>0 else u.lower())
+                                        if u in dbevalset:
+                                            to_add.append(u)
+
+                                if to_add:
+                                    dprint(f"๏ ➖ {session['uid']} ◦ {session['named']} is removing from group for {session['sess']} via {request.remote_addr}")
+                                    with open(egrpfile, 'r') as f: gset = f.readlines()
                                     for in_query in to_add:
-                                        if (f'{in_query}\n') not in gset: 
-                                            f.write(f'{in_query}\n')
+                                        try: 
+                                            gset.remove(f'{in_query}\n')
                                             dprint(f"๏\t{in_query}")
                                             results.append((in_query, '✓' ,True))
-                                        else: results.append((in_query, '✗' ,False))
-                            success, status = True, f'Added to {e} groups'
-                    else: success, status = False, f'[{e}] is not valid evaluator'
-            elif 'd' in request.args:
-                dprint(f'๏ ➖ {session["uid"]} ◦ {session["named"]} is removing users from groups for {session["sess"]} via {request.remote_addr}') 
-                argsx = request.args.get('d').split(CSV_DELIM)
-                if len(argsx)<2: success, status = False, f'Invalid args!! Try again.'
-                else:
-                    e = argsx[0].strip()
-                    e = e if not args.case else (e.upper() if args.case>0 else e.lower())
-                    if e in dbevaluatorset:
-                        egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
-                        hasegrp = os.path.isfile(egrpfile)
-                        if not hasegrp: success, status = False, f"Groups file is missing for {e}"
-                        else:
-                            #with open(egrpfile, 'w') as f: f.writelines(RANDOM_GROUPS())
-                            uids = argsx[1:]
-                            to_add=[]
-                            for u in uids:
-                                u = u.strip()
-                                if u: 
-                                    u = u if not args.case else (u.upper() if args.case>0 else u.lower())
-                                    if u in dbevalset:
-                                        to_add.append(u)
+                                        except: results.append((in_query, '✗' ,False))
+                                    with open(egrpfile, 'w') as f: f.writelines(gset)
 
-                            if to_add:
-                                dprint(f"๏ ➖ {session['uid']} ◦ {session['named']} is removing from group for {session['sess']} via {request.remote_addr}")
-                                with open(egrpfile, 'r') as f: gset = f.readlines()
-                                for in_query in to_add:
-                                    try: 
-                                        gset.remove(f'{in_query}\n')
-                                        dprint(f"๏\t{in_query}")
-                                        results.append((in_query, '✓' ,True))
-                                    except: results.append((in_query, '✗' ,False))
-                                with open(egrpfile, 'w') as f: f.writelines(gset)
-
-                        success, status = True, f'Removed from {e} groups'
-                    else: success, status = False, f'[{e}] is not valid evaluator'
+                            success, status = True, f'Removed from {e} groups'
+                        else: success, status = False, f'[{e}] is not valid evaluator'
             else: success, status = False, f'Invalid Argument for Groups'
         else: success, status = False, f'Requires Agrs'
 
@@ -3912,28 +3948,6 @@ def route_reportsuser(subpath=""):
     else: return abort(404)
 
 
-def persist_db(SESS):
-    r""" writes both db to disk """
-    global db
-    if write_logindb_to_disk(db) and write_evaldb_to_disk(dbsubs[SESS], SESS):
-        dprint(f"๏ 📥 {session['uid']} ◦ {session['named']} just persisted the db for {SESS} to disk via {request.remote_addr}")
-        STATUS, SUCCESS = "Persisted db to disk", True
-    else: STATUS, SUCCESS =  f"Write error, file might be open", False
-    return STATUS, SUCCESS 
-
-def persist_subdb(SESS):
-    r""" writes eval-db to disk """
-    if write_evaldb_to_disk(dbsubs[SESS], SESS, verbose=False): STATUS, SUCCESS = f"Persisted db to disk for {SESS}", True
-    else: STATUS, SUCCESS =  f"Write error, file might be open", False
-    return STATUS, SUCCESS 
-
-def reload_db(SESS):
-    r""" reloads db from disk """
-    global db
-    db = read_logindb_from_disk()
-    dbsubs[SESS] = read_evaldb_from_disk(SESS)
-    dprint(f"๏ 📤 {session['uid']} ◦ {session['named']} just reloaded the db for {SESS} from disk via {request.remote_addr}")
-    return "Reloaded db from disk", True #  STATUS, SUCCESS
 
 def toggle_upload(SESS):
     r""" disables uploads by setting app.config['']"""
@@ -3982,8 +3996,8 @@ def route_repassx(req_uid):
     if not req_uid:
         if '+' in session['admind']: 
             if len(request.args)==1:
-                if '?' in request.args: STATUS, SUCCESS = reload_db(session['sess'])
-                elif '!' in request.args: STATUS, SUCCESS = persist_db(session['sess'])
+                if '?' in request.args: STATUS, SUCCESS = reload_db(True)
+                elif '!' in request.args: STATUS, SUCCESS = persist_db(True)
                 elif '~' in request.args: STATUS, SUCCESS = toggle_upload(session['sess'])
                 else: STATUS, SUCCESS =  f'Invalid command ({next(iter(request.args.keys()))}) ... Hint: use (?) (!) ', False
             else: 
@@ -4140,11 +4154,10 @@ serve(app, # https://docs.pylonsproject.org/projects/waitress/en/stable/runner.h
 )
 end_time = datetime.datetime.now()
 sprint('◉ stop server @ [{}]'.format(end_time))
-sprint('↷ persisted login-db [{}]'.format(write_logindb_to_disk(db)))
-sprint('↷ persisted eval-db [{}]'.format(dump_evaldb_to_disk(dbsubs)))
+persist_status, persist_success = persist_db()
+sprint(f'◉ {"🟢" if persist_success else "🔴"} {persist_status}')
 sprint('◉ server up-time was [{}]'.format(end_time - start_time))
 sprint(f'...Finished!')
-
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# author: Nelson.S
+# author: Nelson.S ⚫ 🟢 🟡 🔵 🔴
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
