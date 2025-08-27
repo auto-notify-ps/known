@@ -3462,7 +3462,7 @@ def route_live_report():
     submitter = session['uid']
     egrpfile = (os.path.join(REPORT_FOLDER_PATH, submitter, f"{session['sess']}{GROUP_FILE}"))
     hasegrp = os.path.isfile(egrpfile)
-    if not hasegrp: return abort(404)
+    if not hasegrp: return f"Evaluation is stopped for this session - {session['sess']}"
 
     if 'flt' in request.args: 
         session['flt'] = request.args['flt']
@@ -3568,11 +3568,13 @@ def route_live_report():
         report_str=""
         pcomment=""
         if os.path.isdir(report_folder):
-            report_file = os.path.join(report_folder, f'{sess}.md')
+            r=f'{sess}.md'
+            report_file = os.path.join(report_folder, r)
             if os.path.isfile(report_file):
                 with open(report_file, 'r') as f: pcomment= f.read()
-            for r in os.listdir(report_folder):
                 report_str+=f"""<a href="{ url_for('route_reportsuser', subpath=f'{k}/{r}') }" target="_blank">{style.icon_em}{r}</a> <a href="{ url_for('route_reportsuser', subpath=f'{k}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a> <br>"""
+            #for r in os.listdir(report_folder):
+            #    report_str+=f"""<a href="{ url_for('route_reportsuser', subpath=f'{k}/{r}') }" target="_blank">{style.icon_em}{r}</a> <a href="{ url_for('route_reportsuser', subpath=f'{k}/{r}', html="") }" target="_blank">{style.icon_gethtml}</a> <br>"""
 
         htable3+=f"""
         <tr>
