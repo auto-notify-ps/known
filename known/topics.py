@@ -634,9 +634,12 @@ def TEMPLATES(style, script_mathjax):
         <table>
         {% for (ruid,rmsg,rstatus) in results %}
             {% if rstatus %}
-                <tr class="btn_disablel">
+                <tr class="btn_dx">
+                {% if rstatus>1 %}
+                    <tr class="btn_nx">
+                {% endif %}
             {% else %}
-                <tr class="btn_enablel">
+                <tr class="btn_ex">
             {% endif %}
                 <td>{{ ruid }} ~ </td>
                 <td>{{ rmsg }}</td>
@@ -1383,7 +1386,7 @@ def TEMPLATES(style, script_mathjax):
     @keyframes fader_admin_success {{from {{color: {style.item_true};}} to {{color: {style.fgcolor}; }} }}
     @keyframes fader_admin_normal {{from {{color: {style.item_normal};}} to {{color: {style.fgcolor}; }} }}
 
-    .btn_enablel {{
+    .btn_ex {{
         padding: 2px 10px 2px;
         color: {style.item_false}; 
         font-size: medium;
@@ -1392,7 +1395,7 @@ def TEMPLATES(style, script_mathjax):
         text-decoration: none;
     }}
 
-    .btn_disablel {{
+    .btn_dx {{
         padding: 2px 10px 2px;
         color: {style.item_true}; 
         font-size: medium;
@@ -1401,6 +1404,16 @@ def TEMPLATES(style, script_mathjax):
         text-decoration: none;
     }}
 
+
+    .btn_nx {{
+        padding: 2px 10px 2px;
+        color: {style.item_normal}; 
+        font-size: medium;
+        border-radius: 2px;
+        font-family: {style.font_};
+        text-decoration: none;
+    }}
+    
     .btn_enable {{
         padding: 2px 10px 2px;
         background-color: {style.item_false}; 
@@ -3323,21 +3336,25 @@ def route_reset_report():
                             for j,i in enumerate(f.readlines()):
                                 iu = i.strip()
                                 if iu in uev:uev[iu].append(e)
-                results.append((f"#  User", f"Evaluators", True))
-                for uei,(u,evs) in enumerate(uev.items(), 1): results.append((f"{uei} {u} {db[u][2]}", f'{evs}', bool(evs)))
-                results.append((f" ", f" ", True))
-                success, status = True, f'View All Users'
+                results.append((f"#  User", f"Evaluators", 2))
+                for uei,(u,evs) in enumerate(uev.items(), 1): results.append((f"{uei} {u} {db[u][2]}", f'{evs}', len(evs)))
+                results.append((f" ", f" ", 2))
+                success, status = True, f'Viewing All Users'
             elif 'v' in request.args:
-                for ei,e in enumerate(dbevaluatorset):
+                e0 = session['uid']
+                emu = list(dbevaluatorset)
+                emu.remove(e0)
+                emu.insert(0, e0)
+                for ei,e in enumerate(emu):
                     egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
                     hasegrp = os.path.isfile(egrpfile)
                     if hasegrp: 
-                        with open(egrpfile, 'r') as f: rex = [(f' ⇒ {j} {i.strip()}', db[i.strip()][2], False) for j,i in enumerate(f.readlines())]
+                        with open(egrpfile, 'r') as f: rex = [(f' ⇒ {j} {i.strip()}', db[i.strip()][2], 2) for j,i in enumerate(f.readlines())]
                     else: rex=[]
-                    results.append((f" ", f" ", True))
+                    results.append((f" ", f" ", 2))
                     results.append((f"{e} {db[e][2]}", f'{len(rex)}', hasegrp))
                     results.extend(rex)
-                results.append((f" ", f" ", True))
+                results.append((f" ", f" ", 2))
                 success, status = True, f'Viewing Groups for all evaluators'
             elif 'c' in request.args:
                 if not is_admin: success, status = False, f'You cannot create groups'
