@@ -3328,6 +3328,7 @@ def route_reset_report():
         if request.args:
             if 'u' in request.args:
                 uev = {u:[] for u in sorted(dbevalset)}
+                finished_uids = set(dbsubs[session['sess']].keys())
                 for ei,e in enumerate(dbevaluatorset):
                     egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
                     hasegrp = os.path.isfile(egrpfile)
@@ -3337,7 +3338,7 @@ def route_reset_report():
                                 iu = i.strip()
                                 if iu in uev:uev[iu].append(e)
                 results.append((f"#  User", f"Evaluators", 2))
-                for uei,(u,evs) in enumerate(uev.items(), 1): results.append((f"{uei} {u} {db[u][2]}", f'{evs}', len(evs)))
+                for uei,(u,evs) in enumerate(uev.items(), 1): results.append((f"{uei} {u} {"✅" if u in finished_uids else "❌"} {db[u][2]}", f'{evs}', len(evs)))
                 results.append((f" ", f" ", 2))
                 success, status = True, f'Viewing All Users'
             elif 'v' in request.args:
@@ -3345,11 +3346,12 @@ def route_reset_report():
                 emu = list(dbevaluatorset)
                 emu.remove(e0)
                 emu.insert(0, e0)
+                finished_uids = set(dbsubs[session['sess']].keys())
                 for ei,e in enumerate(emu):
                     egrpfile = (os.path.join(REPORT_FOLDER_PATH, e, f"{session['sess']}{GROUP_FILE}"))
                     hasegrp = os.path.isfile(egrpfile)
                     if hasegrp: 
-                        with open(egrpfile, 'r') as f: rex = [(f' ⇒ {j} {i.strip()}', db[i.strip()][2], 2) for j,i in enumerate(f.readlines())]
+                        with open(egrpfile, 'r') as f: rex = [(f' ⇒ {j} {i.strip()} {"✅" if i.strip() in finished_uids else "❌"}', f'{db[i.strip()][2]}', 2) for j,i in enumerate(f.readlines())]
                     else: rex=[]
                     results.append((f" ", f" ", 2))
                     results.append((f"{e} {db[e][2]}", f'{len(rex)}', hasegrp))
