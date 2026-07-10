@@ -4,6 +4,9 @@ __doc__=r"""
 """
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 __all__ = [ 
+    'Secret',
+    'TimeStamp',
+    'RandomChoice',
     'Fake', 
     'Infinity', 
     'Kio', 
@@ -16,19 +19,22 @@ __all__ = [
     'Fuzz',
     ]
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-import datetime, os
+import datetime, os, json, pickle, zipfile, random, secrets
 from math import floor, log, ceil
 from collections import UserDict
-from io import BytesIO
-from zipfile import ZipFile
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
+def Secret(): return secrets.token_urlsafe(64)
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+def TimeStamp(start='', sep='', end=''): 
+    return (start + datetime.datetime.strftime(datetime.datetime.now(), 
+    sep.join(["%Y", "%m", "%d", "%H", "%M", "%S", "%f"])) + end)
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+def RandomChoice(obj): return obj[random.randint(0, len(obj)-1)]
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 class Fake: # a fake object
     def __init__(self, **attributes):
         for name,value in attributes.items(): setattr(self, name, value)
-
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
 class Infinity: 
     # emulates infinity with comparision operators < <=, >, >=, ==
     #   +inf    =  Infinity(1)
@@ -48,69 +54,59 @@ class Infinity:
     def __eq__(self, other): return False           # inf is not equal to anything, not even itself
 
     def __contains__(self, x): return self.sign     # universal set contains everything (always true), empty set contains nothing (always false)
-
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 class Kio:
-    r""" provides input/out methods for loading saving python objects using json and pickle 
-    Use methods:
-        save_as_json(object, path)
-        object = load_as_json(path)
-        save_as_pickle(object, path)
-        object = load_as_pickle(path)
-
-    """
-
-    import json, pickle
-    IOFLAG = dict(
-        json=   (json,      ''     ), 
-        pickle= (pickle,    'b'    ),
-        )
+    @staticmethod
+    def LoadJSON(path):
+        with open(path, 'r') as f: obj = json.load(f)
+        return obj
 
     @staticmethod
-    def get_ioas(): return list(__class__.IOFLAG.keys())
+    def SaveJSON(path, obj, indent=4):
+        with open(path, 'w') as f: json.dump(obj, f, indent=indent)
 
     @staticmethod
-    def save_buffer(o, ioas:str, seek0=False) -> None:
-        assert ioas in __class__.IOFLAG, f'key error {ioas}'
-        s_module, s_flag = __class__.IOFLAG[ioas]
-        buffer = BytesIO()
-        s_module.dump(o, buffer)
-        if seek0: buffer.seek(0) # prepares for reading
-        return buffer
+    def LoadPICK(path):
+        with open(path, 'rb') as f: obj = pickle.load(f)
+        return obj
 
     @staticmethod
-    def load_buffer(buffer:BytesIO, ioas:str, seek0=True): 
-        assert ioas in __class__.IOFLAG, f'key error {ioas}'
-        s_module, s_flag = __class__.IOFLAG[ioas]
-        if seek0: buffer.seek(0) # prepares for reading
-        return s_module.load(buffer)
+    def SavePICK(path, obj):
+        with open(path, 'wb') as f: pickle.dump(obj, f)
 
     @staticmethod
-    def save_file(o, path:str, ioas:str, **kwargs):
-        assert ioas in __class__.IOFLAG, f'key error {ioas}'
-        s_module, s_flag = __class__.IOFLAG[ioas]
-        with open(path, f'w{s_flag}') as f: s_module.dump(o, f, **kwargs)
-        return path
+    def LoadTEXT(path):
+        with open(path, 'r') as f: obj = f.read()
+        return obj
+
     @staticmethod
-    def load_file(path:str, ioas:str):
-        assert ioas in __class__.IOFLAG, f'key error {ioas}'
-        s_module, s_flag = __class__.IOFLAG[ioas]
-        with open(path, f'r{s_flag}') as f: o = s_module.load(f)
-        return o
+    def SaveTEXT(path, obj):
+        with open(path, 'w') as f: f.write(obj)
+
+    @staticmethod
+    def SaveZIP(src_path, zip_path):
+        src_path = os.path.abspath(src_path)
+        parent_dir = os.path.dirname(src_path)
+        #base_name = os.path.basename(src_path)
+        #zip_path = os.path.join(parent_dir, zip_name)
+        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for root, dirs, files in os.walk(src_path):
+                # preserve empty directories too
+                rel_root = os.path.relpath(root, parent_dir)
+                zf.write(root, rel_root)
+                for fname in files:
+                    full_path = os.path.join(root, fname)
+                    rel_path = os.path.relpath(full_path, parent_dir)
+                    zf.write(full_path, rel_path)
     
     @staticmethod
-    def save_as_json(o, path:str, **kwargs):    return __class__.save_file(o, path, 'json', **kwargs)
-    @staticmethod
-    def load_as_json(path:str):                     return __class__.load_file(path, 'json')
-
-    @staticmethod
-    def save_as_pickle(o, path:str, **kwargs):  return __class__.save_file(o, path, 'pickle', **kwargs)
-    @staticmethod
-    def load_as_pickle(path:str):                   return __class__.load_file(path, 'pickle')
-
+    def LoadZIP(zip_path, target_path):
+        with zipfile.ZipFile(zip_path, "r") as zf: zf.extractall(target_path)
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 class Remap:
     r""" 
     Provides a mapping between ranges, works with scalars, ndarrays and tensors.
@@ -152,9 +148,7 @@ class Remap:
         Input_Range, Output_Range = (self.output_low, self.output_high), (self.input_low, self.input_high)
         self.set_input_range(Input_Range)
         self.set_output_range(Output_Range)
-
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
 class BaseConvert:
     
     r""" Number System Conversion 
@@ -288,9 +282,7 @@ class BaseConvert:
             n+=(d*m)
             m*=b
         return n
-
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
 class IndexedDict(UserDict):
     r""" Implements an Indexed dict where values can be addressed using both index(int) and keys(str) """
 
@@ -347,9 +339,7 @@ class IndexedDict(UserDict):
         inst.__dict__["data"] = self.__dict__["data"].copy()
         inst.__dict__["names"] = self.__dict__["names"].copy()
         return inst
-
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
 class Table:
     r""" a simple table data-structure implement using python dict with disk IO """
 
@@ -462,9 +452,7 @@ class Table:
 
     def __str__(self):
         return ...
-
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
 class Verbose:
     r""" Contains shorthand helper functions for printing outputs and representing objects as strings.
             Methods ending with '_' in name return Strings instead of printing them
@@ -689,9 +677,7 @@ class Verbose:
                 d = ''
             counter+=1
             print(f'{s}{d}')
-
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
 class Symbols:
     CORRECT =       '✓'
     INCORRECT =     '✗'
@@ -720,9 +706,7 @@ class Symbols:
     ARROW1=         '↦'
     ARROW2=         '⇒'
     ARROW3=         '↪'
-
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
 class Fuzz:
     r""" file system related """
 
@@ -795,42 +779,7 @@ class Fuzz:
         """ change a file extension without renaming it """
         dirname, filename = os.path.dirname(path), os.path.basename(path)
         name, _ = __class__.SplitName(f'{filename}')
-        return os.path.join(dirname, f'{name}.{new_ext}')
-
-    @staticmethod
-    def Zip(nested:bool, zpath:str, *paths):
-        if not (paths and zpath): return None
-        if not zpath.lower().endswith('.zip'): zpath = f'{zpath}.zip' 
-        zipn = zpath[:-4]
-        paths = list(paths)
-        tozip = {}
-        while paths:
-            path = paths.pop(0)
-            
-            if isinstance(path, (list, tuple)): item_path, arc_path = path
-            else: item_path, arc_path = path, path
-
-            if os.path.islink(item_path): continue
-            isfile, isdir = os.path.isfile(item_path), os.path.isdir(item_path)
-            if not (isfile or isdir): continue
-            arc_path = os.path.basename(arc_path)
-            
-            if isfile:
-                assert arc_path not in tozip, f'Duplicate names detected {arc_path} from {path}'
-                tozip[arc_path] = os.path.abspath(item_path)
-            else:
-                for l in __class__.ReScan(item_path): 
-                    arc = os.path.join(arc_path, os.path.relpath( l[1], item_path))
-                    assert arc not in tozip, f'Duplicate names detected {arc} from {path}'
-                    tozip[arc] = l[1]
-
-        with ZipFile(zpath, 'w') as zip_object:
-            if nested: zip_object.mkdir(zipn)
-            for arc_path, file_path in tozip.items():
-                if nested: arc_path = os.path.join(zipn, arc_path)
-                zip_object.write(filename=file_path, arcname=arc_path)
-        return tozip
-
+        return os.path.join(dirname, f'{name}.{new_ext}') 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

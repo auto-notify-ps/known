@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name =                      'known',
-    version =                   '0.0.35',
-    url =                       'https://github.com/auto-notify-ps/known',
+    version =                   '0.0.36',
+    url =                       'https://github.com/NelsonSharma/known',
     author =                    'Nelson.S',
     author_email =              'mail.nelsonsharma@gmail.com',
     description =               'a collection of reusable python code',

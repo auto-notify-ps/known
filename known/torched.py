@@ -159,31 +159,4 @@ def zero_(module, *names):
 
 def zero_like(module) -> dict: return zero_(clone(module), " ")
 
-def dense(in_dim, layer_dims, out_dim, 
-        actFs, bias=True, dtype=None, device=None ):
-    r"""
-    Creats a stack of fully connected (dense) layers which is usually connected at end of other networks
-    Args:
-        in_dim          `integer`       : in_features or input_size
-        layer_dims      `List/Tuple`    : size of hidden layers
-        out_dim         `integer`       : out_features or output_size
-        actFs           `nn.Module`     : activation function at hidden layer
-        bias            `bool`          : if True, uses bias at hidden layers
-
-    Returns:
-        `nn.Module` : an instance of nn.Sequential
-    """
-    layers = []
-    # first layer
-    layers.append(nn.Linear(in_dim, layer_dims[0], bias=bias, dtype=dtype, device=device))
-    if actFs: layers.append(actFs.pop(0))
-    # remaining layers
-    for i in range(len(layer_dims)-1):
-        layers.append(nn.Linear(layer_dims[i], layer_dims[i+1], bias=bias, dtype=dtype, device=device))
-        if actFs: layers.append(actFs.pop(0))
-    # last layer
-    layers.append(nn.Linear(layer_dims[-1], out_dim, bias=bias, dtype=dtype, device=device))
-    if actFs: layers.append(actFs.pop(0))
-    return nn.Sequential( *layers )
-
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

@@ -98,6 +98,138 @@ class Mailer:
     ): return __class__.Send(__class__.Compose(username, Subject, To, Cc, Body, Attached=Attached, html=html), 
             username, password, url=url, port=port, tls=tls)
 
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+class Mailbox:
+    r""" Email Reader based on imap.gmail """
+
+    def __str__(self):return f'[{self.alias}] ({self.username})'
+    def __repr__(self):return str(self)
+
+    def Setup(self,
+        username, 
+        password,
+        alias="",
+        server='imap.gmail.com',
+        port='993',
+    ):
+        self.alias=f'{alias}'
+        self.username=f'{username}'
+        self.password=f'{password}'
+        self.server=server
+        self.port=port
+        self.Reset()
+        return self
+        
+    def Reset(self):
+        self.folder = None  # after self.OpenFolder
+        self.messages = None # after self.GetMessageList 
+        self.imap = None 
+
+    def Login(self):
+        self.imap = imaplib.IMAP4_SSL(self.server, int(self.port) )
+        self.imap.login(self.username, self.password)
+        return self.imap.state, self.imap.welcome
+
+    def ListFolders(self):
+        if self.imap.state == 'AUTH':
+            status, folders = self.imap.list()
+            return status, [folder.decode().split('"')[-2] for folder in folders]
+        else:  return f'[State is {self.imap.state}] cannot list folders', None
+
+    def OpenFolder(self, folder='INBOX'):
+        self.imap.select(folder)
+        if self.imap.state=='SELECTED': 
+            self.folder=folder
+            return f'[State is {self.imap.state}] selected folder ({folder})', True
+        else: return f'[State is {self.imap.state}] cannot select folder ({folder})', False
+
+    def GetMessageList(self, criteria=['ALL',],):
+        if self.imap.state=='SELECTED':
+            bstatus, bmessages = self.imap.search(None, *criteria)
+            self.messages = bmessages[0].split()
+            return bstatus, len(self.messages)
+        else: return f'[State is {self.imap.state}] cannot get messages', -1
+
+    def GetMessageInfo(self):
+        if self.imap.state=='SELECTED':
+            res=[]
+            if self.messages is not None:
+                for message_id in self.messages:
+                    estatus, edata = self.imap.fetch(message_id, 'ENVELOPE')
+                    fstatus, fdata = self.imap.fetch(message_id, 'FLAGS')
+                    edata=edata[0].decode()
+                    fdata=fdata[0].decode()
+                    res.append((edata, fdata))
+                return True, res
+            else: return False, f'[State is {self.imap.state}] message list not avaibale, call GetMessageList first'
+        else: return False, f'[State is {self.imap.state}] cannot open messages'
+
+    def GetMessage(self,
+        index,
+        save='',
+        seen=False,
+        flag=False,
+        delete=False,
+    ):
+        message_id = self.messages[index]
+        status, msg_data = self.imap.fetch(message_id, 'BODY[]') # fetch="(RFC822)"
+        # ----------------------------------------------------
+        msg = message_from_bytes(msg_data[0][1])
+        subject, encoding = decode_header(msg["Subject"])[0]
+        if isinstance(subject, bytes):subject = subject.decode(encoding or "utf-8")
+        attachments=[]
+        body=""
+        save = os.path.abspath(save) if save else None
+        #if delete and not save: print(f'Warning: deleting without saving attachements ...')
+        for part in msg.walk():
+            content_type = part.get_content_type()
+            content_dispo = str(part.get("Content-Disposition"))
+            if content_type == "text/plain" and "attachment" not in content_dispo:
+                body += part.get_payload(decode=True).decode(errors="ignore")            
+            if "attachment" in content_dispo:
+                filename = part.get_filename()
+                if filename and save:
+                    decoded_filename, enc = decode_header(filename)[0]
+                    if isinstance(decoded_filename, bytes): filename = decoded_filename.decode(enc or "utf-8")
+                    filepath = os.path.join(save, filename)
+                    with open(filepath, "wb") as f: f.write(part.get_payload(decode=True))
+                else: filepath=None
+                attachments.append((filename, filepath))
+            # ----------------------------------------------------
+        res = {
+        'From' : msg.get("From"),
+        'To' : msg.get("To"),
+        'Cc' : msg.get("Cc"),
+        'Bcc' : msg.get("Bcc"),
+        'Subject': subject,
+        'Body': body,
+        'Attachements': attachments,
+        'Alias' : self.alias,
+        }
+        # ----------------------------------------------------
+
+        if delete: self.imap.store(message_id, '+FLAGS', '\\Deleted')
+        if flag: self.imap.store(message_id, '+FLAGS', '\\Flagged')
+        if seen: self.imap.store(message_id, '+FLAGS', '\\Seen')
+
+        return res
+    
+    def CloseFolder(self):
+        if self.imap.state=='SELECTED':
+            self.imap.expunge()
+            self.imap.close()
+            self.folder=None
+            self.messages=None
+            return True
+        else: return False
+
+    def Logout(self): 
+        self.imap.logout() # will call self.imap.shutdown()
+        self.Reset()
+    
+    # -------------------------------------------------------------------------------------
+
     @staticmethod
     def ReadFolders(
         username, 
@@ -232,137 +364,5 @@ class Mailer:
         imap.logout()
 
         return bstatus, bmsg
-
-#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
-class Mailbox:
-    r""" Email Reader based on imap.gmail """
-
-    def __str__(self):return f'[{self.alias}] ({self.username})'
-    def __repr__(self):return str(self)
-
-    def Setup(self,
-        username, 
-        password,
-        alias="",
-        server='imap.gmail.com',
-        port='993',
-    ):
-        self.alias=f'{alias}'
-        self.username=f'{username}'
-        self.password=f'{password}'
-        self.server=server
-        self.port=port
-        self.Reset()
-        return self
-        
-    def Reset(self):
-        self.folder = None  # after self.OpenFolder
-        self.messages = None # after self.GetMessageList 
-        self.imap = None 
-
-    def Login(self):
-        self.imap = imaplib.IMAP4_SSL(self.server, int(self.port) )
-        self.imap.login(self.username, self.password)
-        return self.imap.state, self.imap.welcome
-
-    def ListFolders(self):
-        if self.imap.state == 'AUTH':
-            status, folders = self.imap.list()
-            return status, [folder.decode().split('"')[-2] for folder in folders]
-        else:  return f'[State is {self.imap.state}] cannot list folders', None
-
-    def OpenFolder(self, folder='INBOX'):
-        self.imap.select(folder)
-        if self.imap.state=='SELECTED': 
-            self.folder=folder
-            return f'[State is {self.imap.state}] selected folder ({folder})', True
-        else: return f'[State is {self.imap.state}] cannot select folder ({folder})', False
-
-    def GetMessageList(self, criteria=['ALL',],):
-        if self.imap.state=='SELECTED':
-            bstatus, bmessages = self.imap.search(None, *criteria)
-            self.messages = bmessages[0].split()
-            return bstatus, len(self.messages)
-        else: return f'[State is {self.imap.state}] cannot get messages', -1
-
-    def GetMessageInfo(self):
-        if self.imap.state=='SELECTED':
-            res=[]
-            if self.messages is not None:
-                for message_id in self.messages:
-                    estatus, edata = self.imap.fetch(message_id, 'ENVELOPE')
-                    fstatus, fdata = self.imap.fetch(message_id, 'FLAGS')
-                    edata=edata[0].decode()
-                    fdata=fdata[0].decode()
-                    res.append((edata, fdata))
-                return True, res
-            else: return False, f'[State is {self.imap.state}] message list not avaibale, call GetMessageList first'
-        else: return False, f'[State is {self.imap.state}] cannot open messages'
-
-    def GetMessage(self,
-        index,
-        save='',
-        seen=False,
-        flag=False,
-        delete=False,
-    ):
-        message_id = self.messages[index]
-        status, msg_data = self.imap.fetch(message_id, 'BODY[]') # fetch="(RFC822)"
-        # ----------------------------------------------------
-        msg = message_from_bytes(msg_data[0][1])
-        subject, encoding = decode_header(msg["Subject"])[0]
-        if isinstance(subject, bytes):subject = subject.decode(encoding or "utf-8")
-        attachments=[]
-        body=""
-        save = os.path.abspath(save) if save else None
-        #if delete and not save: print(f'Warning: deleting without saving attachements ...')
-        for part in msg.walk():
-            content_type = part.get_content_type()
-            content_dispo = str(part.get("Content-Disposition"))
-            if content_type == "text/plain" and "attachment" not in content_dispo:
-                body += part.get_payload(decode=True).decode(errors="ignore")            
-            if "attachment" in content_dispo:
-                filename = part.get_filename()
-                if filename and save:
-                    decoded_filename, enc = decode_header(filename)[0]
-                    if isinstance(decoded_filename, bytes): filename = decoded_filename.decode(enc or "utf-8")
-                    filepath = os.path.join(save, filename)
-                    with open(filepath, "wb") as f: f.write(part.get_payload(decode=True))
-                else: filepath=None
-                attachments.append((filename, filepath))
-            # ----------------------------------------------------
-        res = {
-        'From' : msg.get("From"),
-        'To' : msg.get("To"),
-        'Cc' : msg.get("Cc"),
-        'Bcc' : msg.get("Bcc"),
-        'Subject': subject,
-        'Body': body,
-        'Attachements': attachments,
-        'Alias' : self.alias,
-        }
-        # ----------------------------------------------------
-
-        if delete: self.imap.store(message_id, '+FLAGS', '\\Deleted')
-        if flag: self.imap.store(message_id, '+FLAGS', '\\Flagged')
-        if seen: self.imap.store(message_id, '+FLAGS', '\\Seen')
-
-        return res
-    
-    def CloseFolder(self):
-        if self.imap.state=='SELECTED':
-            self.imap.expunge()
-            self.imap.close()
-            self.folder=None
-            self.messages=None
-            return True
-        else: return False
-
-    def Logout(self): 
-        self.imap.logout() # will call self.imap.shutdown()
-        self.Reset()
-    
-    # -------------------------------------------------------------------------------------
 
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

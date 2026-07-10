@@ -1,137 +1,115 @@
+#-----------------------------------------------------------------------------------------
+from sys import exit
+if __name__!='__main__': exit(f'[!] Can not import {__name__}:{__file__}')
+#-----------------------------------------------------------------------------------------
 
-__doc__=r"""pix module
 
-Basic Image manupulation from the command line, 
-
-```
-python -m knwon.pix --help
-
-options:
-  -h, --help         show this help message and exit
-  --action ACTION    (str) one of the static-methods inside the Actions class, 
-                           can be - ['new', 'crop', 'extend', 'flip', 'rotate', 'convert', 'autoconvert']
-  --args ARGS        (str) csv args accepted by the specified action - each action takes different args
-  --input INPUT      (str) input image-file or a text/json-file containing multiple input image-file names
-  --output OUTPUT    (str) output image-file or a text/json-file containing multiple output image-file names
-  --files FILES      (str) multiple input image-file names - for custom action -- works only with --io=linux
-  --io IO            (str) can be 'text' or 'json' or 'linux' - keep blank to io as 'image' - used if providing 
-                           input/output file-names in a text/json file
-  --verbose VERBOSE  (int) verbose level - 0 or 1
-
-```
-
-## Functionality
-
+EXAMPLES = {
+'new':  
+"""
 #### 1. Create a new image
-
 * creates new images of given size and color 
-
 * args is (int) 7-tuple (height, width, channels, blue, green, red, alpha)
-    * `--args=h,w,c,b,g,r,a`
-
+    * --args=h,w,c,b,g,r,a
 * fill-color (blue, green, red, alpha) depends on the specified number of channels
-    * `--args=h,w,4,b,g,r,a`
-    * `--args=h,w,3,b,g,r`
-    * `--args=h,w,1,i`                  
+    * --args=h,w,4,b,g,r,a
+    * --args=h,w,3,b,g,r
+    * --args=h,w,1,i               
 
 Example - creating 32 x 64 image with 4 channels named 'new.jpg'
-```
 python -m known.pix --action=new --args=32,64,4,100,150,200,170 --output=new.jpg
-```
+""",
 
+'crop':  
+"""
 #### 2. Crop an image
-
 * crops an image using bounding box (y, x, h, w) 
-
 * args is (int) 4-tuple (y-coord, x-coord, height, width) indicating a bounding box
     * `--args=y,x,h,w`
 
 Example - 
-```
 python -m known.pix --action=crop --args=8,16,16,32 --input=new.jpg --output=cropped.jpg
-```
+""",
 
+'extend':  
+"""
 #### 3. Extend an image
-
 * extends an image using boundary distance 
-
 * args is (int) 8-tuple (north, south, east, west, blue, green, red, alpha)
-    * `--args=n,s,e,w,b,g,r,a`
-
+    * --args=n,s,e,w,b,g,r,a
 * fill-color (blue, green, red, alpha) depends on the specified number of channels
-    * `--args=n,s,e,w,b,g,r,a`
-    * `--args=n,s,e,w,b,g,r`    
-    * `--args=n,s,e,w,i`
+    * --args=n,s,e,w,b,g,r,a
+    * --args=n,s,e,w,b,g,r   
+    * --args=n,s,e,w,i
 
 Example - 
-```
 python -m known.pix --action=extend --args=10,5,6,12,123,123,0,100 --input=new.jpg --output=extended.jpg
-```
+""",
 
-
+'flip':  
+"""
 #### 4. Flip an image
-
 * flip an image (horizontally, vertically)
-
 * args is (int) 2-tuple (horizontally, vertically) 
-
-    * Flip horizontally          `--args=1,0`
-    * Flip vertically            `--args=0,1`
-    * Flip corners               `--args=1,1`
-    * Flip nothing               `--args=0,0`
+    * Flip horizontally          --args=1,0
+    * Flip vertically            --args=0,1
+    * Flip corners               --args=1,1
+    * Flip nothing               --args=0,0
 
 Example - 
-```
 python -m known.pix --action=flip --args=1,1 --input=extended.jpg --output=flipped.jpg
-```
+""",
 
+'rotate':  
+"""
 #### 5. Rotate an image
-
 * rotate an image (clockwise or couter-clockwise)
-
 * args is (int) 1-tuple (clockwise) 
-    
-    * Rotate clockwise               `--args=1`
-    * Rotate counter-clockwise       `--args=0`
+    * Rotate clockwise               --args=1
+    * Rotate counter-clockwise       --args=0
 
 Example - 
-```
 python -m known.pix --action=rotate --args=1 --input=flipped.jpg --output=rotated.jpg
-```
+""",
 
+'convert':  
+"""
 #### 6. Convert an image to a format
-
 * converts between image formats *(as per output)*
-
 * args is not used, target file type is infered from the output file extension
 
 Example - 
-```
 python -m known.pix --action=convert --input=rotated.jpg --output=rotated.png
-```
+""",
 
+'autoconvert':  
+"""
 #### 7. Convert an image to multiple formats
-
 * converts between image formats *(as per args)*
-
 * args is (str) n-tuple specifying the extensions to be converted to
-
 * output filenames are not used, the file-names are taken from input files
-
 * the extensions are added as specified in args
-
 * e.g., Convert png to jpg and webp      `--input=input.png --args=jpg,webp`
 the output files will be `input.png` and `input.webp`
 
 Example - 
-```
 python -m known.pix --action=autoconvert --input=rotated.png --args=jpeg,webp
-```
-"""
+""",
 
-import os
-import numpy as np
-import cv2
+}
+
+
+
+
+__doc__=r"""pix module
+Basic Image manupulation from the command line, 
+python -m knwon.pix --help
+""" + "\n\n".join([f'{k}\n{v}' for k,v in EXAMPLES.items()])
+
+
+
+
+import os, json, argparse, cv2, numpy as np
 
 DTYPE =             np.uint8
 VALID_CHANNELS =    set([1, 3, 4])
@@ -433,3 +411,103 @@ class Actions:
                         for f in input_files: os.remove(f)
             else:
                 if verbose: print(f'✗ [MULTICONVERT] Failed for {in_dir}')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+avaliable_actions = [k for k in Actions.__dict__ if not k.startswith('__')]
+#-----------------------------------------------------------------------------------------
+
+def _read_fl_from_text(path):
+    with open(path, 'r') as f: l = [ os.path.abspath(f'{s}') for s in f.read().split('\n') if s ]
+    return l
+def _read_fl_from_json(path):
+    with open(path, 'rb') as f: l = json.load(f)
+    return l
+def _read_fl_from_linux(F): # parses --files="%F"
+    Fl = [fi.strip() for fi in F.split("'/")]
+    Fr = [os.path.abspath(f'/{fl[:-1]}'.replace("'\\''","'")) for fl in Fl if fl] 
+    return Fr
+def _read_fl(parsed_put, parsed_io, check=False):
+    if parsed_put:
+        _put = os.path.abspath(parsed_put)
+        if not parsed_io:        _puts = [_put] 
+        elif parsed_io == 'i':   _puts = [_put]
+        elif parsed_io == 't':   _puts =_read_fl_from_text(_put)
+        elif parsed_io == 'j':   _puts =_read_fl_from_json(_put)
+        elif parsed_io == 'l':   _puts =_read_fl_from_linux(_put)
+        else:                    _puts = [] 
+    else:                        _puts = []
+    if check: _puts = [p for p in _puts if os.path.isfile(p)]
+    return _puts
+
+
+#-----------------------------------------------------------------------------------------
+
+# actions = new, crop, extend, flip, rotate, convert
+parser = argparse.ArgumentParser()
+parser.add_argument('--action', type=str, default='',   help=f"(str) one of the static-methods inside the Actions class, can be - {avaliable_actions}")
+parser.add_argument('--args',   type=str, default='',   help="(str) csv args accepted by the specified action - each action takes different args")
+parser.add_argument('--input',  type=str,   default='', help='(str) input  image-file or a text/json-file containing multiple input image-file names') 
+parser.add_argument('--output',  type=str,  default='', help='(str) output image-file or a text/json-file containing multiple output image-file names') 
+parser.add_argument('--files',  type=str,   default='', help='(str) multiple input image-file names - for custom action -- works only with --io=linux') 
+parser.add_argument('--io',      type=str,  default='', help="(str) can be 'text' or 'json' or 'linux' - keep blank to io as 'image' - used if providing input/output file-names in a text/json file")
+parser.add_argument('--verbose', type=int,  default=0,  help="(int) verbose level - 0 or 1")
+parser.add_argument('--dry',    type=int,  default=0,  help="(int) if true - does a dry run")
+parser.add_argument('--check',    type=int,  default=1,  help="(int) if true - checks existance of input files")
+parser.add_argument('--eg',    type=str,  default="",  help="provides example to an action")
+parsed = parser.parse_args()
+
+# ---------------------------------------------------------------------------------
+_eg_function = parsed.eg
+if _eg_function:
+    print(EXAMPLES.get(_eg_function))
+else:
+
+    _verbose = int(parsed.verbose)
+    _dry = bool(parsed.dry)
+    _check = bool(parsed.check)
+    _action = f'{parsed.action}'
+    if not _action: exit(f'[!] Action not provided')
+    if not hasattr(Actions, _action): exit(f'[!] Action [{_action}] not found')
+    _action = getattr(Actions, _action)
+    # ---------------------------------------------------------------------------------
+    _args = f'{parsed.args}'.split(',')
+    # ---------------------------------------------------------------------------------
+    if not parsed.io: _io = 'i'
+    else: _io = f'{parsed.io}'.lower()[0]
+    if _io == 'l':
+        #print(f'1-----')
+        _inputs =   _read_fl(f'{parsed.files}',  _io, check=_check) # assume existing files are passed
+        _outputs =  _inputs
+    else:
+        #print(f'2-----')
+        _inputs =   _read_fl(f'{parsed.input}',  _io, check=_check) # keep only existing files
+        _outputs =  _read_fl(f'{parsed.output}', _io, check=False)
+        
+        if not _outputs: 
+            #print(f'3-----')
+            _outputs = _inputs # if outputs are not provided, overwrite inputs
+        if _inputs: assert len(_inputs) == len(_outputs), f'Mismatch inputs and outputs' # if inputs were provided, outputs must match them
+
+    # ---------------------------------------------------------------------------------
+    #print(f'{_inputs=}')
+    #print(f'{_outputs=}')
+    _action(_inputs, _outputs, _args, _verbose, _dry)
+    # ---------------------------------------------------------------------------------

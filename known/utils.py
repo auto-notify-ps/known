@@ -3,7 +3,7 @@ __doc__=""" Helper Functions and Utils """
 import os, requests
 
 __all__ =['PublicIPv4', 'ParseLinuxFiles', 'ConfigParser', 'ImportCustomModule', 'GraphFromImage', 'Int2File', 'File2Int',
-        'NewNotebook', 'NB2HTML']
+        'SetupLogging', 'NewNotebook', 'NB2HTML']
 
 
 def PublicIPv4():
@@ -242,6 +242,33 @@ def Int2File(I, file):
     r""" reads bytes from list of Intergers (I) and writes to file """
     with open(file, 'wb') as f:
         for i in I: f.write(i.to_bytes())
+
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+def SetupLogging(logging, logfile, verbose, sep=" "):
+    LOGFILE = None
+    if logfile and verbose: 
+        try: # Set up logging to a file # also output to the console
+            LOGFILE = logfile
+            format=f'%(asctime)s{sep}%(message)s'
+            logging.basicConfig(filename=LOGFILE, level=logging.INFO, format=format)
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.INFO)
+            formatter = logging.Formatter(format)
+            console_handler.setFormatter(formatter)
+            logger = logging.getLogger()
+            logger.addHandler(console_handler)
+        except: exit(f'[!] Logging could not be setup at {LOGFILE}')
+    # ------------------------------------------------------------------------------------------
+    if not verbose: sprint = lambda m: None
+    else:
+        if LOGFILE is None: sprint = lambda m: print(m)
+        else: sprint = lambda m: logging.info(m) 
+    # ------------------------------------------------------------------------------------------
+
+    return sprint
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
 
 
 def NewNotebook(heading="# Notebook", nbformat=4, nbformat_minor=2, save=""): 
