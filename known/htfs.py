@@ -266,7 +266,7 @@ class HTFS:
         self.register()
 
     def __call__(self): 
-        self.printer(f'[START] 🟢 Access via http://{self.source}')
+        self.printer(f'[START] 🟢 Access via {self.source}')
         # ===+++===+++===+++===+++===+++===+++===+++===+++===+++===+++===+++===+++===+++
         def str2bytes(size):
             if isinstance(size, str):
@@ -391,7 +391,7 @@ class Requestor:
     #     argstr = "?" if kwargs else ""
     #     for k,v in kwargs.items(): argstr+=f'{k}={v}&'
     #     try:
-    #         response = requests.get(f"http://{endpoint}{argstr}")
+    #         response = requests.get(f"{endpoint}{argstr}")
     #         success = (response.status_code == 200)
     #         if success: result = response.json() if kwargs else response.text
     #         else: result = None
@@ -406,7 +406,7 @@ class Requestor:
         do_stream = bool(chunk_size)
         if do_stream: chunk_size = int(chunk_size)
         try:
-            response = requests.get(f"http://{endpoint}/{quote(remote_path, safe='/')}", stream=do_stream)
+            response = requests.get(f"{endpoint}/{quote(remote_path, safe='/')}", stream=do_stream)
             success = (response.status_code == 200)
             if success:
                 with open(local_path, "wb") as f:
@@ -424,7 +424,7 @@ class Requestor:
         do_stream = bool(chunk_size)
         if do_stream: chunk_size = int(chunk_size)
         try:
-            response = requests.get(f"http://{endpoint}/{quote(remote_path, safe='/')}??", stream=do_stream)
+            response = requests.get(f"{endpoint}/{quote(remote_path, safe='/')}??", stream=do_stream)
             success = (response.status_code == 200)
             if success:
                 with open(zip_path, "wb") as f:
@@ -440,7 +440,7 @@ class Requestor:
     @staticmethod
     def ListDir(endpoint, remote_path):
         #try:
-        response = requests.get(f"http://{endpoint}/{quote(remote_path, safe='/')}")
+        response = requests.get(f"{endpoint}/{quote(remote_path, safe='/')}")
         success = (response.status_code == 200)
         result = response.json()
         #except: success, result = False, None
@@ -451,7 +451,7 @@ class Requestor:
         files = {}
         try:
             for local_file in local_paths: files[os.path.basename(local_file)] = open(local_file, "rb") 
-            response = requests.post(f"http://{endpoint}/{quote(remote_path, safe='/')}", files=files)
+            response = requests.post(f"{endpoint}/{quote(remote_path, safe='/')}", files=files)
             success = (response.status_code == 200)
         except: success = False
         finally:
@@ -461,7 +461,7 @@ class Requestor:
     @staticmethod
     def PutDir(endpoint, remote_path):
         try:
-            response = requests.put(f"http://{endpoint}/{quote(remote_path, safe='/')}")
+            response = requests.put(f"{endpoint}/{quote(remote_path, safe='/')}")
             success = (response.status_code == 200)
         except: success = False
         return success
@@ -469,7 +469,7 @@ class Requestor:
     @staticmethod
     def Remove(endpoint, remote_path):
         try:
-            response = requests.delete(f"http://{endpoint}/{quote(remote_path, safe='/')}")
+            response = requests.delete(f"{endpoint}/{quote(remote_path, safe='/')}")
             success = (response.status_code == 200)
         except: success = False
         return success
