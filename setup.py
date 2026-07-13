@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name =                      'known',
-    version =                   '0.0.36',
+    version =                   '0.0.37',
     url =                       'https://github.com/NelsonSharma/known',
     author =                    'Nelson.S',
     author_email =              'mail.nelsonsharma@gmail.com',
